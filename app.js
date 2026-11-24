@@ -485,18 +485,27 @@ const lastPark = t => live('parks', t.id).sort((a, b) => b.ts - a.ts)[0];
 const flights = t => live('bookings', t.id).filter(b => b.kind === '항공').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
 /** 예약끼리 시간 맞춰 보기 (주차 입차·출차 대 비행기) */
+/** 주차 앞뒤 여유 (예약 시각 ± 몇 시간까지 입출차 가능) */
+const hhmm = m => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+function parkWindow(pb) {
+  const g = (Number(pb.grace) || 0) * 60;
+  const tm = s => { const [h, m] = String(s || '').split(':').map(Number); return isNaN(h) ? null : h * 60 + (m || 0); };
+  const inM = tm(pb.time), em = String(pb.end || '').match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})/), outM = em ? tm(em[2]) : null;
+  return { g, inFrom: inM != null ? hhmm(inM - g) : '', inTo: inM != null ? hhmm(inM + g) : '', outFrom: outM != null ? hhmm(outM - g) : '', outTo: outM != null ? hhmm(outM + g) : '' };
+}
+/** 예약끼리 시간 맞춰 보기 (주차 입차·출차 대 비행기, 여유 시간까지 셈) */
 function bookingWarnings(t) {
   const out = {}; const pb = parkBooking(t); const fl = flights(t);
   if (pb && fl.length) {
-    const go = fl[0], back = fl[fl.length - 1];
+    const go = fl[0], back = fl[fl.length - 1], g = (Number(pb.grace) || 0) * 60;
     const mins = (d, tm) => { if (!d || !tm) return null; const x = pd(d); const [h, m] = tm.split(':').map(Number); return x.getTime() / 6e4 + h * 60 + m; };
     const inM = mins(pb.date, pb.time), goM = mins(go.date, go.time);
-    if (inM != null && goM != null && goM - inM < 150) out[pb.id] = '입차 ' + pb.time + ' → 출발 ' + go.time + '까지 ' + Math.round((goM - inM)) + '분뿐이에요. 연말 공항은 3시간 전 도착을 권해요.';
+    if (inM != null && goM != null && goM - (inM - g) < 150) out[pb.id] = '입차 ' + pb.time + (g ? '(' + hhmm(inM - g) + '부터 가능)' : '') + ' → 출발 ' + go.time + ' — 연말 공항은 3시간 전 도착을 권해요.';
     const endS = String(pb.end || ''), em = endS.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})/);
     const arr = String(back.end || '').match(/(\d{1,2}:\d{2})/);
     if (em && arr && back.date === em[1]) {
       const outM = mins(em[1], em[2]), arrM = mins(back.date, arr[1]);
-      if (outM - arrM < 120) out[pb.id] = (out[pb.id] ? out[pb.id] + ' ' : '') + '도착 ' + arr[1] + ' 뒤 출차 ' + em[2] + '까지 ' + (outM - arrM) + '분 — 입국·짐 찾기를 생각하면 빠듯해요.';
+      if (outM + g - arrM < 120) out[pb.id] = (out[pb.id] ? out[pb.id] + ' ' : '') + '도착 ' + arr[1] + ' 뒤 출차 ' + (g ? hhmm(outM + g) + '까지 가능' : em[2]) + ' — 입국·짐 찾기를 생각하면 빠듯해요.';
     }
   }
   return out;
@@ -581,7 +590,7 @@ function passCard(t, b, warn) {
   const sideTop = b.kind === '주차' && endS.length > 5 ? '출차 ' + md(endS.slice(0, 10)) : (b.date ? md(b.date) : '날짜 미정');
   const sideBig = b.kind === '주차' && endS.length > 5 ? endS.slice(11) : (b.time || '—');
   return '<button class="pass' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + ib(icn, col, 1) + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
-    '<div class="t">' + esc(b.title) + '</div>' + (b.kind === '주차' ? '<div class="m">' + esc([b.date && ('입차 ' + md(b.date) + ' ' + (b.time || '')), b.car && ('🚗 ' + b.car)].filter(Boolean).join(' · ')) + '</div>' : (b.memo ? '<div class="m">' + esc(b.memo) + '</div>' : '')) +
+    '<div class="t">' + esc(b.title) + '</div>' + (b.kind === '주차' ? '<div class="m">' + esc([b.date && ('입차 ' + md(b.date) + ' ' + (b.time || '')), b.car && ('🚗 ' + b.car)].filter(Boolean).join(' · ')) + '</div>' + (Number(b.grace) ? '<span class="pill" style="align-self:flex-start">앞뒤 ' + Number(b.grace) + '시간 여유</span>' : '') : (b.memo ? '<div class="m">' + esc(b.memo) + '</div>' : '')) +
     (b.code ? '<span class="code">' + esc(b.code) + '</span>' : '') + (warn ? '<div class="warnline">⚠️ 시간 확인</div>' : '') + '</div>' +
     '<div class="side"><small>' + esc(sideTop) + '</small><b class="num">' + esc(sideBig) + '</b>' + (b.kind !== '주차' && endS ? '<small class="num">→ ' + esc(endS.length > 5 ? md(endS.slice(0, 10)) + ' ' + endS.slice(11) : endS) + '</small>' : '') + '</div>' +
     (safeImg(b.thumb) ? '<img class="ph" src="' + b.thumb + '" alt="">' : '') + '</button>';
@@ -779,7 +788,7 @@ function carPage(t) {
       (safeUrl(pk.photoUrl) ? '<a class="btn" href="' + esc(pk.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '원본 사진</a>' : '') + '</div></div></div>';
   } else h += '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('camera', 'var(--c-주차)') + '<span><b>주차 위치 사진 찍기</b><span>기둥 번호·구역 표지판이 보이게 찍어 주세요</span></span></button>';
   if (pb) h += '<div class="sec"><div class="sec-h"><h3>주차 예약</h3></div>' + passCard(t, pb, bookingWarnings(t)[pb.id]) + '<div class="card" style="margin-top:10px"><div class="facts">' +
-    [['주차장', pb.place || pb.title], ['입차', (pb.date || '') + ' ' + (pb.time || '')], ['출차', pb.end], ['차량번호', pb.car], ['예약번호', pb.code], ['보증금', pb.deposit ? comma(pb.deposit) + '원' : ''], ['전화', pb.phone]]
+    [['주차장', pb.place || pb.title], ['입차', (pb.date || '') + ' ' + (pb.time || '') + (Number(pb.grace) ? ' (' + parkWindow(pb).inFrom + '~' + parkWindow(pb).inTo + ' 가능)' : '')], ['출차', (pb.end || '') + (Number(pb.grace) ? ' (' + parkWindow(pb).outFrom + '~' + parkWindow(pb).outTo + ' 가능)' : '')], ['차량번호', pb.car], ['예약번호', pb.code], ['보증금', pb.deposit ? comma(pb.deposit) + '원' : ''], ['전화', pb.phone]]
       .filter(x => x[1]).map(x => '<div><span>' + x[0] + '</span><b>' + esc(x[1]) + '</b></div>').join('') + '</div></div></div>';
   if (pks.length > 1) h += '<div class="sec"><div class="sec-h"><h3>예전 기록</h3></div><div class="card">' + pks.slice(1).map(p => '<button class="row" data-act="park-edit" data-v="' + esc(p.id) + '">' + (safeImg(p.thumb) ? '<img class="th" src="' + p.thumb + '" alt="">' : '') + '<span class="body"><span class="t">' + esc(p.spot || '') + '</span><div class="m">' + esc(md(p.date)) + ' ' + esc(p.time || '') + '</div></span></button>').join('') + '</div></div>';
   return h;
@@ -1042,7 +1051,7 @@ const F = {
     { k: 'date', label: '날짜 (입차·체크인)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
     { k: 'end', label: '끝 (도착·출차·체크아웃)', ph: '예: 09:50 또는 2027-01-01 13:30' },
     { k: 'code', label: '예약번호', half: 1 }, { k: 'provider', label: '어디서 예약', half: 1 },
-    { k: 'place', label: '장소·주소', more: 1 }, { k: 'car', label: '차량번호 (주차)', half: 1, more: 1 }, { k: 'deposit', label: '보증금 (원)', type: 'number', half: 1, more: 1 },
+    { k: 'place', label: '장소·주소', more: 1 }, { k: 'grace', label: '주차 앞뒤 여유 (시간)', type: 'number', ph: '예: 4', half: 1, more: 1 }, { k: 'car', label: '차량번호 (주차)', half: 1, more: 1 }, { k: 'deposit', label: '보증금 (원)', type: 'number', half: 1, more: 1 },
     { k: 'phone', label: '전화', type: 'tel', half: 1, more: 1 }, { k: 'seat', label: '좌석', half: 1, more: 1 },
     { k: 'price', label: '결제 금액', type: 'number', half: 1, more: 1 }, { k: 'cur', label: '돈', type: 'opts', options: [...new Set(['KRW', t.cur || 'KRW'])], names: CUR, half: 1, more: 1 },
     { k: 'link', label: '예약 주소 (https://…)', type: 'url', more: 1 },
@@ -1422,6 +1431,8 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.1', d: '2026-11-25', title: '주차 여유 시간', items: [
+    ['park', 'var(--c-주차)', '주차 앞뒤 여유', '주차 예약에 「앞뒤 여유 시간」을 적으면 입출차 가능한 시간이 보이고, 시간 경고도 그 여유까지 셈해요. 인천 P5는 앞뒤 4시간으로 넣어 두었어요.']] },
   { v: '2.0', d: '2026-11-25', title: '새로워진 하하가족여행', items: [
     ['camera', 'var(--coral)', '사진으로 넣기', '영수증·예약 화면·주차 위치를 찍으면 금액·예약번호·주차 칸이 저절로 채워져요. 사진은 구글 드라이브에 보관돼요.'],
     ['today', 'var(--sun)', '「오늘」 화면', '출발 전·여행 중·돌아오는 날마다 꼭 필요한 것이 먼저 보여요. 시간에 따라 하늘 그림도 바뀌어요.'],
