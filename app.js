@@ -471,7 +471,7 @@ function tripView(t, tab) {
     (isPage ? '<button class="iconbtn" data-act="tab" data-v="today" aria-label="뒤로">' + ic('back') + '</button><h1>' + PAGES[tab] + '</h1>'
       : '<button class="iconbtn" data-act="home" aria-label="여행 목록">' + ic('home') + '</button><h1><button data-act="switch-trip"><span>' + esc(t.title) + '</span>' + ic('down') + '</button></h1>') +
     '<span id="sync" class="sync"></span><button class="iconbtn" data-act="trip-menu" data-v="' + esc(t.id) + '" aria-label="여행 메뉴">' + ic('more') + '</button></div>';
-  h += ({ today: todayTab, plan: planTab, money: moneyTab, book: bookTab, memory: memoryTab, wallet: walletPage, prep: prepPage, car: carPage, info: infoPage, weather: weatherPage, passport: passportPage })[tab](t);
+  h += '<div class="flow flow-' + tab + '">' + ({ today: todayTab, plan: planTab, money: moneyTab, book: bookTab, memory: memoryTab, wallet: walletPage, prep: prepPage, car: carPage, info: infoPage, weather: weatherPage, passport: passportPage })[tab](t) + '</div>';
   h += '</div><nav class="nav" aria-label="여행 메뉴">' + TABS.map(([k, n]) => k === '+'
     ? '<div><button class="plus" data-act="quick" aria-label="더하기">' + ic('plus') + '</button></div>'
     : '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k) + '</span>' + n + '</button>').join('') + '</nav>';
@@ -859,7 +859,7 @@ function bookTab(t) {
   const wx = tripWx(t), known = wx.filter(x => x.max != null);
   const avgMax = known.length ? Math.round(known.reduce((s, x) => s + x.max, 0) / known.length) : null, avgMin = known.length ? Math.round(known.reduce((s, x) => s + x.min, 0) / known.length) : null;
   const recs = live('recs', t.id);
-  const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
+  const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['caution', '⚠️', '현지 주의할 점'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
   const readN = SECS.filter(([k]) => bookRead(t, k)).length;
   const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3>' + e + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
   let h = '<div class="card book-cover"><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
@@ -882,6 +882,12 @@ function bookTab(t) {
   h += head('talk', '🗣️', '꼭 쓰는 말 · ' + ph.lang) + '<div class="muted small" style="margin:-4px 2px 8px">카드를 누르면 뜻과 읽는 법이 보여요. 외운 것은 ✓</div>' + ph.groups.map(([gname, list]) =>
     '<div class="card" style="margin-bottom:10px"><b>' + esc(gname) + '</b><div class="phrases">' + list.map((p, i) => { const k = 'ph.' + gname + '.' + i, got = !!LS.get(BKEY(t, k), false);
       return '<div class="phrase' + (got ? ' got' : '') + '"><button class="ph-face" data-act="flip"><span class="jp">' + esc(p[0]) + '</span><span class="ko">' + esc(p[1]) + '</span><span class="mean">' + esc(p[2]) + '</span></button><button class="ph-got" data-act="phrase-got" data-v="' + esc(k) + '" aria-label="외웠어요">' + (got ? '✓' : '') + '</button></div>'; }).join('') + '</div></div>').join('') + '</div>';
+  // 주의할 점
+  const cau = (G.CAUTION || {})[cc0] || [];
+  if (cau.length) {
+    const grp = {}; cau.forEach(x => (grp[x[0]] = grp[x[0]] || []).push(x));
+    h += head('caution', '⚠️', '현지 주의할 점') + Object.keys(grp).map(g => '<div class="card caution" style="margin-bottom:10px"><b class="cau-g">' + esc(g) + '</b>' + grp[g].map(([, e, a, b]) => '<div class="cau"><span class="cau-e">' + e + '</span><div><b>' + esc(a) + '</b><span>' + esc(b) + '</span></div></div>').join('') + '</div>').join('') + '</div>';
+  } else h += head('caution', '⚠️', '현지 주의할 점') + '<div class="card muted">이 나라 자료는 아직 없어요. 「여행 팁」에 직접 모아 주세요.</div></div>';
   // 문화
   h += head('culture', '🎌', '알아 둘 문화') + (cul.length ? '<div class="stack">' + cul.map(([a, b]) => '<div class="card"><b>' + esc(a) + '</b><p style="margin:6px 0 0">' + esc(b) + '</p></div>').join('') + '</div>' : '<div class="card muted">이 나라 자료는 아직 없어요. 「여행 팁」에 직접 모아 주세요.</div>') + '</div>';
   // 돈
@@ -1431,6 +1437,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.2', d: '2026-11-25', title: '접는 폰에 맞췄어요', items: [
+    ['phone', 'var(--sky)', '폴드·플립·아이폰', '폴드를 펼치면 두 단으로 넓게, 접으면 좁은 화면에 맞게 보여요. 플립·아이폰 화면도 맞췄어요.'],
+    ['sos', 'var(--warn)', '현지 주의할 점', '수첩에 안전·생활 습관·식당·교통·사진·건강·연말연시 주의할 점을 모았어요.'],
+    ['park', 'var(--c-주차)', '주차 앞뒤 4시간', '인천 P5 예약은 입차 03:00~11:00, 출차 09:30~17:30에 할 수 있어요.']] },
   { v: '2.1', d: '2026-11-25', title: '주차 여유 시간', items: [
     ['park', 'var(--c-주차)', '주차 앞뒤 여유', '주차 예약에 「앞뒤 여유 시간」을 적으면 입출차 가능한 시간이 보이고, 시간 경고도 그 여유까지 셈해요. 인천 P5는 앞뒤 4시간으로 넣어 두었어요.']] },
   { v: '2.0', d: '2026-11-25', title: '새로워진 하하가족여행', items: [
