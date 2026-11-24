@@ -1,12 +1,13 @@
-/* 하하가족여행 — 가족이 함께 고치는 여행 앱
- * 원본은 4gospel 구글 드라이브(앱스 스크립트 서버), 이 기기에는 사본과 아직 못 보낸 변경만 둔다. */
+/* 하하가족여행 2 — 가족이 함께 고치는 여행 앱
+ * 원본: 4gospel 구글 드라이브(앱스 스크립트 서버). 이 기기에는 사본과 못 보낸 고침만.
+ * 사진은 찍는 즉시 드라이브 「하하가족여행/사진」에 보관, 글자는 서버가 읽어 칸을 채움(사람이 확인 후 간직). */
 (() => {
 'use strict';
 
 const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
   ? '/api'
   : 'https://script.google.com/macros/s/AKfycbzW5yTlddAZEjsqm0qbM9KZw2be-0xYKISxUu4BrxR2DSHzfyadiW3MF_OziGKh3Kc3Ww/exec';
-const COLS = ['trips', 'items', 'bookings', 'spends', 'checks', 'notes', 'places', 'recs'];
+const COLS = ['trips', 'items', 'bookings', 'spends', 'checks', 'notes', 'places', 'recs', 'parks'];
 
 /* ---------- 이 기기 저장 ---------- */
 const LS = {
@@ -21,8 +22,9 @@ let D = norm(LS.get('data', null));
 let Q = LS.get('q', []);
 let PASS = LS.get('pass', '');
 let ME = LS.get('me', '');
-const UI = { mode: LS.get('mode', 'tl'), recK: '전체', logK: 'note', day: {} };
+const UI = { mode: LS.get('mode', 'tl'), recK: '전체', memK: 'note', day: {}, showPast: false };
 const persist = () => { LS.set('data', D); LS.set('q', Q); };
+if (LS.get('big', false)) document.documentElement.classList.add('big');
 
 /* ---------- 작은 도구 ---------- */
 const $ = s => document.querySelector(s);
@@ -34,6 +36,7 @@ const WK = '일월화수목금토';
 const pd = s => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); };
 const ymd = dt => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
 const today = () => ymd(new Date());
+const hm = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const md = s => { if (!s) return ''; const d = pd(s); return (d.getMonth() + 1) + '/' + d.getDate() + '(' + WK[d.getDay()] + ')'; };
 const dayDiff = (a, b) => Math.round((pd(b) - pd(a)) / 864e5);
 function daysOf(t) {
@@ -41,68 +44,138 @@ function daysOf(t) {
   for (let d = pd(t.start); d <= pd(t.end) && out.length < 60; d.setDate(d.getDate() + 1)) out.push(ymd(d));
   return out;
 }
+function phase(t) {
+  const t0 = today();
+  if (t0 < t.start) return 'before';
+  if (t0 > t.end) return 'after';
+  if (t0 === t.start) return 'first';
+  if (t0 === t.end) return 'last';
+  return 'during';
+}
 function ddayText(t) {
   const n = dayDiff(today(), t.start), e = dayDiff(today(), t.end);
   if (n > 0) return 'D-' + n;
-  if (e >= 0) return '여행 ' + (1 - n) + '일째';
+  if (e >= 0) return (1 - n) + '일째';
   return '다녀옴';
 }
-const CUR = { JPY: '엔', KRW: '원', USD: '달러', EUR: '유로', CNY: '위안', TWD: '대만달러', THB: '바트', VND: '동', PHP: '페소', SGD: '싱가포르달러' };
+const CUR = { JPY: '엔', KRW: '원', USD: '달러', EUR: '유로', CNY: '위안', TWD: '대만달러', THB: '바트', VND: '동', PHP: '페소', SGD: '싱가포르달러', GBP: '파운드', AUD: '호주달러', HKD: '홍콩달러' };
 const unit = c => CUR[c] || c || '';
 const toWon = (t, amt, cur) => { amt = Number(amt) || 0; cur = cur || t.cur || 'KRW'; return cur === 'KRW' ? amt : amt * (Number(t.rate) || 0) / 100; };
-const manWon = w => w >= 10000 ? (Math.round(w / 1000) / 10).toLocaleString('ko-KR') + '만 원' : comma(w) + '원';
-const money = (t, amt, cur) => { cur = cur || t.cur; const s = comma(amt) + unit(cur); return cur === 'KRW' ? s : s + ' <em class="muted">≈ ' + manWon(toWon(t, amt, cur)) + '</em>'; };
+const manWon = w => Math.abs(w) >= 10000 ? (Math.round(w / 1000) / 10).toLocaleString('ko-KR') + '만 원' : comma(w) + '원';
 const mapUrl = q => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+const dirUrl = (q, lat, lng) => 'https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=' + encodeURIComponent(lat ? lat + ',' + lng : q);
 const safeUrl = u => /^https:\/\//i.test(String(u || '')) ? u : '';
+const safeImg = u => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(u || '')) ? u : '';
 
-const CAT = { 이동: '--c-move', 관광: '--c-see', 식사: '--c-eat', 간식: '--c-snack', 숙소: '--c-stay', 쇼핑: '--c-shop', 기타: '--c-etc' };
-const catVar = c => 'var(' + (CAT[c] || '--c-etc') + ')';
-const RECK = { 명소: '--c-see', 맛집: '--c-eat', 쇼핑: '--c-shop', 팁: '--c-move', 숙소: '--c-stay' };
-const AVC = ['#4F6EF0', '#DC4F93', '#F2683C', '#12A28C', '#8B63E8', '#D9921E'];
+const CATS = ['이동', '관광', '식사', '간식', '숙소', '쇼핑', '기타'];
+const cc = c => 'var(--c-' + (CATS.includes(c) || c === '주차' ? c : '기타') + ')';
+const RECC = { 명소: '관광', 맛집: '식사', 쇼핑: '쇼핑', 팁: '이동', 숙소: '숙소' };
+const AVC = ['#4C8DF6', '#F2629B', '#FF7A59', '#22BFA0', '#9B7BF2', '#E8A400'];
+const fam = n => D.meta.family.find(f => f.name === n);
 const famIdx = n => Math.max(0, D.meta.family.findIndex(f => f.name === n));
 const av = (n, sz) => '<span class="av" style="background:' + AVC[famIdx(n) % AVC.length] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + esc(String(n || '?').slice(-2)) + '</span>';
-const GRAD = { sea: '', sunset: 'g-sunset', forest: 'g-forest', plum: 'g-plum', sand: 'g-sand' };
 
 const ICON = {
-  back: '<path d="M15 18l-6-6 6-6"/>', more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
-  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  back: '<path d="M15 18l-6-6 6-6"/>', down: '<path d="M6 9l6 6 6-6"/>', more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.2l2.1 2.1M17.7 15.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 17.8l2.1-2.1M17.7 8.3l2.1-2.1"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  over: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  today: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
   plan: '<rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M7.5 14h3M7.5 17h6"/>',
-  recs: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
   money: '<rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19M16.5 14.5h2"/>',
+  book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5"/><path d="M9 7.5h7M9 11h5"/>',
+  memory: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  recs: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
   prep: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17"/>',
-  log: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/>',
   pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  route: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>',
   plane: '<path d="M2.5 12h19M14 12l-4.5-7h-2l2.5 7M14 12l-4.5 7h-2l2.5-7M5 12L3.5 9H5l2 3M5 12l-1.5 3H5l2-3"/>',
   bed: '<path d="M3 18V7M3 13h18v5M21 18v-3a3 3 0 0 0-3-3h-8v1"/><circle cx="7" cy="10.5" r="1.8"/>',
   ticket: '<path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/>',
-  train: '<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M8.5 21l2-4M15.5 21l-2-4"/><circle cx="9" cy="14" r=".6"/><circle cx="15" cy="14" r=".6"/>',
+  train: '<rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M8.5 21l2-4M15.5 21l-2-4"/>',
+  park: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M9.5 17V7.5h3.2a2.8 2.8 0 0 1 0 5.6H9.5"/>',
+  car: '<path d="M5 16V11l2-5h10l2 5v5M3.5 16h17v3h-3v-1.5h-11V19h-3z"/><circle cx="7.5" cy="13.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/>',
   doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
   notion: '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8.5 16.5v-8l7 8v-8"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-  star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z"/>',
   food: '<path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10M17 21V3c-2.5 1.2-3.5 4-3.5 8h3.5"/>',
   bag: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>', bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/>',
+  camera: '<path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.8"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+  pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z"/>',
   sync: '<path d="M20 11a8 8 0 0 0-14.3-4.6L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.6L20 16M20 20v-4h-4"/>',
   out: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3"/>', trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14a6.5 6.5 0 0 1 3 6"/>',
-  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14.5 8.5l2 2"/>', phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/>'
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14.5 8.5l2 2"/>', phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
+  sun: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>', text: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
+  sos: '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>', home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  bus: '<rect x="4.5" y="3.5" width="15" height="14" rx="3"/><path d="M4.5 11h15M7 17.5V20M17 17.5V20M7.5 6.5h9"/><circle cx="8" cy="14.3" r=".9"/><circle cx="16" cy="14.3" r=".9"/>',
+  taxi: '<path d="M5 15v-4l2-4.5h10L19 11v4M3.5 15h17v3.5h-3V17h-11v1.5h-3z"/><path d="M9.5 6.5L10 4h4l.5 2.5"/><circle cx="7.5" cy="12.8" r="1"/><circle cx="16.5" cy="12.8" r="1"/>',
+  torii: '<path d="M3 5.5Q12 7.5 21 5.5M4.5 9h15M7 5.8V21M17 5.8V21M12 6.5V9"/>',
+  tower: '<path d="M12 2.5v3M9.5 5.5h5l-1 5h-3zM10.5 10.5L8 21M13.5 10.5L16 21M9 16h6"/>',
+  bowl: '<path d="M3.5 11h17a8.5 8.5 0 0 1-17 0zM8 20.5h8M9 3.5c0 2 1.5 2 1.5 4M13 3.5c0 2 1.5 2 1.5 4"/>',
+  cup: '<path d="M4.5 8.5h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM16.5 10h1.5a2.5 2.5 0 0 1 0 5h-1.5M8 3.5c0 1.5 1 1.5 1 3M12 3.5c0 1.5 1 1.5 1 3"/>',
+  basket: '<path d="M3.5 10h17l-2 10H5.5zM8 10l3-6M16 10l-3-6M9 14v3M12 14v3M15 14v3"/>',
+  land: '<path d="M3 20.5h18M4 13.5l3.5 1 2-1 6.5 2.5c1.5.6 3 .2 3.5-.7.4-.9-.3-1.9-1.8-2.4L12 10.5 9.5 4.5l-2-.5 1 6-3.5-1L4 6.5 2.5 6l.5 5z"/>',
+  ai: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/>'
 };
-const ic = (n, cls) => '<svg class="i ' + (cls || '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || '') + '</svg>';
-const BK_IC = { 항공: 'plane', 숙소: 'bed', 티켓: 'ticket', 교통: 'train', 서류: 'doc', 기타: 'ticket' };
+const ic = n => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || '') + '</svg>';
+const ib = (n, color, sm) => '<span class="ib' + (sm ? ' sm' : '') + '" style="--cc:' + color + '">' + ic(n) + '</span>';
+function itemIcon(i) {
+  const x = (i.title || '') + ' ' + (i.place || '');
+  if (/주차|입차|출차/.test(x)) return ['park', 'var(--c-주차)'];
+  if (/도착/.test(x) && /공항|간사이|인천|airport/i.test(x) && !/셔틀|체크인/.test(x)) return ['land', 'var(--c-이동)'];
+  if (/체크인/.test(x) && /공항/.test(x)) return ['plane', 'var(--c-이동)'];
+  if (/출발|항공|7C\d|비행|탑승|airport|공항/i.test(x) && !/급행|셔틀|난카이|버스|→ ?덴가/.test(x)) return ['plane', 'var(--c-이동)'];
+  if (/셔틀|버스/.test(x)) return ['bus', 'var(--c-이동)'];
+  if (/택시/.test(x)) return ['taxi', 'var(--c-이동)'];
+  if (i.cat === '이동') return ['train', 'var(--c-이동)'];
+  if (/숙소|체크인|체크아웃|호텔|짐/.test(x) || i.cat === '숙소') return ['bed', 'var(--c-숙소)'];
+  if (/USJ|유니버설|입장|티켓|파크/i.test(x)) return ['ticket', 'var(--c-관광)'];
+  if (/신사|절|데라|사원|도리이|이나리/.test(x)) return ['torii', 'var(--c-관광)'];
+  if (/전망|야경|타워|쓰텐카쿠|하루카스|스카이/.test(x)) return ['tower', 'var(--c-관광)'];
+  if (/시장/.test(x)) return ['basket', i.cat === '쇼핑' ? 'var(--c-쇼핑)' : 'var(--c-식사)'];
+  if (/카페|커피|디저트|아이스/.test(x) || i.cat === '간식') return ['cup', 'var(--c-간식)'];
+  if (i.cat === '식사') return ['bowl', 'var(--c-식사)'];
+  if (i.cat === '쇼핑') return ['bag', 'var(--c-쇼핑)'];
+  if (i.cat === '관광') return ['camera', 'var(--c-관광)'];
+  return ['pin', 'var(--c-기타)'];
+}
+const IATA = { 인천: 'ICN', 김포: 'GMP', 간사이: 'KIX', 오사카: 'KIX', 이타미: 'ITM', 나리타: 'NRT', 하네다: 'HND', 도쿄: 'NRT', 후쿠오카: 'FUK', 나고야: 'NGO', 삿포로: 'CTS', 오키나와: 'OKA', 나하: 'OKA', 제주: 'CJU', 김해: 'PUS', 부산: 'PUS', 청주: 'CJJ', 대구: 'TAE',
+  타이베이: 'TPE', 방콕: 'BKK', 다낭: 'DAD', 세부: 'CEB', 괌: 'GUM', 홍콩: 'HKG', 싱가포르: 'SIN', 마쓰야마: 'MYJ', 다카마쓰: 'TAK', 기타큐슈: 'KKJ', 고마쓰: 'KMQ', 요나고: 'YGJ', 가고시마: 'KOJ', 오이타: 'OIT', 상하이: 'PVG', 하노이: 'HAN', 호찌민: 'SGN', 마닐라: 'MNL', 파리: 'CDG', 런던: 'LHR' };
+function flightInfo(b) {
+  const t = b.title || '';
+  const m = t.match(/([가-힣A-Za-z]+)\s*(?:→|->|~)\s*([가-힣A-Za-z]+)/);
+  const code = n => IATA[n] || (/^[A-Z]{3}$/.test(n) ? n : null);
+  const fn = (t.match(/\b([A-Z0-9]{2}\s?\d{2,4})\b/) || [])[1] || '';
+  const air = (t.match(/^([가-힣]+항공|[가-힣]+에어)/) || [])[1] || b.provider || '';
+  if (!m || !code(m[1]) || !code(m[2])) return null;
+  return { from: code(m[1]), to: code(m[2]), fromN: m[1], toN: m[2], fn, air };
+}
+const BK = { 항공: ['plane', 'var(--c-이동)'], 숙소: ['bed', 'var(--c-숙소)'], 티켓: ['ticket', 'var(--c-관광)'], 교통: ['train', 'var(--c-이동)'], 주차: ['park', 'var(--c-주차)'], 서류: ['doc', 'var(--c-기타)'], 기타: ['ticket', 'var(--c-기타)'] };
 const RC_IC = { 명소: 'recs', 맛집: 'food', 쇼핑: 'bag', 팁: 'bulb', 숙소: 'bed' };
 
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.hidden = false;
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 2600);
+/* ---------- 알림 띠·되돌리기·색종이 ---------- */
+function toast(msg, undo) {
+  const t = $('#toast'); t.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button id="undo">되돌리기</button>' : ''); t.hidden = false;
+  if (undo) $('#undo').onclick = () => { undo(); t.hidden = true; };
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, undo ? 5000 : 2800);
 }
+function confetti() {
+  const box = document.createElement('div'); box.className = 'confetti';
+  const cols = ['#FF7A59', '#FFC23D', '#22BFA0', '#4C8DF6', '#9B7BF2', '#F2629B'];
+  for (let i = 0; i < 60; i++) { const s = document.createElement('i'); s.style.left = Math.random() * 100 + '%'; s.style.background = cols[i % 6]; s.style.animationDelay = Math.random() * .4 + 's'; box.appendChild(s); }
+  document.body.appendChild(box); setTimeout(() => box.remove(), 2000);
+}
+const buzz = () => { try { navigator.vibrate && navigator.vibrate(10); } catch (e) {} };
 
 /* ---------- 서버 ---------- */
 async function call(fn, ...args) {
-  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ pass: PASS, fn, args }) });
+  let r;
+  try { r = await fetch(API, { method: 'POST', body: JSON.stringify({ pass: PASS, fn, args }) }); }
+  catch (e) { const er = new Error('인터넷 연결을 확인해 주세요'); er.code = 'offline'; throw er; }
   let j; try { j = await r.json(); } catch (e) { const er = new Error('서버 답이 이상해요'); er.code = 'net'; throw er; }
   if (!j.ok) { const er = new Error(j.msg || j.err); er.code = j.err; throw er; }
   return j.v;
@@ -111,16 +184,21 @@ let flying = false, timer = 0, status = 'ok';
 function setStatus(s) { status = s; const el = $('#sync'); if (el) paintSync(el); }
 function paintSync(el) {
   el.className = 'sync ' + (status === 'ok' ? '' : status);
-  el.innerHTML = '<i></i>' + (status === 'wait' ? '저장 중' : status === 'bad' ? (Q.length ? '저장 대기 ' + Q.length : '연결 안 됨') : '함께 보는 중');
+  el.innerHTML = '<i></i>' + (status === 'wait' ? '저장 중' : status === 'bad' ? (Q.length ? '보낼 것 ' + Q.length : '연결 안 됨') : '구글에 저장됨');
 }
-function put(c, rec) {
+function put(c, rec, quiet) {
   rec.ts = Math.max(Date.now(), (Number(rec.ts) || 0) + 1);
   rec.by = ME;
   if (c === 'meta') D.meta = rec; else D[c][rec.id] = rec;
   Q.push({ c, id: rec.id || 'meta', v: rec });
-  persist(); render(); kick();
+  persist(); if (!quiet) render(); kick();
+  return rec;
 }
-function remove(c, id) { const r = D[c][id]; if (r) put(c, { id, trip: r.trip, del: true, ts: r.ts }); }
+function remove(c, id, label) {
+  const old = D[c][id]; if (!old) return;
+  put(c, { id, trip: old.trip, del: true, ts: old.ts });
+  toast((label || '') + ' 지웠어요', () => put(c, Object.assign({}, old)));
+}
 function kick(ms) { clearTimeout(timer); timer = setTimeout(flush, ms == null ? 400 : ms); }
 async function flush() {
   if (flying || !Q.length || !PASS) return;
@@ -129,7 +207,7 @@ async function flush() {
   try {
     const d = await call('apply', ops);
     Q = Q.slice(ops.length);
-    adopt(d); setStatus('ok');
+    adopt(d, true); setStatus('ok');
   } catch (e) {
     flying = false; setStatus('bad');
     if (e.code === 'pass') return relock();
@@ -138,16 +216,30 @@ async function flush() {
   flying = false;
   if (Q.length) kick(100);
 }
-function adopt(d) {
+function adopt(d, mine) {
   d = norm(d);
   for (const op of Q) {
     if (op.c === 'meta') { d.meta = op.v; continue; }
     const cur = d[op.c][op.id];
     if (!cur || (cur.ts || 0) <= op.v.ts) d[op.c][op.id] = op.v;
   }
+  if (!mine) othersChanged(d);
   const same = JSON.stringify(d) === JSON.stringify(D);
   D = d; persist();
   if (!same) render();
+}
+/** 다른 가족이 고친 것 알려 주기 */
+function othersChanged(d) {
+  const seen = LS.get('seen', 0);
+  let max = seen; const who = {};
+  COLS.forEach(c => Object.values(d[c]).forEach(r => {
+    if (!r || !r.ts) return;
+    if (r.ts > max) max = r.ts;
+    if (seen && r.ts > seen && r.by && r.by !== ME && r.by !== '하하' && r.by !== '도우미') who[r.by] = (who[r.by] || 0) + 1;
+  }));
+  LS.set('seen', max);
+  const names = Object.keys(who);
+  if (names.length) toast(names.map(n => ((fam(n) || {}).role || n) + '가 ' + who[n] + '개').join(', ') + ' 고쳤어요');
 }
 async function pull() {
   try { adopt(await call('load')); setStatus(Q.length ? 'wait' : 'ok'); if (Q.length) kick(); }
@@ -163,140 +255,351 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) poll
 window.addEventListener('online', () => poll());
 function relock() { PASS = ''; LS.del('pass'); toast('가족 암호를 다시 넣어 주세요'); render(); }
 
-/* ---------- 길 (주소 #/trip/<id>/<tab>) ---------- */
+/* ---------- 표지 그림 (코드로 그린 하늘·해·구름·도시) ---------- */
+function partOfDay() { const h = new Date().getHours(); return h >= 5 && h < 8 ? 'dawn' : h >= 8 && h < 16 ? 'day' : h >= 16 && h < 19 ? 'dusk' : 'night'; }
+const SKY = { dawn: ['#6E8BD8', '#F4A38C', '#FFD9A8'], day: ['#2F7DE8', '#6FB0FF', '#BFE3FF'], dusk: ['#3A3A7A', '#E2697B', '#FFB067'], night: ['#0B1636', '#1F2D63', '#3B4C8C'] };
+function skyline(place) {
+  const p = String(place || '');
+  const ground = 'M0 188 H400 V220 H0Z';
+  if (/오사카|osaka/i.test(p)) return ground +
+    ' M58 188 L66 168 H134 L142 188Z M78 168 V150 H122 V168Z M70 152 L130 152 L120 140 L80 140Z M86 140 V126 H114 V140Z M80 128 L120 128 L112 116 L88 116Z M92 116 L108 116 L100 104Z' +
+    ' M292 188 L298 150 H306 L312 188Z M297 152 V96 H307 V152Z M291 98 H313 V84 H291Z M301 84 V60 H303 V84Z' +
+    ' M160 188 V160 H182 V188Z M186 188 V146 H204 V188Z M208 188 V166 H228 V188Z M236 188 V136 H254 V188Z M258 188 V156 H280 V188Z M326 188 V150 H346 V188Z M350 188 V170 H372 V188Z M376 188 V158 H396 V188Z M8 188 V170 H30 V188Z';
+  if (/교토|kyoto/i.test(p)) return ground +
+    ' M300 188 V176 H330 V188Z M290 178 L340 178 L330 170 L300 170Z M303 170 V160 H327 V170Z M294 162 L336 162 L326 154 L304 154Z M306 154 V146 H324 V154Z M298 148 L332 148 L323 140 L307 140Z M309 140 V132 H321 V140Z M302 134 L328 134 L320 127 L310 127Z M314 127 V108 H316 V127Z' +
+    ' M70 188 V168 M72 168 H120 M66 160 H126 M78 160 V188 M112 160 V188 M60 158 Q96 148 132 158 L130 164 Q96 156 62 164Z';
+  if (/제주|jeju|한라/i.test(p)) return 'M0 176 Q120 96 210 112 Q300 128 400 170 V220 H0Z';
+  if (/도쿄|tokyo/i.test(p)) return ground + ' M296 188 L304 120 H312 L320 188Z M300 124 L308 50 L316 124Z M150 188 V150 H176 V188Z M180 188 V132 H204 V188Z M210 188 V160 H232 V188Z M60 188 V156 H86 V188Z M90 188 V168 H112 V188Z';
+  return 'M0 176 L50 140 L92 166 L150 112 L214 168 L270 134 L330 160 L400 128 V220 H0Z';
+}
+function scene(t, opts) {
+  opts = opts || {};
+  const part = partOfDay(), s = SKY[part], id = 'g' + Math.random().toString(36).slice(2, 7);
+  const sea = /제주|바다|해변|괌|하와이|다낭|세부|오키나와|발리|푸켓|보라카이|jeju|guam|hawaii|cebu|bali/i.test(t.place + t.title);
+  const n = dayDiff(today(), t.start);
+  const p = n > 0 ? Math.max(.06, 1 - n / 60) : 1;
+  const P = (a, b, c, k) => (1 - k) * (1 - k) * a + 2 * (1 - k) * k * b + k * k * c;
+  const px = P(30, 200, 370, p), py = P(84, 18, 84, p);
+  const ang = Math.atan2(P(84, 18, 84, Math.min(1, p + .01)) - py, P(30, 200, 370, Math.min(1, p + .01)) - px) * 180 / Math.PI;
+  const sunY = part === 'day' ? 52 : 118, sunC = part === 'dawn' ? '#FFB27A' : part === 'dusk' ? '#FF8A5B' : '#FFD45A';
+  const sil = part === 'night' ? '#081024' : part === 'day' ? '#1D3A6B' : '#2B2550';
+  let h = '<svg class="scene" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="background:linear-gradient(180deg,' + s[0] + ' 0%,' + s[1] + ' 60%,' + s[2] + ' 100%)">';
+  if (part === 'night') {
+    h += [[40, 30], [90, 60], [150, 24], [220, 50], [260, 20], [340, 40], [370, 80], [120, 90]].map(([x, y]) => '<circle cx="' + x + '" cy="' + y + '" r="1.4" fill="#fff" opacity=".85"/>').join('');
+    h += '<circle cx="320" cy="56" r="20" fill="#FFF3C4"/><circle cx="330" cy="50" r="18" fill="' + s[0] + '"/>';
+  } else {
+    h += '<circle cx="320" cy="' + sunY + '" r="46" fill="' + sunC + '" opacity=".25"/><circle cx="320" cy="' + sunY + '" r="26" fill="' + sunC + '"/>';
+  }
+  h += '<g class="cloud" opacity=".9"><ellipse cx="60" cy="50" rx="34" ry="11" fill="#fff" opacity=".75"/><ellipse cx="78" cy="44" rx="20" ry="10" fill="#fff" opacity=".8"/></g>' +
+    '<g class="cloud c2" opacity=".8"><ellipse cx="0" cy="96" rx="40" ry="10" fill="#fff" opacity=".6"/><ellipse cx="20" cy="90" rx="22" ry="9" fill="#fff" opacity=".7"/></g>';
+  if (!opts.noPlane) {
+    h += '<path d="M30 84 Q200 -48 370 84" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" stroke-dasharray="3 7" stroke-linecap="round"/>' +
+      '<g transform="translate(' + px.toFixed(1) + ' ' + py.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')"><path d="M-12 0 H12 M4 0 L-3 -9 H-7 L-2 0 M4 0 L-3 9 H-7 L-2 0 M-9 0 L-12 -5 H-10 L-6 0 M-9 0 L-12 5 H-10 L-6 0" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></g>';
+  }
+  if (sea) h += '<rect y="178" width="400" height="42" fill="#2E7FD0" opacity=".55"/><path d="M0 192 q20 -6 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>';
+  h += '<path d="' + skyline(t.place + ' ' + t.title) + '" fill="' + sil + '" opacity=".88"/>';
+  h += '</svg>';
+  return h;
+}
+
+/* ---------- 나라별 정보 ---------- */
+const CONSUL = '+82-2-3210-0404';
+const COUNTRY = {
+  JP: { n: '일본', f: '🇯🇵', cur: 'JPY', tz: '한국과 같음', volt: '100V · 11자 플러그(A형) — 변환 어댑터 필요', sos: [['경찰', '110'], ['구급·화재', '119']], tip: '팁 문화 없음', etc: '왼쪽 통행 · 현금만 받는 가게가 아직 있어요' },
+  TW: { n: '대만', f: '🇹🇼', cur: 'TWD', tz: '한국보다 1시간 늦음', volt: '110V · 11자 플러그(A형)', sos: [['경찰', '110'], ['구급·화재', '119']], tip: '팁 문화 없음', etc: '' },
+  VN: { n: '베트남', f: '🇻🇳', cur: 'VND', tz: '한국보다 2시간 늦음', volt: '220V · 한국 플러그 대부분 맞음', sos: [['경찰', '113'], ['화재', '114'], ['구급', '115']], tip: '팁은 마음대로', etc: '' },
+  TH: { n: '태국', f: '🇹🇭', cur: 'THB', tz: '한국보다 2시간 늦음', volt: '220V · 한국 플러그 대부분 맞음', sos: [['관광경찰', '1155'], ['구급', '1669']], tip: '작은 팁을 주기도 함', etc: '' },
+  CN: { n: '중국', f: '🇨🇳', cur: 'CNY', tz: '한국보다 1시간 늦음', volt: '220V · 플러그 여러 모양', sos: [['경찰', '110'], ['구급', '120'], ['화재', '119']], tip: '팁 문화 없음', etc: '' },
+  HK: { n: '홍콩', f: '🇭🇰', cur: 'HKD', tz: '한국보다 1시간 늦음', volt: '220V · 영국식(G형) 어댑터 필요', sos: [['경찰·구급', '999']], tip: '봉사료가 붙는 곳이 많음', etc: '' },
+  SG: { n: '싱가포르', f: '🇸🇬', cur: 'SGD', tz: '한국보다 1시간 늦음', volt: '230V · 영국식(G형) 어댑터 필요', sos: [['경찰', '999'], ['구급', '995']], tip: '팁 문화 거의 없음', etc: '' },
+  PH: { n: '필리핀', f: '🇵🇭', cur: 'PHP', tz: '한국보다 1시간 늦음', volt: '220V · 11자 플러그 많음', sos: [['긴급', '911']], tip: '작은 팁을 주기도 함', etc: '' },
+  US: { n: '미국', f: '🇺🇸', cur: 'USD', tz: '지역마다 다름', volt: '120V · 11자 플러그(A·B형)', sos: [['긴급', '911']], tip: '식당 팁 15~20%', etc: '' },
+  GB: { n: '영국', f: '🇬🇧', cur: 'GBP', tz: '한국보다 9시간 늦음(겨울)', volt: '230V · 영국식(G형) 어댑터 필요', sos: [['긴급', '999 또는 112']], tip: '봉사료 포함인지 확인', etc: '' },
+  FR: { n: '프랑스', f: '🇫🇷', cur: 'EUR', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 맞음', sos: [['긴급', '112']], tip: '봉사료 포함이 많음', etc: '' },
+  IT: { n: '이탈리아', f: '🇮🇹', cur: 'EUR', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 대부분 맞음', sos: [['긴급', '112']], tip: '자리값(코페르토)이 붙기도 함', etc: '' },
+  ES: { n: '스페인', f: '🇪🇸', cur: 'EUR', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 맞음', sos: [['긴급', '112']], tip: '팁은 마음대로', etc: '' },
+  DE: { n: '독일', f: '🇩🇪', cur: 'EUR', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 맞음', sos: [['긴급', '112']], tip: '5~10% 정도', etc: '' },
+  AU: { n: '호주', f: '🇦🇺', cur: 'AUD', tz: '지역마다 다름', volt: '230V · I형 어댑터 필요', sos: [['긴급', '000']], tip: '팁 문화 거의 없음', etc: '' },
+  KR: { n: '한국', f: '🇰🇷', cur: 'KRW', tz: '', volt: '220V', sos: [['경찰', '112'], ['구급·화재', '119']], tip: '', etc: '' }
+};
+const WMO = c => c === 0 ? ['☀️', '맑음'] : c <= 2 ? ['🌤️', '구름 조금'] : c === 3 ? ['☁️', '흐림'] : c <= 48 ? ['🌫️', '안개'] : c <= 57 ? ['🌦️', '이슬비'] : c <= 67 ? ['🌧️', '비'] : c <= 77 ? ['❄️', '눈'] : c <= 82 ? ['🌦️', '소나기'] : c <= 86 ? ['🌨️', '눈발'] : ['⛈️', '뇌우'];
+const INFO = {};
+let PASSPORTS = null;
+async function loadInfo(t) {
+  const key = t.id;
+  if (INFO[key] && Date.now() - INFO[key].at < 30 * 60 * 1000) return;
+  INFO[key] = { at: Date.now() };
+  const city = String(t.city || t.place || '').split(/[·,\/]/)[0].replace(/^(일본|대만|베트남|태국|중국|미국|영국|프랑스|이탈리아|스페인|독일|호주|싱가포르|필리핀|홍콩)\s*/, '').trim();
+  try {
+    let g = LS.get('geo.' + city, null);
+    if (!g && city) {
+      const r = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=ko&name=' + encodeURIComponent(city))).json();
+      const x = r.results && r.results[0];
+      if (x) { g = { lat: x.latitude, lng: x.longitude, cc: x.country_code, name: x.name, tz: x.timezone }; LS.set('geo.' + city, g); }
+    }
+    if (g) {
+      INFO[key].geo = g;
+      const w = await (await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + g.lat + '&longitude=' + g.lng + '&current=temperature_2m,weather_code&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,sunrise,sunset&forecast_days=16&timezone=' + encodeURIComponent(g.tz || 'auto'))).json();
+      INFO[key].wx = w;
+      const lastFc = w.daily && w.daily.time[w.daily.time.length - 1];
+      if (!lastFc || lastFc < t.end) {
+        const nk = 'norm.' + g.lat + ',' + g.lng + '.' + t.start + '.' + t.end;
+        let nm = LS.get(nk, null);
+        if (!nm) {
+          const y0 = pd(t.start).getFullYear(), span = pd(t.end).getFullYear() - y0;
+          const per = {}; let n = 0;
+          for (let k = 1; k <= 3; k++) {
+            const s0 = (y0 - k) + t.start.slice(4), e0 = (y0 - k + span) + t.end.slice(4);
+            try {
+              const a = await (await fetch('https://archive-api.open-meteo.com/v1/archive?latitude=' + g.lat + '&longitude=' + g.lng + '&start_date=' + s0 + '&end_date=' + e0 + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code&timezone=' + encodeURIComponent(g.tz || 'auto'))).json();
+              (a.daily && a.daily.time || []).forEach((d, i) => { const m = d.slice(5); const r = per[m] = per[m] || { max: 0, min: 0, rain: 0, n: 0 }; r.max += a.daily.temperature_2m_max[i]; r.min += a.daily.temperature_2m_min[i]; r.rain += a.daily.precipitation_sum[i] > 1 ? 1 : 0; r.n++; });
+              n++;
+            } catch (e) {}
+          }
+          if (n) {
+            const days = {}; let sx = 0, sn = 0, c = 0;
+            Object.keys(per).forEach(m => { const r = per[m]; days[m] = { max: Math.round(r.max / r.n), min: Math.round(r.min / r.n), rainP: Math.round(r.rain / r.n * 100) }; sx += r.max / r.n; sn += r.min / r.n; c++; });
+            nm = { days, years: n, avgMax: Math.round(sx / c), avgMin: Math.round(sn / c) };
+            LS.set(nk, nm);
+          }
+        }
+        INFO[key].normal = nm;
+      }
+    }
+  } catch (e) { INFO[key].wxErr = 1; }
+  const cur = t.cur || (COUNTRY[t.country] || {}).cur;
+  if (cur && cur !== 'KRW') {
+    try {
+      const f = await (await fetch('https://open.er-api.com/v6/latest/' + cur)).json();
+      if (f.rates && f.rates.KRW) { INFO[key].fx = { rate: f.rates.KRW * 100, upd: f.time_last_update_unix * 1000 }; LS.set('fx.' + cur, INFO[key].fx); }
+    } catch (e) { INFO[key].fx = LS.get('fx.' + cur, null); }
+  }
+  render();
+}
+const countryOf = t => COUNTRY[t.country] || COUNTRY[((INFO[t.id] || {}).geo || {}).cc] || null;
+
+/* ---------- 길 ---------- */
 function route() {
   const p = location.hash.replace(/^#\/?/, '').split('/');
-  if (p[0] === 'trip' && p[1]) return { view: 'trip', trip: decodeURIComponent(p[1]), tab: p[2] || 'over' };
+  if (p[0] === 'trip' && p[1]) return { view: 'trip', trip: decodeURIComponent(p[1]), tab: p[2] || 'today' };
   return { view: 'home' };
 }
 const go = h => { if (location.hash !== h) location.hash = h; else render(); };
+const tripUrl = (id, tab) => '#/trip/' + encodeURIComponent(id) + '/' + (tab || 'today');
 window.addEventListener('hashchange', () => { closeSheet(); render(); window.scrollTo(0, 0); });
 
 /* ---------- 그리기 ---------- */
 function render() {
   const app = $('#app');
   if (!PASS) { app.innerHTML = lockView(); return; }
-  if (!ME || !D.meta.family.some(f => f.name === ME)) { app.innerHTML = whoView(); return; }
+  if (!ME || !fam(ME)) { app.innerHTML = whoView(); return; }
   const r = route();
-  if (r.view === 'trip' && D.trips[r.trip] && !D.trips[r.trip].del) app.innerHTML = tripView(D.trips[r.trip], r.tab);
+  const t = r.view === 'trip' ? D.trips[r.trip] : null;
+  if (t && !t.del) { app.innerHTML = tripView(t, r.tab); loadInfo(t); }
   else app.innerHTML = homeView();
   const s = $('#sync'); if (s) paintSync(s);
+}
+function greeting() {
+  const h = new Date().getHours();
+  const hi = h >= 5 && h < 11 ? '좋은 아침이에요' : h < 17 && h >= 11 ? '좋은 오후예요' : h >= 17 && h < 22 ? '좋은 저녁이에요' : '편안한 밤이에요';
+  const f = fam(ME) || {};
+  return esc(f.role || ME) + ', ' + hi;
 }
 
 function lockView() {
   return '<div class="lock"><img class="logo" src="icon.svg" alt=""><h1>하하가족여행</h1><p>우리 가족 여행을 함께 짜고 기록해요.<br>가족 암호를 넣어 주세요.</p>' +
     '<form class="f" data-form="lock"><input class="in" id="pass" type="password" autocomplete="current-password" placeholder="가족 암호" aria-label="가족 암호">' +
-    '<button class="btn pri wide" style="height:50px;font-size:16px">들어가기</button><div class="muted" id="lockmsg"></div></form></div>';
+    '<button class="btn pri wide big">들어가기</button><div class="muted" id="lockmsg"></div></form></div>';
 }
 function whoView() {
-  const fam = D.meta.family;
+  const fm = D.meta.family;
   return '<div class="lock"><h1>누구세요?</h1><p>이 휴대폰을 쓰는 사람을 골라 주세요. 고친 사람이 이름으로 남아요.</p>' +
-    (fam.length ? '<div class="who">' + fam.map(f => '<button data-act="me" data-v="' + esc(f.name) + '">' + av(f.name) + esc(f.name) + '<small>' + esc(f.role || '') + '</small></button>').join('') + '</div>'
+    (fm.length ? '<div class="who">' + fm.map(f => '<button data-act="me" data-v="' + esc(f.name) + '">' + av(f.name) + esc(f.name) + '<small>' + esc(f.role || '') + '</small></button>').join('') + '</div>'
       : '<div class="empty">가족 목록을 받는 중이에요…</div>') + '</div>';
 }
 
-/* 홈: 모든 여행과 통합 기록 */
+/* 처음 화면: 모든 여행·통합 기록 */
 function homeView() {
   const trips = live('trips').sort((a, b) => a.start.localeCompare(b.start));
   const t0 = today();
   const up = trips.filter(t => t.end >= t0), past = trips.filter(t => t.end < t0).reverse();
-  const next = up[0];
-  let h = '<div class="wrap"><div class="topbar"><h1>하하가족여행</h1><span id="sync" class="sync"></span><button class="iconbtn" data-act="settings" aria-label="설정">' + ic('gear') + '</button></div>';
-  h += next ? heroCard(next, true) : '<div class="card empty"><b>아직 여행이 없어요</b>아래 ＋ 단추로 첫 여행을 만들어요.</div>';
-  if (up.length > 1) h += '<div class="sec"><div class="sec-h"><h3>다가오는 여행</h3></div><div class="stack">' + up.slice(1).map(tripRow).join('') + '</div></div>';
-  // 통합 기록
-  const allDays = trips.filter(t => t.end < t0 || (t.start <= t0)).reduce((s, t) => s + Math.max(0, Math.min(dayDiff(t.start, t.end), dayDiff(t.start, t0)) + 1), 0);
+  let h = '<div class="wrap nonav"><div class="topbar"><h1>하하가족여행</h1><span id="sync" class="sync"></span><button class="iconbtn" data-act="settings" aria-label="설정">' + ic('gear') + '</button></div>';
+  h += '<div class="greet">' + greeting() + '</div>';
+  if (up[0]) h += heroCard(up[0], 'open');
+  h += '<div class="sec"><div class="sec-h"><h3>우리 여행</h3></div><div class="stack">' + [...up.slice(up[0] ? 1 : 0), ...past].map(tripRow).join('') +
+    '<button class="newtrip" data-act="trip-new">' + ic('plus') + '새 여행 만들기</button></div></div>';
+  const allDays = trips.reduce((s, t) => s + (t.start <= t0 ? Math.max(0, Math.min(dayDiff(t.start, t.end), dayDiff(t.start, t0)) + 1) : 0), 0);
   let spent = 0; live('spends').forEach(s => { const t = D.trips[s.trip]; if (t) spent += toWon(t, s.amount, s.cur); });
   const places = live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
-  h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div><div class="grid2">' +
-    '<div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>지난 여행 ' + past.length + '번</em></div>' +
-    '<div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b><em>지금까지</em></div>' +
-    '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b><em>모든 여행 합계</em></div>' +
-    '<div class="stat"><small>평가한 곳</small><b class="num">' + places.length + '곳</b><em>맛집·명소</em></div></div></div>';
-  if (places.length) {
-    h += '<div class="sec"><div class="sec-h"><h3>우리가 좋았던 곳</h3><button class="more" data-act="all-places">모두 보기</button></div><div class="card">' +
-      places.slice(0, 5).map(placeRow).join('') + '</div></div>';
-  }
-  if (past.length) h += '<div class="sec"><div class="sec-h"><h3>지난 여행</h3></div><div class="stack">' + past.map(tripRow).join('') + '</div></div>';
-  h += '</div><button class="fab" data-act="trip-new" aria-label="새 여행 만들기">' + ic('plus') + '</button>';
-  return h;
+  h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div>';
+  if (!past.length && !allDays && !places.length) h += '<div class="card empty"><div class="art">🧳✨</div><b>첫 여행을 기다리는 중</b>다녀오면 여기에 우리 가족의 여행이 쌓여요.</div>';
+  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
+    '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>평가한 곳</small><b class="num">' + places.length + '곳</b></div></div>';
+  h += '</div>';
+  if (places.length) h += '<div class="sec"><div class="sec-h"><h3>우리가 좋았던 곳</h3><button class="linkbtn" data-act="all-places">모두 보기</button></div><div class="card">' + places.slice(0, 5).map(placeRow).join('') + '</div></div>';
+  return h + '</div>';
 }
-function heroCard(t, link) {
-  const ds = daysOf(t);
-  const tag = link ? 'button data-act="open-trip" data-v="' + esc(t.id) + '" style="width:100%;text-align:left;display:block"' : 'div';
-  return '<' + tag + ' class="hero ' + (GRAD[t.color] || '') + '">' +
-    '<div class="eyebrow">' + esc(t.place || '여행') + '</div><span class="dday">' + ddayText(t) + '</span>' +
+function heroCard(t, mode) {
+  const ds = daysOf(t), mini = mode === 'mini';
+  const tag = mode === 'open' ? 'button data-act="open-trip" data-v="' + esc(t.id) + '"' : 'div';
+  const c = countryOf(t);
+  return '<' + tag + ' class="hero' + (mini ? ' mini' : '') + '">' + scene(t) + '<div class="hin">' +
+    '<div class="eyebrow">' + (c ? c.f + ' ' : '') + esc(t.place || '여행') + '</div><span class="dday num">' + ddayText(t) + '</span>' +
     '<h2>' + esc(t.title) + '</h2><div class="sub num">' + esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + Math.max(0, ds.length - 1) + '박 ' + ds.length + '일</div>' +
-    '<div class="route"><div><small>출발</small><b class="num">' + esc(md(t.start)) + '</b></div><div class="line">' + ic('plane') + '</div><div style="text-align:right"><small>돌아옴</small><b class="num">' + esc(md(t.end)) + '</b></div></div>' +
-    '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div></' + tag.split(' ')[0] + '>';
+    (mini ? '' : '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div>') + '</div></' + tag.split(' ')[0] + '>';
 }
 function tripRow(t) {
-  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th ' + (GRAD[t.color] || '') + '"></span><span class="tt"><b>' + esc(t.title) + '</b><span class="num">' +
+  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num">' +
     esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + esc(t.place || '') + '</span></span><span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span></button>';
 }
 function placeRow(p) {
   const t = D.trips[p.trip];
-  return '<button class="row" data-act="place-edit" data-v="' + esc(p.id) + '"><span class="body"><span class="t">' + esc(p.name) + '</span><span class="m"> ' + esc(p.cat || '') + '</span><div class="m">' +
+  return '<button class="row" data-act="place-edit" data-v="' + esc(p.id) + '">' + (safeImg(p.thumb) ? '<img class="th" src="' + p.thumb + '" alt="">' : ib('star', 'var(--sun)', 1)) + '<span class="body"><span class="t">' + esc(p.name) + '</span> <span class="m">' + esc(p.cat || '') + '</span><div class="m">' +
     '<span class="stars">' + '★'.repeat(p.rating || 0) + '</span> ' + esc(p.memo || '') + '</div></span><span class="m" style="text-align:right">' + esc(t ? t.title : '') + '<br>' + esc(p.by || '') + '</span></button>';
 }
 
-/* 여행 한 편 */
-const TABS = [['over', '개요'], ['plan', '일정'], ['recs', '추천'], ['money', '경비'], ['prep', '준비'], ['log', '기록']];
+/* 여행 화면 */
+const TABS = [['today', '오늘'], ['plan', '일정'], ['+', ''], ['money', '경비'], ['book', '수첩']];
+const PAGES = { wallet: '예약·티켓 모두', prep: '준비물', car: '내 차 어디?', info: '여행 정보', memory: '추억', weather: '날씨', passport: '여권' };
 function tripView(t, tab) {
-  if (!TABS.some(x => x[0] === tab)) tab = 'over';
-  let h = '<div class="wrap"><div class="topbar"><button class="iconbtn" data-act="home" aria-label="처음 화면">' + ic('back') + '</button><h1>' + esc(t.title) + '</h1><span id="sync" class="sync"></span>' +
-    '<button class="iconbtn" data-act="trip-menu" data-v="' + esc(t.id) + '" aria-label="여행 메뉴">' + ic('more') + '</button></div>';
-  h += ({ over: overTab, plan: planTab, recs: recsTab, money: moneyTab, prep: prepTab, log: logTab })[tab](t);
-  h += '</div><nav class="nav" style="--n:6" aria-label="여행 메뉴">' + TABS.map(([k, n]) =>
-    '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '">' + ic(k) + n + '</button>').join('') + '</nav>';
-  const fab = { plan: 'item-new', recs: 'rec-new', money: 'spend-new', prep: 'check-new', log: UI.logK === 'note' ? 'note-new' : 'place-new', over: 'booking-new' }[tab];
-  if (fab) h += '<button class="fab" data-act="' + fab + '" data-v="' + esc(t.id) + '" aria-label="더하기">' + ic('plus') + '</button>';
+  if (tab === 'over') tab = 'today';
+  if (tab === 'recs') { UI.mode = 'want'; tab = 'plan'; }
+  if (tab === 'log') tab = 'memory';
+  const isPage = !!PAGES[tab];
+  if (!isPage && !TABS.some(x => x[0] === tab)) tab = 'today';
+  let h = '<div class="wrap"><div class="topbar">' +
+    (isPage ? '<button class="iconbtn" data-act="tab" data-v="today" aria-label="뒤로">' + ic('back') + '</button><h1>' + PAGES[tab] + '</h1>'
+      : '<button class="iconbtn" data-act="home" aria-label="여행 목록">' + ic('home') + '</button><h1><button data-act="switch-trip"><span>' + esc(t.title) + '</span>' + ic('down') + '</button></h1>') +
+    '<span id="sync" class="sync"></span><button class="iconbtn" data-act="trip-menu" data-v="' + esc(t.id) + '" aria-label="여행 메뉴">' + ic('more') + '</button></div>';
+  h += ({ today: todayTab, plan: planTab, money: moneyTab, book: bookTab, memory: memoryTab, wallet: walletPage, prep: prepPage, car: carPage, info: infoPage, weather: weatherPage, passport: passportPage })[tab](t);
+  h += '</div><nav class="nav" aria-label="여행 메뉴">' + TABS.map(([k, n]) => k === '+'
+    ? '<div><button class="plus" data-act="quick" aria-label="더하기">' + ic('plus') + '</button></div>'
+    : '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k) + '</span>' + n + '</button>').join('') + '</nav>';
   return h;
-}
-function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, i.cost)); return s; }
-function spentWon(t) { let s = 0; live('spends', t.id).forEach(x => s += toWon(t, x.amount, x.cur)); return s; }
-
-function overTab(t) {
-  const n = (t.members || []).length || 1;
-  const ck = live('checks', t.id), done = ck.filter(c => c.done).length;
-  const items = live('items', t.id);
-  const t0 = today();
-  const showDay = (t0 >= t.start && t0 <= t.end) ? t0 : t.start;
-  const dayItems = items.filter(i => i.date === showDay).sort(byTime);
-  let h = heroCard(t, false);
-  if (t.memo) h += '<div class="card muted" style="margin-top:12px;white-space:pre-wrap">' + esc(t.memo) + '</div>';
-  h += '<div class="sec grid2">' +
-    '<div class="stat"><small>준비</small><b class="num">' + done + ' / ' + ck.length + '</b><em>' + (ck.length ? Math.round(done / ck.length * 100) : 0) + '% 끝</em></div>' +
-    '<div class="stat"><small>예상 경비 (1인)</small><b class="num">' + manWon(planCost(t)) + '</b><em>가족 ' + n + '명 ' + manWon(planCost(t) * n) + '</em></div></div>';
-  h += '<div class="sec"><div class="sec-h"><h3>' + (showDay === t0 ? '오늘 일정' : '첫날 일정') + ' · ' + esc(md(showDay)) + '</h3><button class="more" data-act="tab" data-v="plan">전체 일정</button></div>' +
-    (dayItems.length ? '<div class="tl">' + dayItems.slice(0, 6).map(i => tlItem(t, i)).join('') + '</div>' : '<div class="card empty">이날 일정이 없어요</div>') + '</div>';
-  const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
-  h += '<div class="sec"><div class="sec-h"><h3>예약 · 서류</h3><button class="more" data-act="booking-new" data-v="' + esc(t.id) + '">＋ 더하기</button></div><div class="stack">' +
-    (bk.length ? bk.map(b => passCard(t, b)).join('') : '<div class="card empty">항공권·숙소·티켓 예약을 모아 두세요</div>') + '</div></div>';
-  h += '<div class="sec"><div class="sec-h"><h3>기록 남기기</h3></div><div class="card"><div class="menu-list">' +
-    '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ic('doc') + '<span>구글 드라이브 문서로 기록<small>' + (t.docAt ? '마지막 ' + new Date(t.docAt).toLocaleString('ko-KR') : '4gospel 드라이브 「하하가족여행/기록」') + '</small></span></button>' +
-    (safeUrl(t.docUrl) ? '<a href="' + esc(t.docUrl) + '" target="_blank" rel="noopener">' + ic('link') + '<span>기록 문서 열기</span></a>' : '') +
-    '<button data-act="export-notion" data-v="' + esc(t.id) + '">' + ic('notion') + '<span>노션에 기록<small>' + (t.notionAt ? '마지막 ' + new Date(t.notionAt).toLocaleString('ko-KR') : '설정에서 노션을 이어 두면 돼요') + '</small></span></button>' +
-    (safeUrl(t.notionUrl) ? '<a href="' + esc(t.notionUrl) + '" target="_blank" rel="noopener">' + ic('link') + '<span>노션 페이지 열기</span></a>' : '') +
-    '</div><div class="muted" style="margin-top:6px">모든 고침은 4gospel 드라이브 「하하가족여행/data.json」에 바로 저장되고, 날마다 백업 사본이 남아요.</div></div></div>';
-  return h;
-}
-function passCard(t, b) {
-  const tm = b.time ? b.time : '';
-  return '<button class="pass" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + ic(BK_IC[b.kind] || 'ticket').replace('class="i ', 'class="i " style="width:14px;height:14px;vertical-align:-2px" ') + ' ' + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
-    '<div class="t">' + esc(b.title) + '</div>' + (b.memo ? '<div class="m">' + esc(b.memo) + '</div>' : '') +
-    (b.code ? '<span class="code">예약번호 ' + esc(b.code) + '</span>' : '') + '</div>' +
-    '<div class="side"><small>' + esc(b.date ? md(b.date) : '날짜 미정') + '</small><b class="num">' + esc(tm || '—') + '</b>' + (b.end ? '<small class="num">→ ' + esc(String(b.end).length > 5 ? md(String(b.end).slice(0, 10)) + ' ' + String(b.end).slice(11) : b.end) + '</small>' : '') + '</div></button>';
 }
 const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || (a.ts - b.ts);
+function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, i.cost)); return s; }
+function spentWon(t, day) { let s = 0; live('spends', t.id).forEach(x => { if (!day || x.date === day) s += toWon(t, x.amount, x.cur); }); return s; }
+const parkBooking = t => live('bookings', t.id).find(b => b.kind === '주차');
+const lastPark = t => live('parks', t.id).sort((a, b) => b.ts - a.ts)[0];
+const flights = t => live('bookings', t.id).filter(b => b.kind === '항공').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
-function tlItem(t, i) {
-  const pl = i.place ? '<a class="maplink" href="' + esc(mapUrl(i.place)) + '" target="_blank" rel="noopener" data-stop="1">' + ic('pin') + esc(i.place.length > 26 ? i.place.slice(0, 25) + '…' : i.place) + '</a>' : '';
-  return '<div class="tl-item ' + (i.done ? 'done' : '') + '"><div class="tl-time num">' + esc(i.time || '') + '</div>' +
-    '<div class="tl-card" style="--cc:' + catVar(i.cat) + '"><button class="chk ' + (i.done ? 'on' : '') + '" data-act="item-done" data-v="' + esc(i.id) + '" aria-label="다녀옴 표시">' + (i.done ? ic('check') : '') + '</button>' +
-    '<button class="body" style="text-align:left" data-act="item-edit" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') +
-    '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') + '</div></button>' +
-    '</div>' + (pl ? '<div></div><div style="margin:-4px 0 10px 16px">' + pl + '</div>' : '') + '</div>';
+/** 예약끼리 시간 맞춰 보기 (주차 입차·출차 대 비행기) */
+function bookingWarnings(t) {
+  const out = {}; const pb = parkBooking(t); const fl = flights(t);
+  if (pb && fl.length) {
+    const go = fl[0], back = fl[fl.length - 1];
+    const mins = (d, tm) => { if (!d || !tm) return null; const x = pd(d); const [h, m] = tm.split(':').map(Number); return x.getTime() / 6e4 + h * 60 + m; };
+    const inM = mins(pb.date, pb.time), goM = mins(go.date, go.time);
+    if (inM != null && goM != null && goM - inM < 150) out[pb.id] = '입차 ' + pb.time + ' → 출발 ' + go.time + '까지 ' + Math.round((goM - inM)) + '분뿐이에요. 연말 공항은 3시간 전 도착을 권해요.';
+    const endS = String(pb.end || ''), em = endS.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})/);
+    const arr = String(back.end || '').match(/(\d{1,2}:\d{2})/);
+    if (em && arr && back.date === em[1]) {
+      const outM = mins(em[1], em[2]), arrM = mins(back.date, arr[1]);
+      if (outM - arrM < 120) out[pb.id] = (out[pb.id] ? out[pb.id] + ' ' : '') + '도착 ' + arr[1] + ' 뒤 출차 ' + em[2] + '까지 ' + (outM - arrM) + '분 — 입국·짐 찾기를 생각하면 빠듯해요.';
+    }
+  }
+  return out;
+}
+
+function todayTab(t) {
+  const ph = phase(t), t0 = today();
+  const c = countryOf(t);
+  let h = '<div class="greet">' + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
+  h += heroCard(t, ph === 'before' ? '' : 'mini');
+  const warns = bookingWarnings(t);
+  const pb = parkBooking(t), pk = lastPark(t);
+  // 귀국 날·다녀온 뒤: 내 차 먼저
+  if ((ph === 'last' || ph === 'after' && dayDiff(t.end, t0) <= 2) && (pb || pk)) h += '<div class="sec">' + carCard(t, true) + '</div>';
+  // 출발 날: 주차 위치 찍기
+  if (ph === 'first' && pb && !pk) h += '<div class="sec"><button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('camera', 'var(--c-주차)') + '<span><b>차 세웠나요? 기둥을 찍어 두세요</b><span>층·구역 글자를 읽어 「내 차 어디?」에 남겨요</span></span></button></div>';
+  // 출발 전: 급한 일
+  if (ph === 'before') {
+    const urgent = live('checks', t.id).filter(x => !x.done && /예약|서류/.test(x.cat || '')).slice(0, 3);
+    const wl = Object.keys(warns);
+    if (urgent.length || wl.length) {
+      h += '<div class="sec"><div class="sec-h"><h3>먼저 챙길 것</h3><button class="linkbtn" data-act="tab" data-v="prep">준비물 모두</button></div><div class="stack">';
+      wl.forEach(id => { h += '<button class="alert" style="--cc:var(--warn)" data-act="booking-edit" data-v="' + esc(id) + '">' + ib('sos', 'var(--warn)') + '<span><b>' + esc(D.bookings[id].title) + '</b><span>' + esc(warns[id]) + '</span></span></button>'; });
+      urgent.forEach(x => { h += '<div class="alert" style="--cc:var(--sun)"><button class="chk" data-act="check-done" data-v="' + esc(x.id) + '" aria-label="끝 표시"></button><span><b>' + esc(x.text) + '</b><span>' + esc(x.memo || x.cat || '') + (x.who ? ' · ' + esc(x.who) : '') + '</span></span></div>'; });
+      h += '</div></div>';
+    }
+  }
+  // 여행 중: 지금·다음 일정
+  if (ph !== 'before' && ph !== 'after') {
+    const list = live('items', t.id).filter(i => i.date === t0).sort(byTime);
+    const now = hm(); const next = list.filter(i => !i.done && (i.time || '99') >= now.slice(0, 5));
+    const show = (next.length ? next : list.filter(i => !i.done)).slice(0, 3);
+    h += '<div class="sec"><div class="sec-h"><h3>지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
+      (show.length ? '<div class="tl">' + show.map((i, k) => tlItem(t, i, k === 0)).join('') + '</div>' : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
+    h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
+  }
+  // 티켓 지갑
+  const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+  h += '<div class="sec"><div class="sec-h"><h3>티켓 지갑</h3><button class="linkbtn" data-act="tab" data-v="wallet">모두 보기</button></div>' +
+    (bk.length ? '<div class="wallet">' + bk.map(b => passCard(t, b, warns[b.id])).join('') + '</div>' : '<button class="alert" data-act="photo" data-v="booking">' + ib('camera', 'var(--sky)') + '<span><b>예약 화면을 찍어 넣어요</b><span>항공권·숙소·티켓·주차 예약</span></span></button>') + '</div>';
+  // 내 차 (그 밖의 때)
+  if (!(ph === 'last' || ph === 'after') && (pb || pk) && ph !== 'before') h += '<div class="sec">' + carCard(t) + '</div>';
+  // 준비 (출발 전)
+  if (ph === 'before') {
+    const ck = live('checks', t.id), done = ck.filter(x => x.done).length, p = ck.length ? Math.round(done / ck.length * 100) : 0;
+    h += '<div class="sec"><button class="card flex" style="width:100%;text-align:left;gap:14px" data-act="tab" data-v="prep"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">준비 ' + done + ' / ' + ck.length + '</b><div class="muted">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : '남은 것 ' + (ck.length - done) + '개 · 눌러서 챙기기') + '</div></div>' + ic('back').replace('<svg', '<svg style="transform:rotate(180deg)"') + '</button></div>';
+  }
+  // 여행 정보 (환율·날씨·나라)
+  h += '<div class="sec"><div class="sec-h"><h3>' + (c ? c.f + ' ' + c.n + ' ' : '') + '여행 정보</h3><button class="linkbtn" data-act="tab" data-v="info">자세히</button></div>' + infoCards(t, true) + '</div>';
+  // 첫날 일정 미리 보기 (출발 전)
+  if (ph === 'before') {
+    const first = live('items', t.id).filter(i => i.date === t.start).sort(byTime).slice(0, 4);
+    if (first.length) h += '<div class="sec"><div class="sec-h"><h3>첫날 · ' + esc(md(t.start)) + '</h3><button class="linkbtn" data-act="tab" data-v="plan">전체 일정</button></div><div class="tl">' + first.map(i => tlItem(t, i)).join('') + '</div></div>';
+  }
+  // 추억
+  const memN = live('notes', t.id).length + live('places', t.id).length;
+  h += '<div class="sec"><button class="alert" style="--cc:var(--pink)" data-act="tab" data-v="memory">' + ib('memory', 'var(--pink)') + '<span><b>추억 ' + memN + '</b><span>여행 일기 · 가 본 곳 별점 · 사진</span></span></button></div>';
+  // 기록
+  h += '<div class="sec"><div class="sec-h"><h3>기록</h3></div><div class="card"><div class="menu-list">' +
+    (safeUrl(t.docUrl) ? '<a href="' + esc(t.docUrl) + '" target="_blank" rel="noopener">' + ib('doc', 'var(--sky)', 1) + '<span>구글 드라이브 여행 기록<small>고칠 때마다 저절로 정리돼요' + (t.docAt ? ' · ' + new Date(t.docAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') + '</small></span></a>'
+      : '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ib('doc', 'var(--sky)', 1) + '<span>구글 드라이브 여행 기록<small>고칠 때마다 저절로 정리돼요 · 지금 만들기</small></span></button>') +
+    '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>사진·원본 폴더<small>4gospel 드라이브 「하하가족여행」</small></span></button>' +
+    '<button data-act="export-notion" data-v="' + esc(t.id) + '">' + ib('notion', 'var(--ink)', 1) + '<span>노션 「하하가족여행」으로 보내기<small>' + (t.notionAt ? '마지막 ' + new Date(t.notionAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '설정에서 노션을 이으면 써요') + '</small></span></button></div></div></div>';
+  return h;
+}
+
+function passCard(t, b, warn) {
+  const [icn, col] = BK[b.kind] || BK.기타;
+  const fi = b.kind === '항공' ? flightInfo(b) : null;
+  if (fi) {
+    const arr = String(b.end || '').match(/(\d{1,2}:\d{2})/);
+    const home = ['ICN', 'GMP', 'PUS', 'CJJ', 'TAE'].includes(fi.to);
+    return '<button class="pass flight' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main">' +
+      '<div class="k">' + ib('plane', col, 1) + esc(fi.air || '항공') + (fi.fn ? '<span class="fno">' + esc(fi.fn) + '</span>' : '') + '</div>' +
+      '<div class="route"><div><b>' + fi.from + '</b><small>' + esc(fi.fromN) + '</small><em class="num">' + esc(b.time || '') + '</em></div>' +
+      '<div class="path"><i></i>' + ic('plane') + '<i></i></div>' +
+      '<div style="text-align:right"><b>' + fi.to + '</b><small>' + esc(fi.toN) + '</small><em class="num">' + esc(arr ? arr[1] : '') + '</em></div></div>' +
+      (b.code ? '<span class="code">' + esc(b.code) + '</span>' : '') + '</div>' +
+      '<div class="side"><small>' + esc(b.date ? md(b.date) : '') + '</small>' + ib(home ? 'land' : 'plane', col, 1) + '<small>' + (home ? '오는 편' : '가는 편') + '</small></div></button>';
+  }
+  const endS = String(b.end || '');
+  const sideTop = b.kind === '주차' && endS.length > 5 ? '출차 ' + md(endS.slice(0, 10)) : (b.date ? md(b.date) : '날짜 미정');
+  const sideBig = b.kind === '주차' && endS.length > 5 ? endS.slice(11) : (b.time || '—');
+  return '<button class="pass' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + ib(icn, col, 1) + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
+    '<div class="t">' + esc(b.title) + '</div>' + (b.kind === '주차' ? '<div class="m">' + esc([b.date && ('입차 ' + md(b.date) + ' ' + (b.time || '')), b.car && ('🚗 ' + b.car)].filter(Boolean).join(' · ')) + '</div>' : (b.memo ? '<div class="m">' + esc(b.memo) + '</div>' : '')) +
+    (b.code ? '<span class="code">' + esc(b.code) + '</span>' : '') + (warn ? '<div class="warnline">⚠️ 시간 확인</div>' : '') + '</div>' +
+    '<div class="side"><small>' + esc(sideTop) + '</small><b class="num">' + esc(sideBig) + '</b>' + (b.kind !== '주차' && endS ? '<small class="num">→ ' + esc(endS.length > 5 ? md(endS.slice(0, 10)) + ' ' + endS.slice(11) : endS) + '</small>' : '') + '</div>' +
+    (safeImg(b.thumb) ? '<img class="ph" src="' + b.thumb + '" alt="">' : '') + '</button>';
+}
+function carCard(t, top) {
+  const pb = parkBooking(t), pk = lastPark(t);
+  if (!pk) return '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('car', 'var(--c-주차)') + '<span><b>내 차 어디?</b><span>' + (pb ? esc(pb.place || pb.title) + ' · ' : '') + '주차한 뒤 기둥을 찍어 두세요</span></span></button>';
+  return '<button class="car" style="width:100%;text-align:left;display:block" data-act="tab" data-v="car">' + (safeImg(pk.thumb) ? '<img src="' + pk.thumb + '" alt="주차 위치 사진">' : '') +
+    '<div class="cin"><div class="muted">' + (top ? '🚗 집에 가는 날 — 내 차는 여기' : '🚗 내 차 어디?') + '</div><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(pk.memo || '') + (pb ? ' · 출차 ' + esc(String(pb.end || '')) : '') + '</div></div></button>';
+}
+
+function tlItem(t, i, now) {
+  const [icn, col] = itemIcon(i);
+  return '<div class="tl-card' + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + '"><span class="tm num">' + ib(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
+    '<button class="body" data-act="item-edit" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
+    '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
+    (i.place ? '<a class="go" href="' + esc(dirUrl(i.place)) + '" target="_blank" rel="noopener" data-stop="1">' + ic('route') + '길찾기</a>' : '') + '</div></button>' +
+    '<button class="chk ' + (i.done ? 'on' : '') + '" data-act="item-done" data-v="' + esc(i.id) + '" aria-label="다녀옴 표시">' + (i.done ? ic('check') : '') + '</button></div>';
 }
 
 function planTab(t) {
@@ -304,20 +607,27 @@ function planTab(t) {
   const days = daysOf(t);
   items.forEach(i => { if (i.date && !days.includes(i.date)) days.push(i.date); });
   days.sort();
-  const hasIdea = items.some(i => !i.date);
   let sel = UI.day[t.id];
-  if (!sel || (sel !== '' && !days.includes(sel) && sel !== 'idea')) sel = (today() >= t.start && today() <= t.end) ? today() : days[0];
+  if (!sel || !days.includes(sel)) sel = (today() >= t.start && today() <= t.end) ? today() : days[0];
   UI.day[t.id] = sel;
-  let h = '<div class="between" style="margin:4px 0 12px"><div class="seg"><button class="' + (UI.mode === 'tl' ? 'on' : '') + '" data-act="mode" data-v="tl">하루씩</button><button class="' + (UI.mode === 'table' ? 'on' : '') + '" data-act="mode" data-v="table">스케줄표</button></div>' +
-    '<span class="muted num">일정 ' + items.length + '개</span></div>';
-  if (UI.mode === 'table') return h + schedTable(t, days, items);
-  h += '<div class="days">' + days.map((d, k) => '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (days.indexOf(d) + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b></button>').join('') +
-    '<button class="day ' + (sel === 'idea' ? 'on' : '') + '" data-act="day" data-v="idea"><small>날짜 미정</small><b>가고 싶은 곳' + (hasIdea ? '' : '') + '</b></button></div>';
-  const list = items.filter(i => sel === 'idea' ? !i.date : i.date === sel).sort(byTime);
+  const mode = ['tl', 'table', 'want'].includes(UI.mode) ? UI.mode : 'tl';
+  let h = '<div class="seg" style="margin:4px 0 14px"><button class="' + (mode === 'tl' ? 'on' : '') + '" data-act="mode" data-v="tl">하루씩</button><button class="' + (mode === 'table' ? 'on' : '') + '" data-act="mode" data-v="table">스케줄표</button><button class="' + (mode === 'want' ? 'on' : '') + '" data-act="mode" data-v="want">가고 싶은 곳</button></div>';
+  if (mode === 'table') return h + schedTable(t, days, items);
+  if (mode === 'want') return h + wantView(t);
+  h += '<div class="days">' + days.map((d, k) => {
+    const di = items.filter(i => i.date === d), all = di.length && di.every(i => i.done);
+    return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (all ? '<span class="stamp">다녀옴</span>' : '') + '</button>';
+  }).join('') + '</div>';
+  let list = items.filter(i => i.date === sel).sort(byTime);
   const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0);
-  h += list.length ? '<div class="tl" style="margin-top:6px">' + list.map(i => tlItem(t, i)).join('') + '</div>' +
-    '<div class="muted num" style="text-align:right">이날 1인 예상 ' + money(t, sum) + '</div>'
-    : '<div class="card empty"><b>일정이 비어 있어요</b>＋ 단추나 「추천」에서 「일정에 넣기」로 채워요.</div>';
+  h += '<div class="sec-h" style="margin-top:6px"><h3>' + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
+  let past = '';
+  if (sel === today() && !UI.showPast) {
+    const p = list.filter(i => i.done || (i.time && i.time < hm().slice(0, 5) && list.some(j => j.time > i.time && !j.done)));
+    if (p.length > 1) { list = list.filter(i => !p.includes(i)); past = '<button class="past-toggle" data-act="show-past">지난 일정 ' + p.length + '개 보기</button>'; }
+  }
+  h += list.length || past ? past + '<div class="tl">' + list.map(i => tlItem(t, i)).join('') + '</div><div class="muted num" style="text-align:right;margin-top:10px">이날 1인 예상 ' + comma(sum) + unit(t.cur) + (t.cur !== 'KRW' ? ' · ≈ ' + manWon(toWon(t, sum)) : '') + '</div>'
+    : '<div class="card empty"><div class="art">🗺️</div><b>이날 일정이 비어 있어요</b>「가고 싶은 곳」에서 골라 넣거나 ＋로 더해요.</div>';
   return h;
 }
 function schedTable(t, days, items) {
@@ -327,33 +637,35 @@ function schedTable(t, days, items) {
     if (!list.length) return;
     const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0); total += sum;
     rows += '<tr class="dayrow"><td colspan="2">' + (d ? (days.indexOf(d) + 1) + '일째 · ' + esc(md(d)) : '날짜 미정') + '</td><td class="r num">' + comma(sum) + '</td></tr>';
-    rows += list.map(i => '<tr data-act="item-edit" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td><span class="dot" style="--cc:' + catVar(i.cat) + '"></span>' + esc(i.title) +
-      (i.place ? '<div class="muted" style="font-size:12px;margin-left:14px">' + esc(i.place) + '</div>' : '') + '</td><td class="r num">' + (i.cost ? comma(i.cost) : '') + '</td></tr>').join('');
+    rows += list.map(i => '<tr data-act="item-edit" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td><span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>' + esc(i.title) +
+      (i.place ? '<div class="muted" style="font-size:13px;margin-left:15px">' + esc(i.place) + '</div>' : '') + '</td><td class="r num">' + (i.cost ? comma(i.cost) : '') + '</td></tr>').join('');
   });
   if (!rows) return '<div class="card empty">일정이 아직 없어요</div>';
+  const n = (t.members || []).length || 1;
   return '<div class="sched-wrap"><table class="sched"><thead><tr><th>시간</th><th>할 일 · 장소</th><th class="r">1인(' + unit(t.cur) + ')</th></tr></thead><tbody>' + rows +
     '<tr class="dayrow"><td colspan="2">합계 (1인)</td><td class="r num">' + comma(total) + '</td></tr></tbody></table></div>' +
-    '<div class="muted" style="margin-top:8px">가족 ' + ((t.members || []).length) + '명 예상 ' + manWon(toWon(t, total) * ((t.members || []).length || 1)) + ' · 줄을 누르면 고칠 수 있어요</div>';
+    '<div class="muted" style="margin-top:10px">가족 ' + n + '명 예상 ' + manWon(toWon(t, total) * n) + ' · 줄을 누르면 고칠 수 있어요</div>';
 }
-
-function recsTab(t) {
+function wantView(t) {
   const all = live('recs', t.id);
+  const ideas = live('items', t.id).filter(i => !i.date);
   const kinds = ['전체', ...['명소', '맛집', '쇼핑', '숙소', '팁'].filter(k => all.some(r => r.kind === k))];
   if (!kinds.includes(UI.recK)) UI.recK = '전체';
   const list = all.filter(r => UI.recK === '전체' || r.kind === UI.recK).sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || a.ts - b.ts);
   const inPlan = new Set(live('items', t.id).map(i => i.rec).filter(Boolean));
-  let h = '<div class="chips" style="margin:4px 0 14px">' + kinds.map(k => '<button class="chipbtn ' + (k === UI.recK ? 'on' : '') + '" data-act="reck" data-v="' + k + '">' + k + (k === '전체' ? '' : ' ' + all.filter(r => r.kind === k).length) + '</button>').join('') + '</div>';
+  let h = '<div class="between" style="margin-bottom:12px"><div class="chips">' + kinds.map(k => '<button class="chipbtn ' + (k === UI.recK ? 'on' : '') + '" data-act="reck" data-v="' + k + '">' + k + '</button>').join('') + '</div></div>';
+  h += '<div class="sec-h"><h3>추천·자료 ' + list.length + '</h3><button class="linkbtn" data-act="rec-new">＋ 자료 더하기</button></div>';
+  if (ideas.length) h += '<div class="card" style="margin-bottom:12px"><b>날짜 안 정한 일정</b>' + ideas.map(i => '<button class="row" data-act="item-edit" data-v="' + esc(i.id) + '">' + ib('pin', cc(i.cat), 1) + '<span class="body"><span class="t">' + esc(i.title) + '</span></span></button>').join('') + '</div>';
   h += list.length ? '<div class="stack">' + list.map(r => {
-    const cc = 'var(' + (RECK[r.kind] || '--c-etc') + ')';
-    return '<div class="rec" style="--cc:' + cc + '"><div class="top"><span class="badge">' + ic(RC_IC[r.kind] || 'recs') + '</span><div style="flex:1;min-width:0"><h4>' + esc(r.name) + '</h4><div class="area">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + '</div></div>' +
+    const col = cc(RECC[r.kind] || '기타');
+    return '<div class="rec"><div class="top">' + ib(RC_IC[r.kind] || 'recs', col) + '<div style="flex:1;min-width:0"><h4>' + esc(r.name) + '</h4><div class="area">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + '</div></div>' +
       (inPlan.has(r.id) ? '<span class="pill hot">일정에 있음</span>' : '') + '</div>' +
       (r.desc ? '<p>' + esc(r.desc) + '</p>' : '') +
-      ((r.price || r.hours) ? '<div class="info">' + (r.price ? '<span>💴 ' + esc(r.price) + '</span>' : '') + (r.hours ? '<span>🕘 ' + esc(r.hours) + '</span>' : '') + '</div>' : '') +
-      '<div class="acts">' + (r.kind !== '팁' ? '<button class="btn sm navy" data-act="rec-add" data-v="' + esc(r.id) + '">' + ic('plus') + '일정에 넣기</button>' : '') +
-      (r.map || r.name ? (r.kind !== '팁' ? '<a class="btn sm" href="' + esc(mapUrl(r.map || r.name)) + '" target="_blank" rel="noopener">' + ic('pin') + '지도</a>' : '') : '') +
-      (safeUrl(r.link) ? '<a class="btn sm" href="' + esc(r.link) + '" target="_blank" rel="noopener">' + ic('link') + '누리집</a>' : '') +
-      '<button class="btn sm" data-act="rec-edit" data-v="' + esc(r.id) + '">고치기</button></div></div>';
-  }).join('') + '</div>' : '<div class="card empty"><b>추천 자료가 없어요</b>가 보고 싶은 명소·맛집을 ＋로 모아 두세요.</div>';
+      ((r.price || r.hours) ? '<div class="info">' + (r.price ? '<span>' + esc(r.price) + '</span>' : '') + (r.hours ? '<span>🕘 ' + esc(r.hours) + '</span>' : '') + '</div>' : '') +
+      '<div class="acts">' + (r.kind !== '팁' ? '<button class="btn navy" data-act="rec-add" data-v="' + esc(r.id) + '">' + ic('plus') + '일정에 넣기</button><a class="btn" href="' + esc(mapUrl(r.map || r.name)) + '" target="_blank" rel="noopener">' + ic('pin') + '지도</a>' : '') +
+      (safeUrl(r.link) ? '<a class="btn" href="' + esc(r.link) + '" target="_blank" rel="noopener">' + ic('link') + '누리집</a>' : '') +
+      '<button class="btn" data-act="rec-edit" data-v="' + esc(r.id) + '">고치기</button></div></div>';
+  }).join('') + '</div>' : '<div class="card empty"><div class="art">⭐</div><b>추천 자료가 없어요</b>가 보고 싶은 명소·맛집을 모아 두세요.</div>';
   h += '<div class="muted" style="margin-top:12px">영업시간·휴무는 출발 전에 꼭 다시 확인하세요. 연말연시에는 쉬는 곳이 많아요.</div>';
   return h;
 }
@@ -361,83 +673,297 @@ function recsTab(t) {
 function moneyTab(t) {
   const mem = t.members || [];
   const n = mem.length || 1;
+  const split = t.splitMode === 'split';
   const plan = planCost(t), spent = spentWon(t);
   const sp = live('spends', t.id).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
-  let h = '<div class="grid2" style="margin-top:4px">' +
-    '<div class="stat"><small>예상 (일정 합계)</small><b class="num">' + manWon(plan * n) + '</b><em>1인 ' + manWon(plan) + '</em></div>' +
-    '<div class="stat"><small>실제 쓴 돈</small><b class="num" style="color:var(--accent)">' + manWon(spent) + '</b><em>1인 ' + manWon(spent / n) + '</em></div></div>';
-  // 갈래별
+  let h = '<div class="grid2" style="margin-top:4px"><div class="stat"><small>실제 쓴 돈</small><b class="num" style="color:var(--coral)">' + manWon(spent) + '</b><em>1인 ' + manWon(spent / n) + '</em></div>' +
+    '<div class="stat"><small>일정 예상</small><b class="num">' + manWon(plan * n) + '</b><em>1인 ' + manWon(plan) + '</em></div></div>';
+  h += '<div class="flex" style="margin-top:14px;gap:8px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="receipt">' + ic('camera') + '영수증 찍기</button><button class="btn big" style="flex:1" data-act="spend-new">' + ic('pen') + '직접 적기</button></div>';
   const cats = {};
-  if (sp.length) sp.forEach(s => cats[s.cat || '기타'] = (cats[s.cat || '기타'] || 0) + toWon(t, s.amount, s.cur));
-  else live('items', t.id).forEach(i => { if (i.cost) cats[i.cat || '기타'] = (cats[i.cat || '기타'] || 0) + toWon(t, i.cost) * n; });
+  sp.forEach(s => cats[s.cat || '기타'] = (cats[s.cat || '기타'] || 0) + toWon(t, s.amount, s.cur));
   const max = Math.max(1, ...Object.values(cats));
   const ce = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-  if (ce.length) h += '<div class="sec"><div class="sec-h"><h3>' + (sp.length ? '어디에 썼나' : '어디에 쓸까 (예상)') + '</h3></div><div class="card">' +
-    ce.map(([c, v]) => '<div class="cat-row" style="--cc:' + catVar(c) + '"><span style="font-weight:700">' + esc(c) + '</span><div class="bar"><i style="width:' + Math.round(v / max * 100) + '%"></i></div><span class="num" style="font-weight:700">' + manWon(v) + '</span></div>').join('') + '</div></div>';
-  // 정산
-  if (sp.length && mem.length > 1) {
+  if (ce.length) h += '<div class="sec"><div class="sec-h"><h3>어디에 썼나</h3></div><div class="card">' +
+    ce.map(([c, v]) => '<div class="cat-row" style="--cc:' + cc(c) + '"><span class="flex" style="gap:8px;font-weight:700"><span class="dot"></span>' + esc(c) + '</span><div class="bar"><i style="width:' + Math.round(v / max * 100) + '%"></i></div><span class="num" style="font-weight:800">' + manWon(v) + '</span></div>').join('') + '</div></div>';
+  // 지갑 방식
+  h += '<div class="sec"><div class="sec-h"><h3>' + (split ? '정산' : '누가 냈나') + '</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">나눠 내기</button></div><div class="card">';
+  if (!sp.length) h += '<div class="muted">아직 쓴 돈이 없어요</div>';
+  else if (!split) h += mem.map(m => { const w = sp.filter(s => s.payer === m).reduce((x, s) => x + toWon(t, s.amount, s.cur), 0); return w ? '<div class="settle">' + av(m) + '<b>' + esc(m) + '</b><span class="amt num">' + manWon(w) + '</span></div>' : ''; }).join('') || '<div class="muted">낸 사람을 적으면 여기 보여요</div>';
+  else {
     const bal = {}; mem.forEach(m => bal[m] = 0);
-    sp.forEach(s => {
-      const w = toWon(t, s.amount, s.cur);
-      const who = (s.split && s.split.length ? s.split : mem).filter(m => m in bal);
-      if (s.payer in bal) bal[s.payer] += w;
-      who.forEach(m => bal[m] -= w / (who.length || 1));
-    });
-    const pos = Object.entries(bal).filter(x => x[1] > 1).sort((a, b) => b[1] - a[1]).map(x => [x[0], x[1]]);
-    const neg = Object.entries(bal).filter(x => x[1] < -1).sort((a, b) => a[1] - b[1]).map(x => [x[0], -x[1]]);
-    const moves = [];
-    let i = 0, j = 0;
-    while (i < neg.length && j < pos.length) {
-      const m = Math.min(neg[i][1], pos[j][1]);
-      if (m >= 100) moves.push([neg[i][0], pos[j][0], m]);
-      neg[i][1] -= m; pos[j][1] -= m;
-      if (neg[i][1] < 1) i++; if (pos[j][1] < 1) j++;
-    }
-    h += '<div class="sec"><div class="sec-h"><h3>정산</h3><span class="more">원 기준 · 나눠 낼 사람끼리 똑같이</span></div><div class="card">' +
-      (moves.length ? moves.map(([a, b, m]) => '<div class="settle">' + av(a, 26) + '<b>' + esc(a) + '</b> → ' + av(b, 26) + '<b>' + esc(b) + '</b><span class="amt num">' + comma(Math.round(m / 10) * 10) + '원</span></div>').join('')
-        : '<div class="muted">주고받을 돈이 없어요 👍</div>') +
-      '<div class="hr"></div><div class="muted">' + mem.map(m => esc(m) + ' 낸 돈 ' + manWon(sp.filter(s => s.payer === m).reduce((x, s) => x + toWon(t, s.amount, s.cur), 0))).join(' · ') + '</div></div></div>';
+    sp.forEach(s => { const w = toWon(t, s.amount, s.cur); const who = (s.split && s.split.length ? s.split : mem).filter(m => m in bal); if (s.payer in bal) bal[s.payer] += w; who.forEach(m => bal[m] -= w / (who.length || 1)); });
+    const pos = Object.entries(bal).filter(x => x[1] > 1).sort((a, b) => b[1] - a[1]), neg = Object.entries(bal).filter(x => x[1] < -1).sort((a, b) => a[1] - b[1]).map(x => [x[0], -x[1]]);
+    const moves = []; let i = 0, j = 0;
+    while (i < neg.length && j < pos.length) { const m = Math.min(neg[i][1], pos[j][1]); if (m >= 100) moves.push([neg[i][0], pos[j][0], m]); neg[i][1] -= m; pos[j][1] -= m; if (neg[i][1] < 1) i++; if (pos[j][1] < 1) j++; }
+    h += moves.length ? moves.map(([a, b, m]) => '<div class="settle">' + av(a, 28) + '<b>' + esc(a) + '</b> → ' + av(b, 28) + '<b>' + esc(b) + '</b><span class="amt num">' + comma(Math.round(m / 10) * 10) + '원</span></div>').join('') : '<div class="muted">주고받을 돈이 없어요 👍</div>';
   }
-  h += '<div class="sec"><div class="sec-h"><h3>쓴 돈 기록</h3><span class="more num">' + sp.length + '건</span></div><div class="card">' +
-    (sp.length ? sp.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + av(s.payer, 30) + '<span class="body"><div class="t">' + esc(s.title) + '</div><div class="m">' + esc(md(s.date)) + ' · ' + esc(s.cat || '') + ' · ' + esc(s.payer || '') + ' 냄</div></span>' +
+  h += '</div></div>';
+  h += '<div class="sec"><div class="sec-h"><h3>쓴 돈 기록 ' + sp.length + '</h3></div><div class="card">' +
+    (sp.length ? sp.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + (safeImg(s.thumb) ? '<img class="th" src="' + s.thumb + '" alt="">' : ib(s.cat === '이동' ? 'plane' : s.cat === '식사' ? 'food' : s.cat === '쇼핑' ? 'bag' : 'receipt', cc(s.cat), 1)) +
+      '<span class="body"><div class="t">' + esc(s.title) + '</div><div class="m">' + esc(md(s.date)) + ' · ' + esc(s.cat || '') + (s.payer ? ' · ' + esc(s.payer) : '') + '</div></span>' +
       '<span class="amt num">' + comma(s.amount) + unit(s.cur || t.cur) + ((s.cur || t.cur) !== 'KRW' ? '<small>≈ ' + manWon(toWon(t, s.amount, s.cur)) + '</small>' : '') + '</span></button>').join('')
-      : '<div class="empty"><b>아직 쓴 돈이 없어요</b>여행 중 ＋로 바로 적으면 정산까지 저절로 돼요.</div>') + '</div></div>';
-  if (t.cur !== 'KRW') h += '<div class="muted" style="margin-top:10px">환율: 100' + unit(t.cur) + ' = ' + comma(t.rate) + '원 (여행 정보 고치기에서 바꿀 수 있어요)</div>';
+      : '<div class="empty"><div class="art">🧾</div><b>아직 쓴 돈이 없어요</b>영수증을 찍으면 금액이 저절로 적혀요.</div>') + '</div></div>';
+  if (t.cur !== 'KRW') {
+    const fx = (INFO[t.id] || {}).fx;
+    h += '<div class="muted" style="margin-top:12px">계산 환율: 100' + unit(t.cur) + ' = ' + comma(t.rate) + '원' + (fx ? ' · 오늘 ' + comma(fx.rate) + '원' : '') + '</div>';
+    if (fx && Math.abs(fx.rate - t.rate) / fx.rate > .02) h += '<button class="btn" style="margin-top:8px" data-act="use-fx">오늘 환율 ' + comma(fx.rate) + '원으로 계산하기</button>';
+  }
   return h;
 }
 
-function prepTab(t) {
+function memoryTab(t) {
+  const k = UI.memK;
+  let h = '<div class="seg" style="margin:4px 0 14px"><button class="' + (k === 'note' ? 'on' : '') + '" data-act="memk" data-v="note">일기</button><button class="' + (k === 'place' ? 'on' : '') + '" data-act="memk" data-v="place">가 본 곳</button><button class="' + (k === 'photo' ? 'on' : '') + '" data-act="memk" data-v="photo">사진</button></div>';
+  if (k === 'note') {
+    const all = live('notes', t.id);
+    const who = UI.diaryWho == null ? '' : UI.diaryWho;
+    const mem = t.members || [];
+    const nt = all.filter(n => (n.owner || '') === who).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
+    h += '<div class="chips diary-who"><button class="chipbtn ' + (who === '' ? 'on' : '') + '" data-act="diary-who" data-v="">👨‍👩‍👧‍👦 우리 가족 ' + all.filter(n => !n.owner).length + '</button>' +
+      mem.map(m => '<button class="chipbtn ' + (who === m ? 'on' : '') + '" data-act="diary-who" data-v="' + esc(m) + '">' + av(m, 22) + ' ' + esc(((fam(m) || {}).role) || m) + ' ' + all.filter(n => n.owner === m).length + '</button>').join('') + '</div>';
+    const mine = who === ME, shared = who === '';
+    h += '<div class="diary-head" style="--pc:' + (shared ? 'var(--coral)' : AVC[famIdx(who) % AVC.length]) + '"><div><b>' + (shared ? '우리 가족 함께 쓰는 일기' : esc(who) + '의 여행 다이어리') + '</b><span>' + (shared ? '누구나 쓰고 고칠 수 있어요' : mine ? '나만의 다이어리 · 가족이 읽을 수 있어요' : '읽기만 할 수 있어요 · ' + esc(who) + ' 님만 고쳐요') + '</span></div>' +
+      (shared || mine ? '<button class="btn pri" data-act="note-new">' + ic('pen') + '쓰기</button>' : '') + '</div>';
+    h += nt.length ? '<div class="stack">' + nt.map(n => '<button class="note" style="--pc:' + AVC[famIdx(n.by) % AVC.length] + '" data-act="note-edit" data-v="' + esc(n.id) + '"><div class="h">' + av(n.by, 28) + esc(n.by || '') + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + esc(n.mood) : '') + (n.q ? '<span class="q">Q. ' + esc(n.q) + '</span>' : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</button>').join('') + '</div>'
+      : '<div class="card empty"><div class="art">📔</div><b>' + (shared || mine ? '오늘 어땠나요?' : '아직 쓴 일기가 없어요') + '</b>' + (shared || mine ? '한 줄이라도 남기면 나중에 가족 여행 책이 돼요.' : '') + '</div>';
+  } else if (k === 'place') {
+    const pl = live('places', t.id).sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
+    h += '<div class="sec-h"><h3>가 본 곳</h3><button class="linkbtn" data-act="place-new">＋ 평가하기</button></div>';
+    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : '<div class="card empty"><div class="art">⭐</div><b>가 본 곳을 평가해요</b>별점과 한마디가 처음 화면 「우리가 좋았던 곳」에 모여요.</div>';
+  } else {
+    const ph = [];
+    [['spends', '영수증', 'spend-edit'], ['bookings', '예약', 'booking-edit'], ['parks', '주차', 'park-edit'], ['notes', '일기', 'note-edit'], ['places', '가 본 곳', 'place-edit']].forEach(([c, lb, act]) =>
+      live(c, t.id).forEach(r => { if (safeImg(r.thumb)) ph.push({ r, lb, act }); }));
+    ph.sort((a, b) => b.r.ts - a.r.ts);
+    h += ph.length ? '<div class="photos">' + ph.map(x => '<button data-act="' + x.act + '" data-v="' + esc(x.r.id) + '"><img src="' + x.r.thumb + '" alt=""><small>' + x.lb + '</small></button>').join('') + '</div><div class="muted" style="margin-top:10px">원본은 4gospel 드라이브 「하하가족여행/사진」에 있어요.</div>'
+      : '<div class="card empty"><div class="art">📷</div><b>사진이 아직 없어요</b>영수증·티켓·주차·일기 사진이 여기 모여요.</div>';
+  }
+  return h;
+}
+
+/* 따로 보는 쪽 */
+function walletPage(t) {
+  const w = bookingWarnings(t);
+  const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+  return '<div class="flex" style="gap:8px;margin:4px 0 14px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="booking">' + ic('camera') + '예약 화면 찍기</button><button class="btn big" style="flex:1" data-act="booking-new">' + ic('pen') + '직접 적기</button></div>' +
+    '<div class="stack">' + (bk.length ? bk.map(b => passCard(t, b, w[b.id]) + (w[b.id] ? '<div class="warnline" style="margin:-4px 4px 4px">⚠️ ' + esc(w[b.id]) + '</div>' : '')).join('') : '<div class="card empty">예약이 아직 없어요</div>') + '</div>';
+}
+function prepPage(t) {
   const ck = live('checks', t.id);
   const done = ck.filter(c => c.done).length, p = ck.length ? Math.round(done / ck.length * 100) : 0;
   const groups = {};
   ck.forEach(c => (groups[c.cat || '기타'] = groups[c.cat || '기타'] || []).push(c));
-  let h = '<div class="card flex" style="gap:14px;margin-top:4px"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div><b style="font-size:16px">' + done + ' / ' + ck.length + ' 준비 끝</b><div class="muted">' +
-    (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일 남았어요' : '즐거운 여행 되세요') + '</div></div></div>';
+  let h = '<div class="card flex" style="gap:14px;margin-top:4px"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : done + ' / ' + ck.length + ' 준비 끝') + '</b><div class="muted">' +
+    (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div></div><button class="btn" data-act="check-new">＋ 더하기</button></div>';
   Object.keys(groups).sort().forEach(g => {
     const list = groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts);
-    h += '<div class="sec"><div class="sec-h"><h3>' + esc(g) + '</h3><span class="more num">' + list.filter(c => c.done).length + '/' + list.length + '</span></div><div class="card">' +
+    h += '<div class="sec"><div class="sec-h"><h3>' + esc(g) + '</h3><span class="muted num">' + list.filter(c => c.done).length + '/' + list.length + '</span></div><div class="card">' +
       list.map(c => '<div class="row ' + (c.done ? 'done' : '') + '"><button class="chk ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button>' +
-        '<button class="body" style="text-align:left" data-act="check-edit" data-v="' + esc(c.id) + '"><div class="t">' + esc(c.text) + '</div>' + (c.memo ? '<div class="m">' + esc(c.memo) + '</div>' : '') + '</button>' +
+        '<button class="body" style="text-align:left;min-height:44px" data-act="check-edit" data-v="' + esc(c.id) + '"><div class="t">' + esc(c.text) + '</div>' + (c.memo ? '<div class="m">' + esc(c.memo) + '</div>' : '') + '</button>' +
         (c.who ? '<span class="pill">' + esc(c.who) + '</span>' : '') + '</div>').join('') + '</div></div>';
   });
-  if (!ck.length) h += '<div class="card empty sec"><b>준비물이 없어요</b>＋로 챙길 것을 더하고 맡을 사람을 정해요.</div>';
   return h;
 }
-
-function logTab(t) {
-  let h = '<div class="seg" style="margin:4px 0 14px"><button class="' + (UI.logK === 'note' ? 'on' : '') + '" data-act="logk" data-v="note">여행 일기</button><button class="' + (UI.logK === 'place' ? 'on' : '') + '" data-act="logk" data-v="place">가 본 곳 평가</button></div>';
-  if (UI.logK === 'note') {
-    const nt = live('notes', t.id).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
-    h += nt.length ? '<div class="stack">' + nt.map(n => '<button class="note" data-act="note-edit" data-v="' + esc(n.id) + '"><div class="h">' + av(n.by, 26) + esc(n.by || '') + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + esc(n.mood) : '') + '</div><p>' + esc(n.text) + '</p></button>').join('') + '</div>'
-      : '<div class="card empty"><b>오늘 어땠나요?</b>한 줄이라도 남기면 나중에 가족 여행 책이 돼요.</div>';
-  } else {
-    const pl = live('places', t.id).sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
-    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : '<div class="card empty"><b>가 본 곳을 평가해요</b>별점과 한마디를 남기면 다음 여행 때 「우리가 좋았던 곳」에 모여요.</div>';
+function carPage(t) {
+  const pb = parkBooking(t);
+  const pks = live('parks', t.id).sort((a, b) => b.ts - a.ts);
+  let h = '';
+  const pk = pks[0];
+  if (pk) {
+    const hours = pk.date ? Math.max(0, Math.round((Date.now() - new Date(pk.date + 'T' + (pk.time || '00:00')).getTime()) / 36e5)) : 0;
+    h += '<div class="car">' + (safeImg(pk.thumb) ? '<button data-act="view-photo" data-c="parks" data-v="' + esc(pk.id) + '" style="display:block;width:100%"><img src="' + pk.thumb + '" alt="주차 위치 사진"></button>' : '') +
+      '<div class="cin"><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(md(pk.date)) + ' ' + esc(pk.time || '') + ' 세움' + (hours ? ' · ' + Math.floor(hours / 24) + '일 ' + (hours % 24) + '시간째' : '') + (pk.by ? ' · ' + esc(pk.by) + ' 기록' : '') + '</div>' +
+      (pk.memo ? '<p style="margin:8px 0 0">' + esc(pk.memo) + '</p>' : '') + (pk.keyBy ? '<p class="muted" style="margin:6px 0 0">🔑 차 키: ' + esc(pk.keyBy) + '</p>' : '') + (pk.left ? '<p class="muted" style="margin:4px 0 0">차에 둔 것: ' + esc(pk.left) + '</p>' : '') +
+      '<div class="acts">' + (pk.lat ? '<a class="btn navy" href="' + esc('https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + pk.lat + ',' + pk.lng) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서 길찾기</a>' : '') +
+      '<button class="btn" data-act="photo" data-v="parking">' + ic('camera') + '사진 더 찍기</button><button class="btn" data-act="park-edit" data-v="' + esc(pk.id) + '">' + ic('pen') + '고치기</button>' +
+      (safeUrl(pk.photoUrl) ? '<a class="btn" href="' + esc(pk.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '원본 사진</a>' : '') + '</div></div></div>';
+  } else h += '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('camera', 'var(--c-주차)') + '<span><b>주차 위치 사진 찍기</b><span>기둥 번호·구역 표지판이 보이게 찍어 주세요</span></span></button>';
+  if (pb) h += '<div class="sec"><div class="sec-h"><h3>주차 예약</h3></div>' + passCard(t, pb, bookingWarnings(t)[pb.id]) + '<div class="card" style="margin-top:10px"><div class="facts">' +
+    [['주차장', pb.place || pb.title], ['입차', (pb.date || '') + ' ' + (pb.time || '')], ['출차', pb.end], ['차량번호', pb.car], ['예약번호', pb.code], ['보증금', pb.deposit ? comma(pb.deposit) + '원' : ''], ['전화', pb.phone]]
+      .filter(x => x[1]).map(x => '<div><span>' + x[0] + '</span><b>' + esc(x[1]) + '</b></div>').join('') + '</div></div></div>';
+  if (pks.length > 1) h += '<div class="sec"><div class="sec-h"><h3>예전 기록</h3></div><div class="card">' + pks.slice(1).map(p => '<button class="row" data-act="park-edit" data-v="' + esc(p.id) + '">' + (safeImg(p.thumb) ? '<img class="th" src="' + p.thumb + '" alt="">' : '') + '<span class="body"><span class="t">' + esc(p.spot || '') + '</span><div class="m">' + esc(md(p.date)) + ' ' + esc(p.time || '') + '</div></span></button>').join('') + '</div></div>';
+  return h;
+}
+function infoCards(t, compact, only) {
+  const I = INFO[t.id] || {}, c = countryOf(t);
+  let h = '<div class="stack">';
+  // 환율
+  if (t.cur && t.cur !== 'KRW') {
+    const fx = I.fx;
+    h += '<div class="card"><div class="between"><span class="muted">💱 환율 (오늘)</span><span class="muted small">' + (fx ? new Date(fx.upd).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) + ' 기준' : '불러오는 중') + '</span></div>' +
+      '<div class="big-num num">100' + unit(t.cur) + ' = ' + (fx ? comma(fx.rate) + '원' : '…') + '</div>' +
+      '<div class="conv"><input class="in num" id="cv_a" inputmode="decimal" placeholder="' + unit(t.cur) + '" aria-label="' + unit(t.cur) + ' 금액"><span class="muted">→</span><div class="in num" id="cv_b" style="display:flex;align-items:center;justify-content:flex-end;font-weight:800">0원</div></div>' +
+      (fx && Math.abs(fx.rate - t.rate) / fx.rate > .02 ? '<button class="btn" style="margin-top:10px" data-act="use-fx">경비 계산도 오늘 환율로 (지금 ' + comma(t.rate) + '원)</button>' : '') + '</div>';
   }
+  if (only === 'fx') return h + '</div>';
+  // 날씨
+  const w = I.wx;
+  if (w && w.daily) {
+    const dd = w.daily, inTrip = dd.time.filter(d => d >= t.start && d <= t.end);
+    const idx = (inTrip.length ? inTrip : dd.time.slice(0, compact ? 5 : 10)).map(d => dd.time.indexOf(d));
+    const cur = w.current ? WMO(w.current.weather_code) : null;
+    h += '<div class="card"><div class="between"><button class="linkbtn" style="padding:0;color:var(--soft)" data-act="tab" data-v="weather">🌤️ ' + esc((I.geo && I.geo.name) || t.place) + ' 날씨 ›</button>' + (cur ? '<b class="num">지금 ' + cur[0] + ' ' + Math.round(w.current.temperature_2m) + '°</b>' : '') + '</div>' +
+      '<div class="wx">' + idx.map(k => { const x = WMO(dd.weather_code[k]); return '<div><small>' + esc(md(dd.time[k]).replace(/\(.\)/, '')) + '</small><b>' + x[0] + '</b><span class="num">' + Math.round(dd.temperature_2m_max[k]) + '° / ' + Math.round(dd.temperature_2m_min[k]) + '°</span>' + (dd.precipitation_probability_max[k] > 30 ? '<br><small>☔' + dd.precipitation_probability_max[k] + '%</small>' : '') + '</div>'; }).join('') + '</div>' +
+      (inTrip.length ? '' : '<div class="muted small" style="margin-top:8px">여행 날 예보는 출발 16일 전부터 보여요. 지금은 요즘 날씨예요.' + (I.normal ? ' <b>여행 날 평균(지난 ' + I.normal.years + '년): 낮 ' + I.normal.avgMax + '° · 아침 ' + I.normal.avgMin + '°</b>' : '') + '</div>') + '</div>';
+  } else if (I.wxErr) h += '<div class="card muted">날씨를 불러오지 못했어요</div>';
+  // 나라
+  if (c && c.n !== '한국') {
+    h += '<div class="card"><div class="muted" style="margin-bottom:4px">' + c.f + ' ' + c.n + ' 기본 정보</div><div class="facts">' +
+      [['시차', c.tz], ['전기', c.volt], ['팁', c.tip]].concat(compact ? [] : [['참고', c.etc]]).filter(x => x[1]).map(x => '<div><span>' + x[0] + '</span><b>' + esc(x[1]) + '</b></div>').join('') +
+      '<div><span>긴급</span><b>' + c.sos.map(s => esc(s[0]) + ' <a href="tel:' + esc(s[1]) + '">' + esc(s[1]) + '</a>').join(' · ') + '</b></div>' +
+      '<div><span>영사콜센터</span><b><a href="tel:' + CONSUL + '">' + CONSUL + '</a> (24시간)</b></div></div></div>';
+  }
+  return h + '</div>';
+}
+function infoPage(t) {
+  const hb = live('bookings', t.id).find(b => b.kind === '숙소');
+  let h = infoCards(t, false);
+  if (hb) h += '<div class="sec"><div class="sec-h"><h3>숙소 (택시에 보여 주기)</h3></div><div class="card"><div style="font-size:20px;font-weight:800">' + esc(hb.title) + '</div>' +
+    (hb.place ? '<div style="font-size:18px;margin-top:6px">' + esc(hb.place) + '</div>' : '') + '<div class="acts flex" style="margin-top:12px;flex-wrap:wrap">' + (hb.place ? '<a class="btn navy" href="' + esc(dirUrl(hb.place)) + '" target="_blank" rel="noopener">' + ic('route') + '길찾기</a>' : '') + '<button class="btn" data-act="booking-edit" data-v="' + esc(hb.id) + '">' + ic('pen') + '주소 고치기</button></div>' +
+    '<div class="muted small" style="margin-top:8px">예약 확인서의 일본어 주소로 바꿔 두면 택시 기사에게 그대로 보여 줄 수 있어요.</div></div></div>';
+  const tips = live('recs', t.id).filter(r => r.kind === '팁');
+  if (tips.length) h += '<div class="sec"><div class="sec-h"><h3>알아 둘 것</h3></div><div class="card">' + tips.map(r => '<div class="row"><span class="body"><div class="t">' + esc(r.name) + '</div><div class="m">' + esc(r.desc) + '</div></span></div>').join('') + '</div></div>';
   return h;
 }
 
-/* ---------- 아래 창(고치기) ---------- */
+/* ---------- 여행 수첩 (공부하듯 읽는 여행지 자료) ---------- */
+const BKEY = (t, k) => 'book.' + t.id + '.' + ME + '.' + k;
+const bookRead = (t, k) => !!LS.get(BKEY(t, k), false);
+function tripWx(t) {
+  // 여행 날마다 {d, max, min, code, rainP, real}
+  const I = INFO[t.id] || {}, w = I.wx, nm = I.normal;
+  return daysOf(t).map(d => {
+    if (w && w.daily) { const k = w.daily.time.indexOf(d); if (k >= 0) return { d, max: Math.round(w.daily.temperature_2m_max[k]), min: Math.round(w.daily.temperature_2m_min[k]), code: w.daily.weather_code[k], rainP: w.daily.precipitation_probability_max[k], real: true }; }
+    if (nm && nm.days[d.slice(5)]) { const x = nm.days[d.slice(5)]; return { d, max: x.max, min: x.min, code: x.rainP > 40 ? 61 : 2, rainP: x.rainP, real: false }; }
+    return { d, max: null };
+  });
+}
+function outfitBlock(t, max, min, rain) {
+  if (max == null || !window.GUIDE) return '<div class="muted">날씨를 받으면 옷차림을 알려 드려요</div>';
+  const mem = (t.members || []).map(n => fam(n) || { name: n, role: '' });
+  return '<div class="outfits">' + mem.map(p => { const o = GUIDE.outfitFor(p, max, min, rain); return '<div class="outfit">' + o.svg + '<b>' + esc(p.role || p.name) + '</b><span>' + esc(o.text) + '</span><small>👟 ' + esc(o.shoes) + '</small></div>'; }).join('') + '</div>';
+}
+function bookTab(t) {
+  const c = countryOf(t), cc0 = t.country || (c && Object.keys(COUNTRY).find(k => COUNTRY[k] === c)) || '';
+  const G = window.GUIDE || { PHRASES: {}, CULTURE: {}, SOS_MORE: {} };
+  const ph = G.PHRASES[cc0] || G.PHRASES.EN, cul = G.CULTURE[cc0] || [], sosMore = G.SOS_MORE[cc0] || [];
+  const wx = tripWx(t), known = wx.filter(x => x.max != null);
+  const avgMax = known.length ? Math.round(known.reduce((s, x) => s + x.max, 0) / known.length) : null, avgMin = known.length ? Math.round(known.reduce((s, x) => s + x.min, 0) / known.length) : null;
+  const recs = live('recs', t.id);
+  const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
+  const readN = SECS.filter(([k]) => bookRead(t, k)).length;
+  const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3>' + e + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
+  let h = '<div class="card book-cover"><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
+    '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
+  // 비상
+  const hb = live('bookings', t.id).find(b => b.kind === '숙소');
+  h += head('sos', '🆘', '비상 연락') + '<div class="card"><div class="facts">' + (c ? c.sos.map(s => '<div><span>' + esc(s[0]) + '</span><b><a href="tel:' + esc(s[1]) + '">' + esc(s[1]) + '</a></b></div>').join('') : '') +
+    '<div><span>영사콜센터 (24시간, 한국어)</span><b><a href="tel:' + CONSUL + '">' + CONSUL + '</a></b></div>' +
+    sosMore.map(s => '<div><span>' + esc(s[0]) + '<br><small>' + esc(s[2]) + '</small></span><b><a href="tel:' + esc(s[1]) + '">' + esc(s[1]) + '</a></b></div>').join('') +
+    (hb ? '<div><span>우리 숙소</span><b>' + esc(hb.title) + (hb.place ? '<br><small>' + esc(hb.place) + '</small>' : '') + '</b></div>' : '') +
+    '<div><span>가족 모임 장소 (길을 잃으면)</span><b>' + esc(t.meet || '숙소 앞에서 만나요') + '</b></div></div><div class="muted small" style="margin-top:8px">전화번호를 누르면 바로 걸려요. 해외에서 한국 번호로 걸 땐 요금이 붙어요.</div></div></div>';
+  // 서류
+  h += head('docs', '🛂', '여권·서류') + '<div class="stack"><button class="alert" style="--cc:var(--sky)" data-act="tab" data-v="passport">' + ib('doc', 'var(--sky)') + '<span><b>가족 여권 정보</b><span>여권 사진을 고르면 번호·만료일이 저절로 적혀요 (드라이브 「여권」 폴더에만 보관)</span></span></button>' +
+    '<button class="alert" style="--cc:var(--mint)" data-act="tab" data-v="wallet">' + ib('ticket', 'var(--mint)') + '<span><b>티켓 지갑</b><span>항공권·숙소·티켓·주차 예약</span></span></button></div></div>';
+  // 날씨·코디
+  h += head('wx', '🌤️', '날씨와 옷차림') + '<div class="card"><div class="between"><b>' + (known.length ? '여행 날 낮 ' + avgMax + '° · 아침 ' + avgMin + '°' : '날씨를 불러오는 중') + '</b><button class="linkbtn" data-act="tab" data-v="weather">날짜·시간별 ›</button></div>' +
+    (known.length && !known.every(x => x.real) ? '<div class="muted small">지난 몇 해 같은 날의 평균이에요. 실제 예보는 출발 16일 전부터 바뀌어요.</div>' : '') +
+    outfitBlock(t, avgMax, avgMin, known.length && known.reduce((q, x) => q + (x.rainP || 0), 0) / known.length > 45) + '</div></div>';
+  // 말
+  h += head('talk', '🗣️', '꼭 쓰는 말 · ' + ph.lang) + '<div class="muted small" style="margin:-4px 2px 8px">카드를 누르면 뜻과 읽는 법이 보여요. 외운 것은 ✓</div>' + ph.groups.map(([gname, list]) =>
+    '<div class="card" style="margin-bottom:10px"><b>' + esc(gname) + '</b><div class="phrases">' + list.map((p, i) => { const k = 'ph.' + gname + '.' + i, got = !!LS.get(BKEY(t, k), false);
+      return '<div class="phrase' + (got ? ' got' : '') + '"><button class="ph-face" data-act="flip"><span class="jp">' + esc(p[0]) + '</span><span class="ko">' + esc(p[1]) + '</span><span class="mean">' + esc(p[2]) + '</span></button><button class="ph-got" data-act="phrase-got" data-v="' + esc(k) + '" aria-label="외웠어요">' + (got ? '✓' : '') + '</button></div>'; }).join('') + '</div></div>').join('') + '</div>';
+  // 문화
+  h += head('culture', '🎌', '알아 둘 문화') + (cul.length ? '<div class="stack">' + cul.map(([a, b]) => '<div class="card"><b>' + esc(a) + '</b><p style="margin:6px 0 0">' + esc(b) + '</p></div>').join('') + '</div>' : '<div class="card muted">이 나라 자료는 아직 없어요. 「여행 팁」에 직접 모아 주세요.</div>') + '</div>';
+  // 돈
+  h += head('money', '💱', '돈·환율') + (t.cur && t.cur !== 'KRW' ? infoCards(t, true, 'fx') : '<div class="card muted">원화로 쓰는 여행이에요</div>') + '<div class="card" style="margin-top:10px"><div class="facts"><div><span>현금</span><b>현금만 받는 가게에 대비해 조금 챙겨요</b></div><div><span>카드</span><b>해외 결제 수수료가 적은 카드·트래블카드</b></div></div></div></div>';
+  // 기본
+  h += head('basic', '🔌', '기본 정보') + (c ? '<div class="card"><div class="facts">' + [['나라', c.f + ' ' + c.n], ['돈', unit(c.cur) + ' (' + c.cur + ')'], ['시차', c.tz], ['전기', c.volt], ['팁', c.tip], ['참고', c.etc]].filter(x => x[1]).map(x => '<div><span>' + x[0] + '</span><b>' + esc(x[1]) + '</b></div>').join('') + '</div></div>' : '<div class="card muted">여행 정보 고치기에서 나라를 골라 주세요</div>') + '</div>';
+  // 가 볼 곳
+  const spots = recs.filter(r => r.kind === '명소' || r.kind === '맛집');
+  h += head('spots', '⭐', '가 볼 곳 미리 공부') + (spots.length ? '<div class="stack">' + spots.map(r => '<div class="card"><div class="flex">' + ib(RC_IC[r.kind] || 'recs', cc(RECC[r.kind])) + '<div style="flex:1;min-width:0"><b>' + esc(r.name) + '</b><div class="muted small">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + (r.price ? ' · ' + esc(r.price) : '') + '</div></div></div>' + (r.desc ? '<p style="margin:8px 0 0">' + esc(r.desc) + '</p>' : '') + '</div>').join('') + '</div>' : '<div class="card muted">일정 → 가고 싶은 곳에 자료를 모으면 여기서 공부해요</div>') + '</div>';
+  // 팁
+  const tips = recs.filter(r => r.kind === '팁'), itemTips = live('items', t.id).filter(i => i.tip).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  h += head('tips', '💡', '여행 팁') + '<div class="card">' + tips.map(r => '<div class="row"><span class="body"><div class="t">' + esc(r.name) + '</div><div class="m">' + esc(r.desc) + '</div></span><button class="iconbtn" style="box-shadow:none" data-act="rec-edit" data-v="' + esc(r.id) + '" aria-label="고치기">' + ic('pen') + '</button></div>').join('') +
+    itemTips.map(i => '<div class="row"><span class="body"><div class="t">' + esc(md(i.date)) + ' ' + esc(i.title) + '</div><div class="m">💡 ' + esc(i.tip) + '</div></span></div>').join('') +
+    '<button class="btn wide" style="margin-top:8px" data-act="tip-new">＋ 팁 더하기</button></div></div>';
+  return h;
+}
+
+/* ---------- 날씨 (날씨 앱처럼 날짜별·시간별) ---------- */
+function weatherPage(t) {
+  const I = INFO[t.id] || {}, w = I.wx;
+  const wx = tripWx(t);
+  let sel = UI.wday || (today() >= t.start && today() <= t.end ? today() : t.start);
+  if (!wx.some(x => x.d === sel)) sel = t.start;
+  UI.wday = sel;
+  const cur = w && w.current ? WMO(w.current.weather_code) : null;
+  let h = '<div class="card wx-now"><div class="between"><div><div class="muted">' + esc((I.geo && I.geo.name) || t.place) + ' 지금</div><div class="big-num">' + (cur ? cur[0] + ' ' + Math.round(w.current.temperature_2m) + '°' : '…') + '</div><div class="muted">' + (cur ? cur[1] : '불러오는 중') + '</div></div>' +
+    '<div style="text-align:right" class="muted small">' + (I.normal ? '여행 날 평균<br><b class="num" style="font-size:18px;color:var(--ink)">' + I.normal.avgMax + '° / ' + I.normal.avgMin + '°</b><br>지난 ' + I.normal.years + '년 같은 날' : '') + '</div></div></div>';
+  h += '<div class="sec"><div class="sec-h"><h3>여행 날마다</h3></div><div class="days">' + wx.map((x, k) => { const ic2 = x.max != null ? WMO(x.code)[0] : '·'; return '<button class="day wxday ' + (x.d === sel ? 'on' : '') + '" data-act="wday" data-v="' + x.d + '"><small>' + (k + 1) + '일째 ' + esc(md(x.d)) + '</small><b>' + ic2 + '</b><span class="num">' + (x.max != null ? x.max + '° / ' + x.min + '°' : '—') + '</span>' + (x.max != null && !x.real ? '<em>평균</em>' : '') + '</button>'; }).join('') + '</div></div>';
+  const x = wx.find(y => y.d === sel) || {};
+  h += '<div class="card"><div class="between"><b style="font-size:18px">' + esc(md(sel)) + ' ' + (x.max != null ? WMO(x.code)[0] + ' ' + WMO(x.code)[1] : '') + '</b>' + (x.max != null ? '<span class="pill ' + (x.real ? 'hot' : '') + '">' + (x.real ? '실시간 예보' : '평균 · 지난 ' + ((INFO[t.id] || {}).normal || {}).years + '년') + '</span>' : '') + '</div>';
+  if (x.max != null) h += '<div class="big-num num" style="margin-top:6px">낮 ' + x.max + '° · 아침 ' + x.min + '°</div>' + (x.rainP != null ? '<div class="muted">' + (x.real ? '비 올 확률 ' + x.rainP + '%' : '지난 몇 해 이날 비 온 비율 ' + x.rainP + '%') + '</div>' : '');
+  // 시간별
+  if (x.real && w.hourly) {
+    const hrs = w.hourly.time.map((tm, i) => [tm, i]).filter(([tm]) => tm.startsWith(sel)).filter(([tm]) => Number(tm.slice(11, 13)) % 2 === 0);
+    h += '<div class="hourly">' + hrs.map(([tm, i]) => { const c2 = WMO(w.hourly.weather_code[i]); return '<div><small>' + Number(tm.slice(11, 13)) + '시</small><b>' + c2[0] + '</b><span class="num">' + Math.round(w.hourly.temperature_2m[i]) + '°</span>' + (w.hourly.precipitation_probability[i] > 20 ? '<small>☔' + w.hourly.precipitation_probability[i] + '%</small>' : '') + '</div>'; }).join('') + '</div>';
+  } else if (x.max != null) h += '<div class="muted small" style="margin-top:8px">시간별 예보는 출발 16일 전부터 보여요 (' + esc(md(ymd(new Date(pd(sel).getTime() - 15 * 864e5)))) + '쯤). 그때까지는 지난 몇 해 같은 날의 평균을 적어 둬요.</div>';
+  h += '</div>';
+  h += '<div class="sec"><div class="sec-h"><h3>👕 ' + esc(md(sel)) + ' 우리 가족 옷차림</h3></div><div class="card">' + (x.max != null ? '<div class="pill" style="display:inline-block;margin-bottom:6px">' + esc(GUIDE.LV_NAME[GUIDE.level(x.max, x.min)]) + '</div>' : '') + outfitBlock(t, x.max, x.min, (x.rainP || 0) > 50) + '</div></div>';
+  h += '<div class="muted small" style="margin-top:10px">날씨: Open-Meteo 예보·지난 기록. 실제와 다를 수 있어요.</div>';
+  return h;
+}
+
+/* ---------- 여권 (드라이브 「여권」 폴더에만) ---------- */
+async function loadPassports() { try { PASSPORTS = await call('passList'); } catch (e) { PASSPORTS = PASSPORTS || []; toast('여권 정보를 불러오지 못했어요'); } render(); }
+const mask = s => String(s || '').replace(/^(.{4}).*$/, (m, a) => a + '•'.repeat(Math.max(0, s.length - 4)));
+function passportPage(t) {
+  if (PASSPORTS == null) { loadPassports(); return '<div class="card empty">여권 정보를 불러오는 중…</div>'; }
+  const mem = (t.members || []);
+  let h = '<div class="muted" style="margin:4px 2px 12px">여권 정보는 가족 공용 기록에 넣지 않고 4gospel 드라이브 「하하가족여행/여권」에만 보관돼요. 번호는 눌러야 보여요.</div><div class="stack">';
+  mem.forEach(n => {
+    const p = PASSPORTS.find(x => x.member === n);
+    if (!p) { h += '<button class="alert" style="--cc:var(--sun)" data-act="pass-add" data-v="' + esc(n) + '">' + ib('camera', 'var(--sun)') + '<span><b>' + esc(n) + ' 여권 넣기</b><span>여권 사진을 고르면 저절로 읽어요</span></span></button>'; return; }
+    const left = p.expiry ? dayDiff(t.end, p.expiry) : null;
+    h += '<div class="card passcard"><div class="between"><b style="font-size:18px">' + esc(p.nameKo || n) + '</b>' + (left != null ? '<span class="pill ' + (left < 183 ? 'hot' : '') + '">' + (left < 183 ? '⚠️ 만료 가까움' : '유효') + '</span>' : '') + '</div>' +
+      '<div class="facts"><div><span>영문 이름</span><b>' + esc((p.surname || '') + ' ' + (p.given || '')) + '</b></div>' +
+      '<div><span>여권번호</span><b><button class="linkbtn" style="padding:0;min-height:0" data-act="pass-reveal" data-v="' + esc(p.id) + '">' + esc(UI.reveal === p.id ? p.number : mask(p.number)) + '</button></b></div>' +
+      '<div><span>만료일</span><b>' + esc(p.expiry || '') + (left != null ? ' <small class="muted">(여행 뒤 ' + Math.floor(left / 365) + '년 ' + Math.floor(left % 365 / 30) + '달)</small>' : '') + '</b></div>' +
+      (p.birth ? '<div><span>생년월일</span><b>' + esc(UI.reveal === p.id ? p.birth : p.birth.slice(0, 4) + '-••-••') + '</b></div>' : '') + '</div>' +
+      '<div class="flex" style="margin-top:10px;flex-wrap:wrap">' + (safeUrl(p.photoUrl) ? '<a class="btn" href="' + esc(p.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '여권 사진</a>' : '') + '<button class="btn" data-act="pass-edit2" data-v="' + esc(p.id) + '">' + ic('pen') + '고치기</button></div></div>';
+  });
+  return h + '</div><div class="muted small" style="margin-top:12px">항공권에 여권 정보를 넣을 때 영문 이름 철자가 여권과 똑같은지 꼭 확인하세요.</div>';
+}
+const PASS_F = [{ k: 'nameKo', label: '한글 이름' }, { k: 'surname', label: '영문 성', half: 1 }, { k: 'given', label: '영문 이름', half: 1 }, { k: 'number', label: '여권번호' },
+  { k: 'expiry', label: '만료일', type: 'date', half: 1 }, { k: 'birth', label: '생년월일', type: 'date', half: 1 }, { k: 'issue', label: '발급일', type: 'date', more: 1 }, { k: 'sex', label: '성별', type: 'opts', options: ['M', 'F'], names: { M: '남', F: '여' }, more: 1 }];
+function passForm(rec, ph, read) {
+  form(rec.id ? '여권 정보' : rec.member + ' 여권', PASS_F, rec, async vals => {
+    if (!vals.number) return toast('여권번호를 확인해 주세요');
+    const out = Object.assign({}, rec, vals, { id: rec.id || uid('p') });
+    closeSheet(); toast('여권 정보를 간직하는 중…');
+    try {
+      if (ph && ph.upload) { const r = await ph.upload; if (r && r.url) { out.photoUrl = r.url; out.photoId = r.id; } }
+      PASSPORTS = await call('passSave', out); toast('여권 정보를 드라이브에 간직했어요'); render();
+    } catch (e) { toast('간직하지 못했어요: ' + e.message); }
+  }, rec.id ? async () => { closeSheet(); try { PASSPORTS = await call('passDel', rec.id); render(); toast('여권 정보를 지웠어요'); } catch (e) { toast(e.message); } } : null, { photo: ph, read: read || [] });
+}
+function passFlow(member) {
+  pickPhoto('', async file => {
+    let ph;
+    try {
+      const full = await shrink(file, 1800, .85), thumb = await shrink(file, 300, .6), b64 = full.split(',')[1];
+      ph = { b64, thumb, upload: call('photo', b64, 'image/jpeg', '여권-' + member, '여권') };
+      ph.upload.catch(() => {});
+    } catch (e) { return toast('사진을 열지 못했어요'); }
+    openSheet('<h2>여권 읽는 중…</h2><div class="reading"><div class="shimmer"></div><div class="shimmer"></div></div>');
+    let f = {};
+    try { f = (await call('readPhoto', ph.b64, 'image/jpeg', 'passport')).fields || {}; } catch (e) {}
+    passForm(Object.assign({ member }, f), Object.assign({}, ph, { thumb: '' }), Object.keys(f).filter(k => f[k]));
+  });
+}
+
+/* ---------- 아래 창 ---------- */
 let SHEET = null;
 function openSheet(html, onMount) {
   $('#sheet-body').innerHTML = html; $('#sheet').hidden = false;
@@ -446,31 +972,37 @@ function openSheet(html, onMount) {
 }
 function closeSheet() { $('#sheet').hidden = true; $('#sheet-body').innerHTML = ''; SHEET = null; document.body.style.overflow = ''; document.body.classList.remove('sheet-open'); }
 
-/** 칸 목록으로 고치기 창 만들기 */
-function form(title, fields, rec, onSave, onDelete) {
-  SHEET = { fields, rec, onSave, onDelete, armed: false };
-  let h = '<h2>' + esc(title) + '</h2><form class="f" data-form="sheet">';
-  const row = [];
-  fields.forEach(f => {
-    const v = rec[f.k] != null ? rec[f.k] : (f.def != null ? f.def : '');
-    let x = '';
-    const id = 'f_' + f.k;
-    if (f.type === 'textarea') x = '<textarea class="in" id="' + id + '" placeholder="' + esc(f.ph || '') + '">' + esc(v) + '</textarea>';
+/** 칸 목록으로 고치기 창 (read = 사진에서 읽은 칸) */
+function form(title, fields, rec, onSave, onDelete, opts) {
+  opts = opts || {};
+  SHEET = { fields, rec, onSave, onDelete, armed: false, photo: opts.photo || null };
+  const read = new Set(opts.read || []);
+  const cell = f => {
+    const v = rec[f.k] != null && rec[f.k] !== '' ? rec[f.k] : (f.def != null ? f.def : '');
+    const id = 'f_' + f.k, rd = read.has(f.k) && v !== '' && v !== 0 ? ' read' : '';
+    let x;
+    if (f.type === 'textarea') x = '<textarea class="in' + rd + '" id="' + id + '" placeholder="' + esc(f.ph || '') + '">' + esc(v) + '</textarea>';
     else if (f.type === 'opts' || f.type === 'multi') {
       const vs = f.type === 'multi' ? (Array.isArray(v) ? v : []) : [v];
       x = '<div class="opts" id="' + id + '" data-type="' + f.type + '">' + f.options.map(o => '<button type="button" class="opt ' + (vs.includes(o) ? 'on' : '') + '" data-opt="' + esc(o) + '">' + esc(o === '' ? '정하지 않음' : (f.names && f.names[o]) || o) + '</button>').join('') + '</div>';
     } else if (f.type === 'stars') {
       x = '<div class="starpick" id="' + id + '" data-v="' + (Number(v) || 0) + '">' + [1, 2, 3, 4, 5].map(k => '<button type="button" class="' + (k <= v ? 'on' : '') + '" data-star="' + k + '" aria-label="별 ' + k + '개">★</button>').join('') + '</div>';
-    } else x = '<input class="in" id="' + id + '" type="' + (f.type || 'text') + '"' + (f.type === 'number' ? ' inputmode="decimal" step="any"' : '') + ' value="' + esc(v) + '" placeholder="' + esc(f.ph || '') + '"' + (f.list ? ' list="dl_' + f.k + '"' : '') + '>' +
+    } else x = '<input class="in' + rd + (f.huge ? ' huge' : '') + '" id="' + id + '" type="' + (f.type === 'number' ? 'text' : f.type || 'text') + '"' + (f.type === 'number' ? ' inputmode="decimal"' : '') + ' value="' + esc(f.type === 'number' && v ? comma(v) : v) + '" placeholder="' + esc(f.ph || '') + '"' + (f.list ? ' list="dl_' + f.k + '"' : '') + '>' +
       (f.list ? '<datalist id="dl_' + f.k + '">' + f.list.map(o => '<option value="' + esc(o) + '">').join('') + '</datalist>' : '');
-    const cell = '<label class="fl"><span>' + esc(f.label) + '</span>' + x + '</label>';
-    if (f.half) { row.push(cell); if (row.length === 2) { h += '<div class="f2">' + row.join('') + '</div>'; row.length = 0; } }
-    else { if (row.length) { h += '<div class="f2">' + row.join('') + '</div>'; row.length = 0; } h += cell; }
-  });
-  if (row.length) h += '<div class="f2">' + row.join('') + '</div>';
+    return '<label class="fl"><span>' + esc(f.label) + (rd ? ' · 사진에서 읽음' : '') + '</span>' + x + '</label>';
+  };
+  const block = list => { let h = '', row = []; list.forEach(f => { if (f.half) { row.push(cell(f)); if (row.length === 2) { h += '<div class="f2">' + row.join('') + '</div>'; row = []; } } else { if (row.length) { h += '<div class="f2">' + row.join('') + '</div>'; row = []; } h += cell(f); } }); if (row.length) h += '<div class="f2">' + row.join('') + '</div>'; return h; };
+  let h = '<h2>' + esc(title) + '</h2>';
+  const th = (SHEET.photo && SHEET.photo.thumb) || rec.thumb;
+  if (safeImg(th)) h += '<div class="photo-head"><img src="' + th + '" alt=""><div><b>' + (read.size ? '사진에서 읽었어요' : '붙인 사진') + '</b><span>' + (read.size ? '노란 칸이 맞는지 봐 주세요' : '') + (safeUrl(rec.photoUrl) ? ' <a href="' + esc(rec.photoUrl) + '" target="_blank" rel="noopener">원본</a>' : '') + '</span></div></div>';
+  h += '<form class="f" data-form="sheet">' + block(fields.filter(f => !f.more));
+  const more = fields.filter(f => f.more);
+  if (more.length) h += '<details class="more"' + (more.some(f => read.has(f.k) && rec[f.k]) ? ' open' : '') + '><summary>더 적기</summary><div class="f">' + block(more) + '</div></details>';
+  if (opts.attach) h += '<button type="button" class="btn" data-act="attach">' + ic('camera') + (th ? '사진 바꾸기' : '사진 붙이기') + '</button>';
+  if (opts.geo) h += '<button type="button" class="btn" data-act="geo" id="geobtn">' + ic('pin') + (rec.lat ? '지금 위치로 다시 저장' : '지금 위치도 저장 (길찾기용)') + '</button>';
   h += '<div class="sheet-acts">' + (onDelete ? '<button type="button" class="btn danger" data-act="sheet-del">' + ic('trash') + '지우기</button>' : '') +
     '<button type="button" class="btn" data-act="sheet-close">닫기</button><button class="btn pri">간직</button></div></form>';
-  openSheet(h, el => { const first = el.querySelector('input.in,textarea.in'); if (first && !rec.id) setTimeout(() => first.focus(), 250); });
+  openSheet(h, el => { const first = el.querySelector(opts.focus ? '#f_' + opts.focus : 'input.in,textarea.in'); if (first && (!rec.id || opts.focus)) setTimeout(() => first.focus(), 250); });
 }
 function readForm() {
   const out = {};
@@ -479,46 +1011,51 @@ function readForm() {
     if (f.type === 'opts') { const on = el.querySelector('.opt.on'); out[f.k] = on ? on.dataset.opt : ''; }
     else if (f.type === 'multi') out[f.k] = [...el.querySelectorAll('.opt.on')].map(b => b.dataset.opt);
     else if (f.type === 'stars') out[f.k] = Number(el.dataset.v) || 0;
-    else if (f.type === 'number') out[f.k] = el.value === '' ? 0 : Number(String(el.value).replace(/,/g, ''));
+    else if (f.type === 'number') out[f.k] = el.value === '' ? 0 : Number(String(el.value).replace(/[^\d.\-]/g, '')) || 0;
     else out[f.k] = el.value.trim();
   });
   return out;
 }
 
 /* 갈래마다 칸 */
-const ITEM_CATS = Object.keys(CAT);
 const F = {
   trip: () => [
     { k: 'title', label: '여행 이름', ph: '예: 오사카 가족여행' },
-    { k: 'place', label: '어디로', ph: '예: 일본 오사카 · 교토' },
+    { k: 'place', label: '어디로 (도시)', ph: '예: 오사카 · 교토' },
     { k: 'start', label: '가는 날', type: 'date', half: 1 }, { k: 'end', label: '오는 날', type: 'date', half: 1 },
+    { k: 'country', label: '나라', type: 'opts', options: Object.keys(COUNTRY), names: Object.fromEntries(Object.entries(COUNTRY).map(([k, v]) => [k, v.f + ' ' + v.n])) },
     { k: 'members', label: '함께 가는 사람', type: 'multi', options: D.meta.family.map(f => f.name) },
-    { k: 'cur', label: '현지 돈', type: 'opts', options: Object.keys(CUR), names: CUR },
-    { k: 'rate', label: '환율 (현지 돈 100 = 몇 원)', type: 'number', ph: '예: 엔화 950' },
-    { k: 'color', label: '표지 색', type: 'opts', options: Object.keys(GRAD), names: { sea: '바다', sunset: '노을', forest: '숲', plum: '보라', sand: '모래' } },
-    { k: 'memo', label: '메모', type: 'textarea', ph: '숙소·교통·꼭 기억할 것' }],
+    { k: 'cur', label: '현지 돈', type: 'opts', options: Object.keys(CUR), names: CUR, more: 1 },
+    { k: 'rate', label: '경비 계산 환율 (현지 돈 100 = 몇 원)', type: 'number', ph: '예: 엔화 845', more: 1 },
+    { k: 'memo', label: '메모', type: 'textarea', ph: '숙소·교통·꼭 기억할 것', more: 1 }],
   item: t => [
     { k: 'title', label: '할 일', ph: '예: 후시미 이나리 신사' },
     { k: 'date', label: '날짜 (비우면 날짜 미정)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
-    { k: 'cat', label: '갈래', type: 'opts', options: ITEM_CATS },
+    { k: 'cat', label: '갈래', type: 'opts', options: CATS },
     { k: 'place', label: '장소 (지도 검색어)', ph: '예: Fushimi Inari Taisha' },
-    { k: 'cost', label: '1인 비용 (' + unit(t.cur) + ')', type: 'number', half: 1 },
-    { k: 'memo', label: '메모', type: 'textarea', ph: '가는 길·예약·팁' }],
+    { k: 'cost', label: '1인 비용 (' + unit(t.cur) + ')', type: 'number' },
+    { k: 'memo', label: '메모', type: 'textarea', ph: '가는 길·예약번호' },
+    { k: 'tip', label: '💡 여행 팁 (여기서 알아 둘 것)', type: 'textarea', ph: '예: 아침 일찍 가면 한적해요', more: 1 }],
   booking: t => [
-    { k: 'kind', label: '갈래', type: 'opts', options: ['항공', '숙소', '티켓', '교통', '서류', '기타'] },
-    { k: 'title', label: '이름', ph: '예: 제주항공 7C1391 인천 → 간사이' },
-    { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
-    { k: 'end', label: '끝 (도착·체크아웃)', ph: '예: 09:50 또는 2027-01-01 10:00' },
-    { k: 'provider', label: '어디서 예약', ph: '예: 트립닷컴', half: 1 }, { k: 'code', label: '예약번호', half: 1 },
-    { k: 'link', label: '예약 주소 (https://…)', type: 'url' },
-    { k: 'memo', label: '메모', type: 'textarea' }],
+    { k: 'kind', label: '갈래', type: 'opts', options: ['항공', '숙소', '티켓', '교통', '주차', '서류', '기타'] },
+    { k: 'title', label: '이름', ph: '예: 인천공항 제1터미널 예약주차장(P5)' },
+    { k: 'date', label: '날짜 (입차·체크인)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
+    { k: 'end', label: '끝 (도착·출차·체크아웃)', ph: '예: 09:50 또는 2027-01-01 13:30' },
+    { k: 'code', label: '예약번호', half: 1 }, { k: 'provider', label: '어디서 예약', half: 1 },
+    { k: 'place', label: '장소·주소', more: 1 }, { k: 'car', label: '차량번호 (주차)', half: 1, more: 1 }, { k: 'deposit', label: '보증금 (원)', type: 'number', half: 1, more: 1 },
+    { k: 'phone', label: '전화', type: 'tel', half: 1, more: 1 }, { k: 'seat', label: '좌석', half: 1, more: 1 },
+    { k: 'price', label: '결제 금액', type: 'number', half: 1, more: 1 }, { k: 'cur', label: '돈', type: 'opts', options: [...new Set(['KRW', t.cur || 'KRW'])], names: CUR, half: 1, more: 1 },
+    { k: 'link', label: '예약 주소 (https://…)', type: 'url', more: 1 },
+    { k: 'memo', label: '메모', type: 'textarea', more: 1 }],
   spend: t => [
+    { k: 'amount', label: '얼마', type: 'number', huge: 1, ph: '0' },
+    { k: 'cur', label: '돈', type: 'opts', options: [...new Set([t.cur || 'KRW', 'KRW'])], names: CUR },
     { k: 'title', label: '어디에', ph: '예: 구로몬 시장 점심' },
-    { k: 'amount', label: '얼마', type: 'number', half: 1 }, { k: 'cur', label: '돈', type: 'opts', options: [...new Set([t.cur || 'KRW', 'KRW'])], names: CUR, half: 1 },
-    { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'cat', label: '갈래', type: 'opts', options: ITEM_CATS },
+    { k: 'cat', label: '갈래', type: 'opts', options: CATS },
     { k: 'payer', label: '낸 사람', type: 'opts', options: t.members || [] },
-    { k: 'split', label: '나눠 낼 사람', type: 'multi', options: t.members || [] },
-    { k: 'memo', label: '메모', type: 'textarea' }],
+    { k: 'date', label: '날짜', type: 'date', more: 1 },
+    { k: 'split', label: '나눠 낼 사람 (나눠 내기일 때)', type: 'multi', options: t.members || [], more: 1 },
+    { k: 'memo', label: '메모', type: 'textarea', more: 1 }],
   check: t => [
     { k: 'text', label: '챙길 것', ph: '예: 보조배터리' },
     { k: 'cat', label: '묶음', list: ['서류', '예약', '전자기기', '돈', '옷', '생활', '기타'], ph: '예: 전자기기' },
@@ -527,41 +1064,152 @@ const F = {
   rec: t => [
     { k: 'kind', label: '갈래', type: 'opts', options: ['명소', '맛집', '쇼핑', '숙소', '팁'] },
     { k: 'name', label: '이름' }, { k: 'area', label: '동네', half: 1 }, { k: 'price', label: '값', half: 1 },
-    { k: 'desc', label: '설명', type: 'textarea' }, { k: 'hours', label: '여는 시간·휴무' },
-    { k: 'map', label: '지도 검색어', ph: '예: Kuromon Market' }, { k: 'link', label: '누리집 (https://…)', type: 'url' }],
+    { k: 'desc', label: '설명', type: 'textarea' }, { k: 'hours', label: '여는 시간·휴무', more: 1 },
+    { k: 'map', label: '지도 검색어', ph: '예: Kuromon Market', more: 1 }, { k: 'link', label: '누리집 (https://…)', type: 'url', more: 1 }],
   note: t => [
-    { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'mood', label: '기분', type: 'opts', options: ['😊', '🥰', '😆', '😴', '🥵', '🤤'], half: 1 },
-    { k: 'text', label: '오늘 이야기', type: 'textarea', ph: '무엇이 좋았나요? 무엇을 먹었나요?' }],
+    { k: 'owner', label: '어디에 쓸까요', type: 'opts', options: ['', ME], names: { '': '👨‍👩‍👧‍👦 우리 가족 함께', [ME]: '📔 나만의 다이어리' } },
+    { k: 'text', label: '오늘 이야기', type: 'textarea', ph: DIARY_Q[new Date().getDate() % DIARY_Q.length] },
+    { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'mood', label: '기분', type: 'opts', options: ['😊', '🥰', '😆', '😴', '🥵', '🤤'] }],
   place: t => [
     { k: 'name', label: '곳 이름' }, { k: 'cat', label: '갈래', type: 'opts', options: ['맛집', '명소', '숙소', '쇼핑', '카페'] },
     { k: 'rating', label: '별점', type: 'stars' }, { k: 'memo', label: '한마디', type: 'textarea', ph: '다시 가고 싶나요? 무엇이 맛있었나요?' },
-    { k: 'map', label: '지도 검색어' }]
+    { k: 'map', label: '지도 검색어', more: 1 }],
+  park: t => [
+    { k: 'spot', label: '주차 위치 (크게 보여요)', ph: '예: 지하 2층 C-15 기둥' },
+    { k: 'memo', label: '찾아가는 길·표지판', type: 'textarea', ph: '예: 셔틀 정류장 3번 앞, 엘리베이터 오른쪽' },
+    { k: 'keyBy', label: '차 키 가진 사람', type: 'opts', options: ['', ...(t.members || [])] },
+    { k: 'left', label: '차에 두고 온 것', ph: '예: 겨울 외투 2벌', more: 1 },
+    { k: 'date', label: '날짜', type: 'date', half: 1, more: 1 }, { k: 'time', label: '시간', type: 'time', half: 1, more: 1 }]
 };
-const TITLE = { item: '일정', booking: '예약·서류', spend: '쓴 돈', check: '준비물', rec: '추천 자료', note: '여행 일기', place: '가 본 곳' };
-const COLL = { item: 'items', booking: 'bookings', spend: 'spends', check: 'checks', rec: 'recs', note: 'notes', place: 'places' };
+const DIARY_Q = ['오늘 가장 맛있었던 것은?', '오늘 가장 웃겼던 순간은?', '가족에게 고마웠던 일은?', '다시 오고 싶은 곳은?', '오늘 처음 해 본 것은?', '사진으로 못 담은 장면은?', '내일 꼭 하고 싶은 것은?'];
+const TITLE = { item: '일정', booking: '예약·티켓', spend: '쓴 돈', check: '준비물', rec: '추천 자료', note: '여행 일기', place: '가 본 곳', park: '내 차 어디?' };
+const COLL = { item: 'items', booking: 'bookings', spend: 'spends', check: 'checks', rec: 'recs', note: 'notes', place: 'places', park: 'parks' };
+const MAIN = { item: 'title', booking: 'title', spend: 'title', check: 'text', rec: 'name', note: 'text', place: 'name', park: 'spot' };
 
-function editRec(kind, t, rec) {
+function editRec(kind, t, rec, opts) {
+  opts = opts || {};
   const isNew = !rec.id;
   const c = COLL[kind];
+  const photoKinds = { spend: 1, booking: 1, note: 1, place: 1, park: 1 };
   form((isNew ? '새 ' : '') + TITLE[kind], F[kind](t), rec, vals => {
     if (kind === 'spend' && !(vals.amount > 0)) return toast('얼마인지 적어 주세요');
-    const main = { item: 'title', booking: 'title', spend: 'title', check: 'text', rec: 'name', note: 'text', place: 'name' }[kind];
-    if (!vals[main]) return toast('내용을 적어 주세요');
-    put(c, Object.assign({}, rec, vals, { id: rec.id || uid(kind[0]), trip: t.id }));
-    closeSheet(); toast('간직했어요');
-  }, isNew ? null : () => { remove(c, rec.id); closeSheet(); toast('지웠어요'); });
+    if (kind === 'spend' && !vals.title) vals.title = vals.cat || '쓴 돈';
+    if (kind === 'park' && !vals.spot) vals.spot = '주차 위치';
+    if (!vals[MAIN[kind]]) return toast('내용을 적어 주세요');
+    if (kind === 'spend' && isNew && !SHEET.dupOk) {
+      const dup = live('spends', t.id).find(s => s.date === vals.date && Number(s.amount) === vals.amount);
+      if (dup) { SHEET.dupOk = true; return toast('같은 날 같은 금액(' + dup.title + ')이 이미 있어요. 한 번 더 누르면 간직해요'); }
+    }
+    const ph = SHEET.photo;
+    if (kind === 'park' && SHEET.geo) Object.assign(vals, SHEET.geo);
+    const out = Object.assign({}, rec, vals, { id: rec.id || uid(kind[0]), trip: t.id });
+    if (ph && ph.thumb) out.thumb = ph.thumb;
+    delete out.photo;
+    const saved = put(c, out);
+    if (ph && ph.upload) attachUpload(c, saved.id, ph.upload);
+    closeSheet();
+    if (kind === 'booking' && (out.kind === '항공' || out.kind === '티켓') && out.date && isNew) offerPlan(t, out);
+    else toast(kind === 'spend' ? manWon(toWon(t, out.amount, out.cur)) + ' 적었어요' : '간직했어요');
+  }, isNew ? null : () => { remove(c, rec.id, TITLE[kind]); closeSheet(); }, Object.assign({ attach: !!photoKinds[kind], geo: kind === 'park' }, opts));
+}
+/** 사진 원본이 드라이브에 올라가면 기록에 링크를 붙임 */
+function attachUpload(c, id, upload) {
+  upload.then(r => { const cur = D[c][id]; if (cur && r && r.url) put(c, Object.assign({}, cur, { photoUrl: r.url, photoId: r.id }), true); })
+    .catch(() => toast('사진 원본은 다음에 다시 올릴게요'));
+}
+function offerPlan(t, b) {
+  openSheet('<h2>일정에도 넣을까요?</h2><p class="muted">' + esc(md(b.date)) + ' ' + esc(b.time || '') + ' 「' + esc(b.title) + '」</p><div class="sheet-acts"><button class="btn" data-act="sheet-close">아니요</button><button class="btn pri" id="opgo">일정에 넣기</button></div>',
+    el => el.querySelector('#opgo').onclick = () => { put('items', { id: uid('i'), trip: t.id, date: b.date, time: b.time || '', title: b.title, cat: b.kind === '항공' ? '이동' : '관광', place: b.place || '', cost: 0, memo: b.code ? '예약번호 ' + b.code : '', done: false }); closeSheet(); toast('일정에 넣었어요'); });
 }
 function editTrip(t) {
   const isNew = !t;
-  const rec = t || { start: ymd(new Date(Date.now() + 30 * 864e5)), end: ymd(new Date(Date.now() + 33 * 864e5)), members: D.meta.family.map(f => f.name), cur: 'JPY', rate: 950, color: 'sea' };
+  const rec = t || { start: ymd(new Date(Date.now() + 30 * 864e5)), end: ymd(new Date(Date.now() + 33 * 864e5)), members: D.meta.family.map(f => f.name), cur: 'JPY', rate: (LS.get('fx.JPY', {}) || {}).rate || 900, country: 'JP' };
   form(isNew ? '새 여행' : '여행 정보', F.trip(), rec, vals => {
     if (!vals.title) return toast('여행 이름을 적어 주세요');
     if (!vals.start || !vals.end || vals.end < vals.start) return toast('날짜를 확인해 주세요');
+    if (vals.country && COUNTRY[vals.country] && (!vals.cur || (isNew && vals.cur === 'JPY'))) vals.cur = COUNTRY[vals.country].cur;
     const id = rec.id || uid('t');
-    put('trips', Object.assign({}, rec, vals, { id, cur: vals.cur || 'KRW', color: vals.color || 'sea' }));
+    put('trips', Object.assign({}, rec, vals, { id, cur: vals.cur || 'KRW' }));
     closeSheet();
-    if (isNew) go('#/trip/' + encodeURIComponent(id) + '/over');
+    if (isNew) go(tripUrl(id));
   }, null);
+}
+
+/* ---------- 사진으로 넣기 ---------- */
+function pickPhoto(kind, onPicked) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) (onPicked || (x => readFlow(kind, x)))(f); };
+  inp.click();
+}
+async function shrink(file, max, q) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    return cv.toDataURL('image/jpeg', q);
+  } finally { URL.revokeObjectURL(url); }
+}
+async function preparePhoto(file, name) {
+  const full = await shrink(file, 1600, .82), thumb = await shrink(file, 420, .7);
+  const b64 = full.split(',')[1];
+  const upload = call('photo', b64, 'image/jpeg', name);
+  upload.catch(() => {});
+  return { b64, thumb, upload };
+}
+const KIND_NAME = { receipt: '영수증', booking: '예약 화면', parking: '주차 위치' };
+async function readFlow(kind, file) {
+  const t = curTrip(); if (!t) return;
+  let ph;
+  try { ph = await preparePhoto(file, KIND_NAME[kind]); } catch (e) { return toast('사진을 열지 못했어요'); }
+  let cancelled = false;
+  openSheet('<h2>' + KIND_NAME[kind] + ' 읽는 중…</h2><div class="photo-head"><img src="' + ph.thumb + '" alt=""><div><b>몇 초면 돼요</b><span>사진 원본은 구글 드라이브에 보관돼요</span></div></div><div class="reading"><div class="shimmer"></div><div class="shimmer"></div><div class="shimmer" style="width:60%"></div></div>' +
+    '<div class="sheet-acts"><button class="btn" id="rd_manual">' + ic('pen') + '직접 적기</button></div>', el => el.querySelector('#rd_manual').onclick = () => { cancelled = true; openFromRead(kind, t, {}, ph, []); });
+  let res = null;
+  try { res = await call('readPhoto', ph.b64, 'image/jpeg', kind); } catch (e) { if (!cancelled) toast(e.code === 'offline' ? '인터넷이 되면 다시 읽어 볼게요. 우선 직접 적어 주세요' : '글자를 읽지 못했어요. 직접 적어 주세요'); }
+  if (cancelled) return;
+  const f = (res && res.fields) || {};
+  openFromRead(kind, t, f, ph, Object.keys(f).filter(k => f[k] !== '' && f[k] != null && f[k] !== 0));
+}
+function openFromRead(kind, t, f, ph, read) {
+  const inTrip = today() >= t.start && today() <= t.end;
+  if (kind === 'receipt') {
+    const cur = f.cur && CUR[f.cur] ? f.cur : t.cur;
+    const cat = CATS.includes(f.cat) ? f.cat : guessCat(f.title || '');
+    editRec('spend', t, { amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { photo: ph, read, focus: 'amount' });
+  } else if (kind === 'booking') {
+    const r = {}; ['kind', 'title', 'date', 'time', 'end', 'code', 'provider', 'place', 'car', 'deposit', 'phone', 'seat', 'price', 'cur', 'memo'].forEach(k => { if (f[k] != null && f[k] !== '') r[k] = f[k]; });
+    if (!BK[r.kind]) r.kind = '티켓';
+    if (r.car) r.car = String(r.car).replace(/-/g, '');
+    editRec('booking', t, r, { photo: ph, read });
+  } else {
+    editRec('park', t, { spot: f.spot || '', memo: f.memo || '', date: today(), time: hm(), keyBy: ME }, { photo: ph, read, focus: 'spot' });
+  }
+}
+function guessCat(s) {
+  return /항공|air|jr|역|철도|버스|택시|난카이|지하철|교통|metro|駅|電鉄|タクシー/i.test(s) ? '이동' : /호텔|숙소|hotel|inn/i.test(s) ? '숙소' : /ローソン|セブン|ファミリーマート|ファミマ|로손|세븐일레븐|패밀리마트|편의점/i.test(s) ? '간식' : /마트|돈키|ドン・キホーテ|쇼핑|드럭|ドラッグ|store|mart/i.test(s) ? '쇼핑' :
+    /카페|coffee|커피|아이스|디저트|빵|베이커리/i.test(s) ? '간식' : /입장|티켓|ticket|usj|박물관|전망/i.test(s) ? '관광' : '식사';
+}
+const curTrip = () => { const r = route(); return r.view === 'trip' ? D.trips[r.trip] : null; };
+
+/* 빠른 추가 (＋) */
+function quickAdd(t) {
+  const tab = route().tab;
+  const hot = { plan: 'item-new', money: 'spend-new', memory: UI.memK === 'place' ? 'place-new' : 'note-new', prep: 'check-new', car: 'park-new', wallet: 'booking-new' }[tab] || '';
+  const Q = [['spend-new', 'receipt', '쓴 돈', 'var(--c-식사)'], ['item-new', 'plan', '일정', 'var(--c-이동)'], ['booking-new', 'ticket', '예약·티켓', 'var(--c-관광)'],
+    ['park-new', 'car', '내 차', 'var(--c-주차)'], ['note-new', 'pen', '일기', 'var(--c-쇼핑)'], ['place-new', 'star', '가 본 곳', 'var(--c-간식)'],
+    ['check-new', 'prep', '준비물', 'var(--c-숙소)'], ['rec-new', 'recs', '가고 싶은 곳', 'var(--c-관광)'], ['photo-any', 'camera', '사진만', 'var(--c-기타)']];
+  openSheet('<h2>무엇을 더할까요?</h2><button class="quick-photo" data-act="photo-pick">' + ib('camera', '#fff') + '<span><b>사진으로 넣기</b><span>영수증 · 예약·티켓 화면 · 주차 위치</span></span></button>' +
+    '<div class="qgrid">' + Q.map(([a, icn, n, col]) => '<button class="' + (a === hot ? 'hot' : '') + '" data-act="' + a + '">' + ib(icn, col) + n + '</button>').join('') + '</div>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
+}
+function photoPick() {
+  openSheet('<h2>무엇을 찍었나요?</h2><div class="pick3">' +
+    '<button data-act="photo" data-v="receipt">' + ib('receipt', 'var(--c-식사)') + '<span><b>영수증·결제 화면</b><span>금액·가게·날짜가 쓴 돈에 적혀요</span></span></button>' +
+    '<button data-act="photo" data-v="booking">' + ib('ticket', 'var(--c-관광)') + '<span><b>예약·티켓 화면</b><span>항공·숙소·티켓·주차 예약이 지갑에 들어가요</span></span></button>' +
+    '<button data-act="photo" data-v="parking">' + ib('car', 'var(--c-주차)') + '<span><b>주차 위치</b><span>기둥 번호를 읽어 「내 차 어디?」에 남겨요</span></span></button></div>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
 
 /* ---------- 누름 ---------- */
@@ -570,7 +1218,7 @@ document.addEventListener('click', e => {
   if (sopt) {
     const box = sopt.parentElement;
     if (box.dataset.type === 'multi') sopt.classList.toggle('on');
-    else { const was = sopt.classList.contains('on'); box.querySelectorAll('.opt').forEach(b => b.classList.remove('on')); if (!was || box.dataset.type === 'opts') sopt.classList.add('on'); }
+    else { box.querySelectorAll('.opt').forEach(b => b.classList.remove('on')); sopt.classList.add('on'); }
     return;
   }
   const st = e.target.closest('[data-star]');
@@ -581,57 +1229,84 @@ document.addEventListener('click', e => {
   const r = route(), t = r.view === 'trip' ? D.trips[r.trip] : null;
   const A = {
     home: () => go('#/'),
-    'open-trip': () => go('#/trip/' + encodeURIComponent(v) + '/over'),
-    tab: () => go('#/trip/' + encodeURIComponent(r.trip) + '/' + v),
-    me: () => { ME = v; LS.set('me', v); render(); toast(v + ' 님, 반가워요'); },
+    'open-trip': () => go(tripUrl(v)),
+    tab: () => go(tripUrl(r.trip, v)),
+    'switch-trip': () => openSheet('<h2>여행 고르기</h2><div class="stack">' + live('trips').sort((x, y) => y.start.localeCompare(x.start)).map(tripRow).join('') + '<button class="newtrip" data-act="trip-new">' + ic('plus') + '새 여행 만들기</button></div><div class="sheet-acts"><button class="btn" data-act="home">우리 여행 모두 보기</button></div>'),
+    me: () => { ME = v; LS.set('me', v); render(); toast(v + ' 님, 반가워요'); newsCheck(); },
     mode: () => { UI.mode = v; LS.set('mode', v); render(); },
-    day: () => { UI.day[r.trip] = v; render(); },
+    day: () => { UI.day[r.trip] = v; UI.showPast = false; render(); },
+    'show-past': () => { UI.showPast = true; render(); },
     reck: () => { UI.recK = v; render(); },
-    logk: () => { UI.logK = v; render(); },
+    memk: () => { UI.memK = v; render(); },
+    split: () => put('trips', Object.assign({}, t, { splitMode: v })),
+    'use-fx': () => { const fx = (INFO[t.id] || {}).fx; if (fx) { put('trips', Object.assign({}, t, { rate: Math.round(fx.rate * 10) / 10 })); toast('오늘 환율로 계산해요'); } },
+    quick: () => quickAdd(t),
+    'photo-pick': () => photoPick(),
+    photo: () => { closeSheet(); pickPhoto(v); },
+    'photo-any': () => { closeSheet(); pickPhoto('', async f => { const ph = await preparePhoto(f, '여행 사진'); editRec('note', t, { date: today() >= t.start && today() <= t.end ? today() : t.start, text: '' }, { photo: ph }); }); },
+    attach: () => pickPhoto('', async f => { try { const ph = await preparePhoto(f, '사진'); SHEET.photo = ph; const img = $('#sheet-body .photo-head img'); if (img) img.src = ph.thumb; else $('#sheet-body h2').insertAdjacentHTML('afterend', '<div class="photo-head"><img src="' + ph.thumb + '" alt=""><div><b>붙인 사진</b><span>간직하면 드라이브에도 보관돼요</span></div></div>'); } catch (er) { toast('사진을 열지 못했어요'); } }),
+    geo: () => { if (!navigator.geolocation) return toast('이 기기에서는 위치를 못 써요'); el.textContent = '위치 찾는 중…'; navigator.geolocation.getCurrentPosition(p => { SHEET.geo = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) }; el.textContent = '✓ 위치 저장됨'; }, () => { el.textContent = '위치를 못 찾았어요 (사진·글자로 충분해요)'; }, { enableHighAccuracy: true, timeout: 12000 }); },
     'sheet-close': () => closeSheet(),
-    'sheet-del': () => {
-      if (!SHEET || !SHEET.onDelete) return;
-      if (!SHEET.armed) { SHEET.armed = true; el.textContent = '한 번 더 누르면 지워요'; return; }
-      SHEET.onDelete();
-    },
+    'sheet-del': () => { if (!SHEET || !SHEET.onDelete) return; if (!SHEET.armed) { SHEET.armed = true; el.lastChild.textContent = '한 번 더 누르면 지워요'; return; } SHEET.onDelete(); },
     'trip-new': () => editTrip(null),
-    'item-new': () => editRec('item', t, { date: UI.day[t.id] === 'idea' ? '' : (UI.day[t.id] || t.start), cat: '관광', cost: 0 }),
+    'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
     'item-edit': () => editRec('item', t, D.items[v]),
-    'item-done': () => { const i = D.items[v]; put('items', Object.assign({}, i, { done: !i.done })); },
-    'booking-new': () => editRec('booking', t || D.trips[v], { kind: '숙소', date: (t || D.trips[v]).start }),
+    'item-done': () => { const i = D.items[v]; buzz(); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } },
+    'booking-new': () => editRec('booking', t, { kind: '숙소', date: t.start }),
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
-    'spend-new': () => editRec('spend', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : (t.members || [])[0], split: (t.members || []).slice() }),
+    'spend-new': () => editRec('spend', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
     'spend-edit': () => editRec('spend', t, D.spends[v]),
     'check-new': () => editRec('check', t, { cat: '기타', who: '' }),
     'check-edit': () => editRec('check', t, D.checks[v]),
-    'check-done': () => { const c = D.checks[v]; put('checks', Object.assign({}, c, { done: !c.done })); },
+    'check-done': () => { const c = D.checks[v]; buzz(); put('checks', Object.assign({}, c, { done: !c.done })); const ck = live('checks', c.trip); if (!c.done && ck.every(x => x.done)) { confetti(); toast('준비 끝! 가방만 들면 돼요'); } },
     'rec-new': () => editRec('rec', t, { kind: UI.recK !== '전체' ? UI.recK : '맛집' }),
     'rec-edit': () => editRec('rec', t, D.recs[v]),
     'rec-add': () => recToPlan(t, D.recs[v]),
-    'note-new': () => editRec('note', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start }),
-    'note-edit': () => editRec('note', t, D.notes[v]),
+    'note-new': () => editRec('note', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start, owner: UI.diaryWho === ME ? ME : '' }),
+    'note-edit': () => { const n = D.notes[v]; if (n.owner && n.owner !== ME) return openSheet('<div class="note" style="box-shadow:none;padding:0"><div class="h">' + av(n.by, 32) + esc(n.by) + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + esc(n.mood) : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</div><div class="muted small" style="margin-top:10px">' + esc(n.owner) + ' 님의 다이어리예요. 읽기만 할 수 있어요.</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); editRec('note', t, n); },
+    'diary-who': () => { UI.diaryWho = v; render(); },
     'place-new': () => editRec('place', t, { cat: '맛집', rating: 5 }),
     'place-edit': () => { const p = D.places[v]; editRec('place', D.trips[p.trip], p); },
-    'all-places': () => openSheet('<h2>우리가 가 본 곳</h2><div>' + live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0)).map(placeRow).join('') + '</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'),
+    'park-new': () => { closeSheet(); pickPhoto('parking'); },
+    'park-edit': () => editRec('park', t, D.parks[v]),
+    'view-photo': () => { const rec = D[el.dataset.c][v]; openSheet('<div class="viewer"><img src="' + safeImg(rec.thumb) + '" alt=""></div>' + (safeUrl(rec.photoUrl) ? '<a class="btn pri wide big" style="margin-top:12px" href="' + esc(rec.photoUrl) + '" target="_blank" rel="noopener">원본 크게 보기 (드라이브)</a>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); },
+    'all-places': () => openSheet('<h2>우리가 가 본 곳</h2><div>' + live('places').sort((x, y) => (y.rating || 0) - (x.rating || 0)).map(placeRow).join('') + '</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'),
     'trip-menu': () => tripMenu(D.trips[v]),
     'trip-edit': () => editTrip(D.trips[v]),
     'trip-copy': () => copyTrip(D.trips[v]),
-    'trip-del': () => {
-      if (!el.dataset.armed) { el.dataset.armed = '1'; el.querySelector('span').firstChild.textContent = '한 번 더 누르면 이 여행을 지워요'; return; }
-      remove('trips', v); closeSheet(); go('#/'); toast('여행을 지웠어요');
-    },
-    'export-doc': () => exportTo('exportDoc', v, '드라이브 문서'),
+    'trip-del': () => { if (!el.dataset.armed) { el.dataset.armed = '1'; el.querySelector('span').firstChild.textContent = '한 번 더 누르면 이 여행을 지워요'; return; } const id = v; closeSheet(); go('#/'); remove('trips', id, '여행을'); },
+    'export-doc': () => exportTo('exportDoc', v, '구글 드라이브 문서'),
     'export-notion': () => exportTo('exportNotion', v, '노션'),
     settings: () => settings(),
     'who-again': () => { ME = ''; LS.del('me'); closeSheet(); render(); },
-    'pull': () => { closeSheet(); pull().then(() => toast('새로 받았어요')); },
-    'logout': () => { if (!el.dataset.armed) { el.dataset.armed = '1'; el.querySelector('span').firstChild.textContent = '한 번 더 누르면 이 기기에서 나가요'; return; } PASS = ''; ME = ''; LS.del('pass'); LS.del('me'); LS.del('data'); LS.del('q'); D = empty(); Q = []; closeSheet(); render(); },
-    'fam-edit': () => famEdit(), 'pass-edit': () => passEdit(), 'notion-edit': () => notionEdit(),
-    'drive-open': async () => { try { const u = await call('folderUrl'); linkSheet('드라이브 폴더', u); } catch (er) { toast('폴더를 못 찾았어요: ' + er.message); } },
-    'install': () => openSheet('<h2>휴대폰 홈 화면에 앱처럼 두기</h2><div class="stack"><div class="card"><b>아이폰 (사파리)</b><div class="muted">아래 공유 단추 → 「홈 화면에 추가」</div></div><div class="card"><b>갤럭시 (크롬·삼성 인터넷)</b><div class="muted">오른쪽 위 ⋮ 또는 ≡ → 「홈 화면에 추가」 또는 「앱 설치」</div></div></div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'),
+    big: () => { const on = !document.documentElement.classList.contains('big'); document.documentElement.classList.toggle('big', on); LS.set('big', on); closeSheet(); toast(on ? '글씨를 크게 했어요' : '글씨를 보통으로 했어요'); },
+    pull: () => { closeSheet(); pull().then(() => toast('새로 받았어요')); },
+    logout: () => { if (!el.dataset.armed) { el.dataset.armed = '1'; el.querySelector('span').firstChild.textContent = '한 번 더 누르면 이 기기에서 나가요'; return; } PASS = ''; ME = ''; ['pass', 'me', 'data', 'q', 'seen'].forEach(k => LS.del(k)); D = empty(); Q = []; closeSheet(); render(); },
+    'fam-edit': () => famEdit(), 'pass-edit': () => passEdit(), 'notion-edit': () => notionEdit(), 'ai-edit': () => aiEdit(),
+    'notion-setup': async () => { el.textContent = '만드는 중…'; try { await call('notionSetup'); toast('노션에 「하하가족여행」 정리함을 만들었어요'); closeSheet(); } catch (er) { toast(er.message); el.textContent = '정리함 만들기'; } },
+    'drive-open': async () => { try { const u = await call('folderUrl'); linkSheet('구글 드라이브 「하하가족여행」', u); } catch (er) { toast('폴더를 못 찾았어요: ' + er.message); } },
+    install: () => openSheet('<h2>휴대폰 홈 화면에 앱처럼 두기</h2><div class="stack"><div class="card"><b>아이폰 (사파리)</b><div class="muted">아래 공유 단추 → 「홈 화면에 추가」</div></div><div class="card"><b>갤럭시 (크롬·삼성 인터넷)</b><div class="muted">오른쪽 위 ⋮ 또는 ≡ → 「홈 화면에 추가」 또는 「앱 설치」</div></div></div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'),
+    'book-read': () => { const k = BKEY(t, v); const on = !LS.get(k, false); LS.set(k, on); if (on) buzz(); render(); },
+    'book-jump': () => { const x = document.getElementById('bk_' + v); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70, behavior: 'smooth' }); },
+    flip: () => el.parentElement.classList.toggle('open'),
+    'phrase-got': () => { const k = BKEY(t, v); LS.set(k, !LS.get(k, false)); buzz(); render(); },
+    'tip-new': () => editRec('rec', t, { kind: '팁' }),
+    wday: () => { UI.wday = v; render(); },
+    'pass-add': () => passFlow(v),
+    'pass-reveal': () => { UI.reveal = UI.reveal === v ? null : v; render(); },
+    'pass-edit2': () => { const p = (PASSPORTS || []).find(x => x.id === v); if (p) passForm(p, null, []); },
+    'news-ok': () => { LS.set('newsSeen', NEWS[0].v); closeSheet(); },
+    news: () => newsOpen(true),
     'copy-link': () => { const u = location.origin + location.pathname; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('주소를 복사했어요'), () => toast(u)); }
   };
   if (A[a]) { e.preventDefault(); A[a](); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'cv_a') { const t = curTrip(); const fx = (INFO[t.id] || {}).fx; const n = Number(String(e.target.value).replace(/[^\d.]/g, '')) || 0; $('#cv_b').textContent = comma(n * (fx ? fx.rate : t.rate) / 100) + '원'; }
+  if (e.target.classList.contains('in') && e.target.inputMode === 'decimal' && e.target.id.startsWith('f_')) {
+    const raw = e.target.value.replace(/[^\d.]/g, ''); const [i, d] = raw.split('.'); const v = (i ? Number(i).toLocaleString('ko-KR') : '') + (d != null ? '.' + d : '');
+    if (v !== e.target.value) e.target.value = v;
+  }
 });
 document.addEventListener('submit', async e => {
   e.preventDefault();
@@ -642,73 +1317,77 @@ document.addEventListener('submit', async e => {
     if (!p) return;
     msg.textContent = '확인 중…';
     PASS = p;
-    try { const d = await call('load'); LS.set('pass', p); adopt(d); render(); }
-    catch (er) { PASS = ''; msg.textContent = er.code === 'pass' ? '암호가 맞지 않아요' : (er.code === 'not_setup' || er.code === 'net') ? '서버 준비가 아직 안 됐어요. 관리자(4gospel)가 서버에서 setup을 한 번 실행하면 열려요' : '연결이 안 돼요. 인터넷을 확인해 주세요'; }
+    try { const d = await call('load'); LS.set('pass', p); adopt(d, true); othersChanged(D); startRoute(); render(); }
+    catch (er) { PASS = ''; msg.textContent = er.code === 'pass' ? '암호가 맞지 않아요' : (er.code === 'not_setup' || er.code === 'net') ? '서버 준비가 아직 안 됐어요' : '연결이 안 돼요. 인터넷을 확인해 주세요'; }
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
 
 function recToPlan(t, r) {
   const days = daysOf(t);
-  const catOf = { 맛집: '식사', 명소: '관광', 쇼핑: '쇼핑', 숙소: '숙소' };
-  SHEET = { fields: [], onSave: () => {} };
   openSheet('<h2>「' + esc(r.name) + '」 일정에 넣기</h2><div class="f"><div class="fl"><span>어느 날</span><div class="opts" id="rp_day">' +
     days.map((d, k) => '<button type="button" class="opt ' + (k === 0 ? 'on' : '') + '" data-opt="' + d + '">' + (k + 1) + '일째 ' + esc(md(d)) + '</button>').join('') + '<button type="button" class="opt" data-opt="">날짜 미정</button></div></div>' +
     '<label class="fl"><span>시간</span><input class="in" id="rp_time" type="time"></label></div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="rp_go">일정에 넣기</button></div>',
     el => el.querySelector('#rp_go').onclick = () => {
       const on = el.querySelector('#rp_day .opt.on');
-      put('items', { id: uid('i'), trip: t.id, date: on ? on.dataset.opt : '', time: el.querySelector('#rp_time').value, title: r.name, cat: catOf[r.kind] || '관광', place: r.map || r.name, cost: 0, memo: [r.desc, r.price].filter(Boolean).join(' · '), rec: r.id, done: false });
+      put('items', { id: uid('i'), trip: t.id, date: on ? on.dataset.opt : '', time: el.querySelector('#rp_time').value, title: r.name, cat: RECC[r.kind] || '관광', place: r.map || r.name, cost: 0, memo: [r.desc, r.price].filter(Boolean).join(' · '), rec: r.id, done: false });
       closeSheet(); toast('일정에 넣었어요');
     });
 }
 function tripMenu(t) {
   openSheet('<h2>' + esc(t.title) + '</h2><div class="menu-list">' +
-    '<button data-act="trip-edit" data-v="' + esc(t.id) + '">' + ic('plan') + '<span>여행 정보 고치기<small>날짜·사람·환율·표지 색</small></span></button>' +
-    '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ic('doc') + '<span>구글 드라이브 문서로 기록</span></button>' +
-    '<button data-act="export-notion" data-v="' + esc(t.id) + '">' + ic('notion') + '<span>노션에 기록</span></button>' +
-    '<button data-act="trip-copy" data-v="' + esc(t.id) + '">' + ic('copy') + '<span>이 여행을 본떠 새 여행<small>준비물·추천 자료를 그대로 가져가요</small></span></button>' +
-    '<button data-act="copy-link">' + ic('link') + '<span>앱 주소 복사<small>가족에게 보내 주세요 (암호는 따로)</small></span></button>' +
-    '<button data-act="trip-del" data-v="' + esc(t.id) + '" style="color:var(--warn)">' + ic('trash') + '<span>이 여행 지우기<small>드라이브 백업에는 남아요</small></span></button>' +
+    '<button data-act="trip-edit" data-v="' + esc(t.id) + '">' + ib('plan', 'var(--sky)', 1) + '<span>여행 정보 고치기<small>날짜·나라·사람·환율</small></span></button>' +
+    '<button data-act="tab" data-v="prep">' + ib('prep', 'var(--mint)', 1) + '<span>준비물</span></button>' +
+    '<button data-act="tab" data-v="info">' + ib('globe', 'var(--sky)', 1) + '<span>여행 정보<small>환율·날씨·나라 정보·숙소 주소</small></span></button>' +
+    '<button data-act="tab" data-v="car">' + ib('car', 'var(--c-주차)', 1) + '<span>내 차 어디?</span></button>' +
+    '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ib('doc', 'var(--sky)', 1) + '<span>구글 문서 기록 지금 새로 만들기</span></button>' +
+    '<button data-act="export-notion" data-v="' + esc(t.id) + '">' + ib('notion', 'var(--ink)', 1) + '<span>노션으로 보내기</span></button>' +
+    '<button data-act="trip-copy" data-v="' + esc(t.id) + '">' + ib('copy', 'var(--lav)', 1) + '<span>이 여행을 본떠 새 여행<small>준비물·추천 자료를 그대로 가져가요</small></span></button>' +
+    '<button data-act="settings">' + ib('gear', 'var(--soft)', 1) + '<span>설정</span></button>' +
+    '<button data-act="trip-del" data-v="' + esc(t.id) + '" style="color:var(--warn)">' + ib('trash', 'var(--warn)', 1) + '<span>이 여행 지우기<small>되돌리기·드라이브 백업이 있어요</small></span></button>' +
     '</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
 function copyTrip(t) {
   const id = uid('t');
-  put('trips', { id, title: t.title + ' (새)', place: t.place, start: t.start, end: t.end, members: (t.members || []).slice(), cur: t.cur, rate: t.rate, color: t.color, memo: '' });
-  live('checks', t.id).forEach(c => put('checks', { id: uid('c'), trip: id, text: c.text, cat: c.cat, who: '', done: false }));
-  live('recs', t.id).forEach(r => put('recs', Object.assign({}, r, { id: uid('r'), trip: id, ts: 0 })));
+  put('trips', { id, title: t.title + ' (새)', place: t.place, start: t.start, end: t.end, members: (t.members || []).slice(), cur: t.cur, rate: t.rate, country: t.country, memo: '' });
+  live('checks', t.id).forEach(c => put('checks', { id: uid('c'), trip: id, text: c.text, cat: c.cat, who: '', done: false }, true));
+  live('recs', t.id).forEach(r => put('recs', Object.assign({}, r, { id: uid('r'), trip: id, ts: 0 }), true));
   closeSheet(); editTrip(D.trips[id]);
 }
 async function exportTo(fn, tripId, name) {
   if (Q.length) await flush();
   toast(name + '에 기록하는 중…');
   try { const r = await call(fn, tripId, ME); await pull(); linkSheet(name + '에 기록했어요', r.url); }
-  catch (er) { openSheet('<h2>' + esc(name) + ' 기록이 안 됐어요</h2><p class="muted">' + esc(er.message) + '</p>' + (fn === 'exportNotion' ? '<button class="btn pri wide" data-act="notion-edit">노션 연결하기</button>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); }
+  catch (er) { openSheet('<h2>' + esc(name) + ' 기록이 안 됐어요</h2><p class="muted">' + esc(er.message) + '</p>' + (fn === 'exportNotion' ? '<button class="btn pri wide big" data-act="notion-edit">노션 연결하기</button>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); }
 }
 function linkSheet(title, url) {
-  openSheet('<h2>' + esc(title) + '</h2>' + (safeUrl(url) ? '<a class="btn pri wide" href="' + esc(url) + '" target="_blank" rel="noopener">' + ic('link') + '열기</a>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
+  openSheet('<h2>' + esc(title) + '</h2>' + (safeUrl(url) ? '<a class="btn pri wide big" href="' + esc(url) + '" target="_blank" rel="noopener">' + ic('link') + '열기</a>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
 
 /* ---------- 설정 ---------- */
 function settings() {
-  openSheet('<h2>설정</h2><div class="flex" style="margin-bottom:8px">' + av(ME, 40) + '<div><b>' + esc(ME) + '</b><div class="muted">이 휴대폰을 쓰는 사람</div></div></div><div class="menu-list">' +
-    '<button data-act="who-again">' + ic('users') + '<span>다른 사람으로 바꾸기</span></button>' +
-    '<button data-act="fam-edit">' + ic('users') + '<span>가족 목록<small>' + esc(D.meta.family.map(f => f.name).join(', ')) + '</small></span></button>' +
-    '<button data-act="pass-edit">' + ic('key') + '<span>가족 암호 바꾸기<small>바꾸면 다른 가족도 새 암호를 넣어야 해요</small></span></button>' +
-    '<button data-act="notion-edit">' + ic('notion') + '<span>노션 연결<small>노션 통합 열쇠와 기록할 페이지</small></span></button>' +
-    '<button data-act="drive-open">' + ic('folder') + '<span>구글 드라이브 폴더 열기<small>4gospel 「하하가족여행」 — 원본·백업·기록 문서</small></span></button>' +
-    '<button data-act="install">' + ic('phone') + '<span>홈 화면에 앱처럼 두기</span></button>' +
-    '<button data-act="copy-link">' + ic('link') + '<span>앱 주소 복사</span></button>' +
-    '<button data-act="pull">' + ic('sync') + '<span>지금 새로 받기<small>판 ' + D.rev + (Q.length ? ' · 못 보낸 고침 ' + Q.length + '개' : '') + '</small></span></button>' +
-    '<button data-act="logout" style="color:var(--warn)">' + ic('out') + '<span>이 기기에서 나가기<small>이 휴대폰의 사본과 암호를 지워요</small></span></button>' +
+  const big = document.documentElement.classList.contains('big');
+  openSheet('<h2>설정</h2><div class="flex" style="margin-bottom:8px">' + av(ME, 44) + '<div><b style="font-size:17px">' + esc(ME) + '</b><div class="muted">이 휴대폰을 쓰는 사람</div></div></div><div class="menu-list">' +
+    '<button data-act="big">' + ib('text', 'var(--coral)', 1) + '<span>글씨 ' + (big ? '보통으로' : '크게') + '<small>지금 ' + (big ? '크게' : '보통') + '</small></span></button>' +
+    '<button data-act="who-again">' + ib('users', 'var(--sky)', 1) + '<span>다른 사람으로 바꾸기</span></button>' +
+    '<button data-act="fam-edit">' + ib('users', 'var(--mint)', 1) + '<span>가족 목록<small>' + esc(D.meta.family.map(f => f.name).join(', ')) + '</small></span></button>' +
+    '<button data-act="pass-edit">' + ib('key', 'var(--sun)', 1) + '<span>가족 암호 바꾸기<small>바꾸면 다른 가족도 새 암호를 넣어야 해요</small></span></button>' +
+    '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>구글 드라이브 폴더<small>4gospel 「하하가족여행」 — 원본·사진·기록 문서·백업 (저절로 저장)</small></span></button>' +
+    '<button data-act="notion-edit">' + ib('notion', 'var(--ink)', 1) + '<span>노션 연결<small>「하하가족여행」 정리함으로 보내기</small></span></button>' +
+    '<button data-act="ai-edit">' + ib('ai', 'var(--lav)', 1) + '<span>사진 글자 더 잘 읽기 (선택)<small>제미나이 열쇠를 넣으면 영수증·티켓을 더 정확히 읽어요</small></span></button>' +
+    '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
+    '<button data-act="install">' + ib('phone', 'var(--sky)', 1) + '<span>홈 화면에 앱처럼 두기</span></button>' +
+    '<button data-act="copy-link">' + ib('link', 'var(--mint)', 1) + '<span>앱 주소 복사<small>가족에게 보내 주세요 (암호는 따로)</small></span></button>' +
+    '<button data-act="pull">' + ib('sync', 'var(--sky)', 1) + '<span>지금 새로 받기<small>판 ' + D.rev + (Q.length ? ' · 못 보낸 고침 ' + Q.length + '개' : '') + '</small></span></button>' +
+    '<button data-act="logout" style="color:var(--warn)">' + ib('out', 'var(--warn)', 1) + '<span>이 기기에서 나가기<small>이 휴대폰의 사본과 암호를 지워요</small></span></button>' +
     '</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
 function famEdit() {
-  SHEET = { fields: [], onSave: () => {} };
-  openSheet('<h2>가족 목록</h2><p class="muted">한 줄에 한 사람, 「이름 / 관계」로 적어 주세요.</p><textarea class="in" id="famtx" rows="6">' + esc(D.meta.family.map(f => f.name + ' / ' + (f.role || '')).join('\n')) + '</textarea>' +
+  openSheet('<h2>가족 목록</h2><p class="muted">한 줄에 한 사람, 「이름 / 관계」로 적어 주세요. 관계는 인사말에 쓰여요(예: 아빠).</p><textarea class="in" id="famtx" rows="6">' + esc(D.meta.family.map(f => f.name + ' / ' + (f.role || '')).join('\n')) + '</textarea>' +
     '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="famgo">간직</button></div>', el => el.querySelector('#famgo').onclick = () => {
-      const fam = el.querySelector('#famtx').value.split('\n').map(l => l.split('/').map(s => s.trim())).filter(x => x[0]).map(x => ({ name: x[0], role: x[1] || '' }));
-      if (!fam.length) return toast('한 사람 이상 적어 주세요');
-      put('meta', Object.assign({}, D.meta, { family: fam })); closeSheet(); toast('가족 목록을 간직했어요');
+      const fm = el.querySelector('#famtx').value.split('\n').map(l => l.split('/').map(s => s.trim())).filter(x => x[0]).map(x => ({ name: x[0], role: x[1] || '' }));
+      if (!fm.length) return toast('한 사람 이상 적어 주세요');
+      put('meta', Object.assign({}, D.meta, { family: fm })); closeSheet(); toast('가족 목록을 간직했어요');
     });
 }
 function passEdit() {
@@ -721,17 +1400,58 @@ function passEdit() {
 async function notionEdit() {
   let st = { key: false, parent: false };
   try { st = await call('notionState'); } catch (e) {}
-  openSheet('<h2>노션 연결</h2><div class="muted" style="margin-bottom:12px">① notion.so/profile/integrations 에서 「새 통합」을 만들고 열쇠(ntn_…)를 복사해요.<br>② 기록을 모을 노션 페이지 → ⋯ → 「연결」에서 그 통합을 더해요.<br>③ 아래에 열쇠와 그 페이지 주소를 넣어요.</div>' +
+  openSheet('<h2>노션 「하하가족여행」 정리함</h2><div class="muted" style="margin-bottom:12px">노션에 데이터베이스 다섯 개를 만들어 여행마다 정리해요: 🧳 여행 · 🗓️ 일정 · 💳 경비 · 🎫 예약·서류 · 📔 추억(일기·가 본 곳·주차).<br><br>' +
+    '① notion.so/profile/integrations → 「새 통합」 만들고 열쇠(ntn_…) 복사<br>② 노션에 「하하가족여행」 페이지를 만들고 ⋯ → 「연결」에서 그 통합 더하기<br>③ 아래에 열쇠와 페이지 주소를 넣고 「정리함 만들기」</div>' +
     '<div class="f"><label class="fl"><span>통합 열쇠 ' + (st.key ? '(들어 있음 — 바꿀 때만)' : '') + '</span><input class="in" id="nk" type="password" placeholder="ntn_…" autocomplete="off"></label>' +
-    '<label class="fl"><span>기록할 노션 페이지 주소 ' + (st.parent ? '(들어 있음)' : '') + '</span><input class="in" id="np2" type="url" placeholder="https://www.notion.so/…"></label></div>' +
-    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="nkgo">간직</button></div>', el => el.querySelector('#nkgo').onclick = async () => {
-      try { const r = await call('setNotion', el.querySelector('#nk').value.trim(), el.querySelector('#np2').value.trim()); closeSheet(); toast(r.key && r.parent ? '노션을 이었어요' : '열쇠와 페이지를 모두 넣어 주세요'); }
-      catch (er) { toast('못 넣었어요: ' + er.message); }
+    '<label class="fl"><span>「하하가족여행」 노션 페이지 주소 ' + (st.parent ? '(들어 있음)' : '') + '</span><input class="in" id="np2" type="url" placeholder="https://www.notion.so/…"></label></div>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="nkgo">간직</button></div>' +
+    (st.key && st.parent ? '<button class="btn mint wide big" style="margin-top:10px" data-act="notion-setup">정리함 만들기</button>' : ''), el => el.querySelector('#nkgo').onclick = async () => {
+      try { const r = await call('setNotion', el.querySelector('#nk').value.trim(), el.querySelector('#np2').value.trim()); if (r.key && r.parent) { await call('notionSetup'); toast('노션에 정리함을 만들었어요'); closeSheet(); } else toast('열쇠와 페이지를 모두 넣어 주세요'); }
+      catch (er) { toast('안 됐어요: ' + er.message); }
+    });
+}
+async function aiEdit() {
+  let st = { gemini: false }; try { st = await call('aiState'); } catch (e) {}
+  openSheet('<h2>사진 글자 더 잘 읽기</h2><p class="muted">지금도 구글 드라이브의 글자 읽기로 영수증·예약 화면을 읽어요. 제미나이 열쇠(aistudio.google.com, 4gospel 계정)를 넣으면 가게 이름·갈래까지 더 정확히 읽어요. 열쇠는 서버에만 보관돼요.</p>' +
+    '<label class="fl"><span>제미나이 열쇠 ' + (st.gemini ? '(들어 있음)' : '(없음)') + '</span><input class="in" id="gk" type="password" placeholder="AIza…" autocomplete="off"></label>' +
+    '<div class="sheet-acts">' + (st.gemini ? '<button class="btn danger" id="gkdel">열쇠 빼기</button>' : '') + '<button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="gkgo">간직</button></div>', el => {
+      el.querySelector('#gkgo').onclick = async () => { try { await call('setGemini', el.querySelector('#gk').value.trim()); closeSheet(); toast('간직했어요'); } catch (er) { toast(er.message); } };
+      const d = el.querySelector('#gkdel'); if (d) d.onclick = async () => { await call('setGemini', '-'); closeSheet(); toast('열쇠를 뺐어요'); };
     });
 }
 
+/* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
+const NEWS = [
+  { v: '2.0', d: '2026-11-25', title: '새로워진 하하가족여행', items: [
+    ['camera', 'var(--coral)', '사진으로 넣기', '영수증·예약 화면·주차 위치를 찍으면 금액·예약번호·주차 칸이 저절로 채워져요. 사진은 구글 드라이브에 보관돼요.'],
+    ['today', 'var(--sun)', '「오늘」 화면', '출발 전·여행 중·돌아오는 날마다 꼭 필요한 것이 먼저 보여요. 시간에 따라 하늘 그림도 바뀌어요.'],
+    ['park', 'var(--c-주차)', '공항 주차·내 차 어디?', '주차 예약을 지갑에 넣고, 세운 뒤 기둥을 찍어 두면 돌아오는 날 맨 위에 보여요.'],
+    ['book', 'var(--mint)', '여행 수첩', '비상 연락·꼭 쓰는 일본어·문화·날씨별 가족 옷차림을 공부하듯 읽어요.'],
+    ['sun', 'var(--sky)', '날씨·환율', '날짜별·시간별 날씨(16일 전부터 실시간, 그 전엔 평균)와 오늘 환율·계산기.'],
+    ['plane', 'var(--c-이동)', '보기 좋은 아이콘', '항공권은 탑승권처럼, 일정은 비행기·전철·숙소·신사 아이콘으로.'],
+    ['doc', 'var(--lav)', '구글에 저절로 기록', '고칠 때마다 드라이브 여행 기록 문서가 정리되고, 노션 「하하가족여행」 정리함으로도 보낼 수 있어요.']] }
+];
+function newsOpen(all) {
+  const list = all ? NEWS : NEWS.slice(0, 1);
+  openSheet(list.map(n => '<div class="postcard"><div class="pc-stamp"><span>HAHA</span><b>' + esc(n.v) + '</b></div><div class="pc-mark">✈ AIR MAIL · ' + esc(n.d) + '</div><h2>' + esc(n.title) + ' ✈️</h2>' +
+    n.items.map(([icn, col, a, b]) => '<div class="pc-item">' + ib(icn, col) + '<div><b>' + esc(a) + '</b><span>' + esc(b) + '</span></div></div>').join('') + '</div>').join('') +
+    '<div class="sheet-acts"><button class="btn pri" data-act="news-ok">좋아요, 여행 준비하러 가기</button></div>');
+}
+function newsCheck() {
+  if (LS.get('newsSeen', '') === NEWS[0].v) return;
+  setTimeout(() => { if ($('#sheet').hidden) newsOpen(); }, 700);
+}
+
+if (API === '/api') window.HAHA_TEST = { openFromRead, curTrip };
 /* ---------- 시작 ---------- */
+function startRoute() {
+  if (location.hash && location.hash !== '#') return;
+  const t0 = today();
+  const t = live('trips').filter(x => x.end >= t0).sort((a, b) => a.start.localeCompare(b.start))[0];
+  if (t) history.replaceState(null, '', tripUrl(t.id));
+}
+if (PASS) startRoute();
 render();
-if (PASS) pull();
+if (PASS) pull().then(() => { if (!location.hash || location.hash === '#') { startRoute(); render(); } if (ME && fam(ME)) newsCheck(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
