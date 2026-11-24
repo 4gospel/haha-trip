@@ -643,7 +643,7 @@ document.addEventListener('submit', async e => {
     msg.textContent = '확인 중…';
     PASS = p;
     try { const d = await call('load'); LS.set('pass', p); adopt(d); render(); }
-    catch (er) { PASS = ''; msg.textContent = er.code === 'pass' ? '암호가 맞지 않아요' : er.code === 'not_setup' ? '서버 준비가 아직 안 됐어요 (setup 실행 필요)' : '연결이 안 돼요. 인터넷을 확인해 주세요'; }
+    catch (er) { PASS = ''; msg.textContent = er.code === 'pass' ? '암호가 맞지 않아요' : (er.code === 'not_setup' || er.code === 'net') ? '서버 준비가 아직 안 됐어요. 관리자(4gospel)가 서버에서 setup을 한 번 실행하면 열려요' : '연결이 안 돼요. 인터넷을 확인해 주세요'; }
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
