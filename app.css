@@ -561,3 +561,7 @@ h3.ih .ib.sm svg{width:17px;height:17px}
 .pp-row .pp-v{font-size:14.5px;white-space:nowrap}
 .pp-top{font-size:13px}
 @media (max-width:420px){.pp-top i{display:none}}
+.bp{width:64px;height:64px;object-fit:contain;flex:none;filter:drop-shadow(0 4px 6px rgba(40,120,100,.18))}
+.pic img{background:transparent}
+.hero img.cover{object-position:center 40%}
+.hero.mini img.cover{object-position:center 45%}

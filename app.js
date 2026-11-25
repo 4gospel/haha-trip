@@ -578,7 +578,7 @@ function todayTab(t) {
   // 준비 (출발 전)
   if (ph === 'before') {
     const ck = live('checks', t.id), done = ck.filter(x => x.done).length, p = ck.length ? Math.round(done / ck.length * 100) : 0;
-    h += '<div class="sec"><button class="card flex" style="width:100%;text-align:left;gap:14px" data-act="tab" data-v="prep"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">준비 ' + done + ' / ' + ck.length + '</b><div class="muted">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : '남은 것 ' + (ck.length - done) + '개 · 눌러서 챙기기') + '</div></div>' + ic('back').replace('<svg', '<svg style="transform:rotate(180deg)"') + '</button></div>';
+    h += '<div class="sec"><button class="card flex" style="width:100%;text-align:left;gap:14px" data-act="tab" data-v="prep"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">준비 ' + done + ' / ' + ck.length + '</b><div class="muted">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : '남은 것 ' + (ck.length - done) + '개 · 눌러서 챙기기') + '</div></div>' + '<img class="bp" src="img/backpack.webp" alt="">' + '</button></div>';
   }
   // 여행 정보 (환율·날씨·나라)
   h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + (c ? c.f + ' ' + c.n + ' ' : '') + '여행 정보</h3><button class="linkbtn" data-act="tab" data-v="info">자세히</button></div>' + infoCards(t, true) + '</div>';
@@ -844,7 +844,7 @@ function prepPage(t) {
   const groups = {};
   ck.forEach(c => (groups[c.cat || '기타'] = groups[c.cat || '기타'] || []).push(c));
   let h = '<div class="card flex" style="gap:14px;margin-top:4px"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : done + ' / ' + ck.length + ' 준비 끝') + '</b><div class="muted">' +
-    (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div></div><button class="btn" data-act="check-new">＋ 더하기</button></div>';
+    (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div><button class="btn" style="margin-top:8px" data-act="check-new">＋ 준비물 더하기</button></div><img class="bp" src="img/backpack.webp" alt=""></div>';
   const ORDER = Object.keys(PREP_CAT); Object.keys(groups).sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0))).forEach(g => {
     const list = groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts);
     h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + pic(PREP_CAT[g] || PREP_CAT.기타, 36) + esc(g) + '</h3><span class="muted num">' + list.filter(c => c.done).length + '/' + list.length + '</span></div><div class="card">' +
@@ -953,8 +953,8 @@ function bookTab(t) {
     (hb ? '<div><span>우리 숙소</span><b>' + esc(hb.title) + (hb.place ? '<br><small>' + esc(hb.place) + '</small>' : '') + '</b></div>' : '') +
     '<div><span>가족 모임 장소 (길을 잃으면)</span><b>' + esc(t.meet || '숙소 앞에서 만나요') + '</b></div></div><div class="muted small" style="margin-top:8px">전화번호를 누르면 바로 걸려요. 해외에서 한국 번호로 걸 땐 요금이 붙어요.</div></div></div>';
   // 서류
-  h += head('docs', '🛂', '여권·서류') + '<div class="stack"><button class="alert" style="--cc:var(--sky)" data-act="tab" data-v="passport">' + ib('doc', 'var(--sky)') + '<span><b>가족 여권 정보</b><span>여권 사진을 고르면 번호·만료일이 저절로 적혀요 (드라이브 「여권」 폴더에만 보관)</span></span></button>' +
-    '<button class="alert" style="--cc:var(--mint)" data-act="tab" data-v="wallet">' + ib('ticket', 'var(--mint)') + '<span><b>티켓 지갑</b><span>항공권·숙소·티켓·주차 예약</span></span></button></div></div>';
+  h += head('docs', '🛂', '여권·서류') + '<div class="stack"><button class="alert" style="--cc:var(--sky)" data-act="tab" data-v="passport">' + pic(['doc', 'var(--sky)', 'passport'], 44) + '<span><b>가족 여권 정보</b><span>여권 사진을 고르면 번호·만료일이 저절로 적혀요 (드라이브 「여권」 폴더에만 보관)</span></span></button>' +
+    '<button class="alert" style="--cc:var(--mint)" data-act="tab" data-v="wallet">' + pic(['ticket', 'var(--mint)', 'ticket'], 44) + '<span><b>티켓 지갑</b><span>항공권·숙소·티켓·주차 예약</span></span></button></div></div>';
   // 날씨·코디
   h += head('wx', '🌤️', '날씨와 옷차림') + '<div class="card"><div class="between"><b>' + (known.length ? '여행 날 낮 ' + avgMax + '° · 아침 ' + avgMin + '°' : '날씨를 불러오는 중') + '</b><button class="linkbtn" data-act="tab" data-v="weather">날짜·시간별 ›</button></div>' +
     (known.length && !known.every(x => x.real) ? '<div class="muted small">지난 몇 해 같은 날의 평균이에요. 실제 예보는 출발 16일 전부터 바뀌어요.</div>' : '') +
@@ -1317,9 +1317,9 @@ function quickAdd(t) {
   const hot = { plan: 'item-new', money: 'spend-new', memory: UI.memK === 'place' ? 'place-new' : 'note-new', prep: 'check-new', car: 'park-new', wallet: 'booking-new' }[tab] || '';
   const Q = [['spend-new', 'receipt', '쓴 돈', 'var(--c-식사)'], ['item-new', 'plan', '일정', 'var(--c-이동)'], ['booking-new', 'ticket', '예약·티켓', 'var(--c-관광)'],
     ['park-new', 'car', '내 차', 'var(--c-주차)'], ['note-new', 'pen', '일기', 'var(--c-쇼핑)'], ['place-new', 'star', '가 본 곳', 'var(--c-간식)'],
-    ['check-new', 'prep', '준비물', 'var(--c-숙소)'], ['rec-new', 'recs', '가고 싶은 곳', 'var(--c-관광)'], ['photo-any', 'camera', '사진만', 'var(--c-기타)']];
+    ['check-new', 'prep', '준비물', 'var(--mint)', 'bag'], ['rec-new', 'recs', '가고 싶은 곳', 'var(--c-관광)'], ['photo-any', 'camera', '사진만', 'var(--c-기타)']];
   openSheet('<h2>무엇을 더할까요?</h2><button class="quick-photo" data-act="photo-pick">' + ib('camera', '#fff') + '<span><b>사진으로 넣기</b><span>영수증 · 예약·티켓 화면 · 주차 위치</span></span></button>' +
-    '<div class="qgrid">' + Q.map(([a, icn, n, col]) => '<button class="' + (a === hot ? 'hot' : '') + '" data-act="' + a + '">' + ib(icn, col) + n + '</button>').join('') + '</div>' +
+    '<div class="qgrid">' + Q.map(([a, icn, n, col, pk]) => '<button class="' + (a === hot ? 'hot' : '') + '" data-act="' + a + '">' + (pk ? pic([icn, col, pk], 44) : ib(icn, col)) + n + '</button>').join('') + '</div>' +
     '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
 function photoPick() {
@@ -1460,7 +1460,7 @@ function recToPlan(t, r) {
 function tripMenu(t) {
   openSheet('<h2>' + esc(t.title) + '</h2><div class="menu-list">' +
     '<button data-act="trip-edit" data-v="' + esc(t.id) + '">' + ib('plan', 'var(--sky)', 1) + '<span>여행 정보 고치기<small>날짜·나라·사람·환율</small></span></button>' +
-    '<button data-act="tab" data-v="prep">' + ib('prep', 'var(--mint)', 1) + '<span>준비물</span></button>' +
+    '<button data-act="tab" data-v="prep">' + pic(['prep', 'var(--mint)', 'bag'], 36) + '<span>준비물</span></button>' +
     '<button data-act="tab" data-v="info">' + ib('globe', 'var(--sky)', 1) + '<span>여행 정보<small>환율·날씨·나라 정보·숙소 주소</small></span></button>' +
     '<button data-act="tab" data-v="car">' + ib('car', 'var(--c-주차)', 1) + '<span>내 차 어디?</span></button>' +
     '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ib('doc', 'var(--sky)', 1) + '<span>구글 문서 기록 지금 새로 만들기</span></button>' +
@@ -1545,6 +1545,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.5', d: '2026-11-25', title: '오사카 표지가 생겼어요', items: [
+    ['sun', 'var(--sun)', '시간 따라 바뀌는 표지', '아침·저녁은 노을빛, 낮은 파란 하늘, 밤은 별빛 오사카 그림이 표지에 떠요.'],
+    ['prep', 'var(--mint)', '준비물 그림', '여권·지갑·충전기·스웨터·운동화·약·우산 같은 그림으로 준비물을 한눈에 봐요.']] },
   { v: '2.4', d: '2026-11-25', title: '여권·준비물이 꼼꼼해졌어요', items: [
     ['doc', 'var(--sky)', '여권처럼 보는 여권 정보', '여권 사진을 고르면 영문 이름·번호·발급일·만료일을 읽어 여권 모양 카드로 보여 줘요. 만료일과 남은 기간도 크게.'],
     ['prep', 'var(--mint)', '준비물 54가지', '서류·예약·돈·전자기기·옷·세면·건강·출발 전·돌아올 때 아홉 묶음으로 정리하고 그림을 달았어요.'],
