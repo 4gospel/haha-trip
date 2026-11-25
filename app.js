@@ -1052,7 +1052,7 @@ function bookTab(t) {
     (known.length && !known.every(x => x.real) ? '<div class="muted small">지난 몇 해 같은 날의 평균이에요. 실제 예보는 출발 16일 전부터 바뀌어요.</div>' : '') +
     outfitBlock(t, avgMax, avgMin, known.length && known.reduce((q, x) => q + (x.rainP || 0), 0) / known.length > 45) + '</div></div>';
   // 말
-  h += head('talk', '🗣️', '꼭 쓰는 말 · ' + ph.lang) + '<div class="muted small" style="margin:-4px 2px 8px">카드를 누르면 뜻과 읽는 법이 보여요. 외운 것은 ✓</div>' + ph.groups.map(([gname, list]) =>
+  h += head('talk', '🗣️', '꼭 쓰는 말 · ' + ph.lang) + '<div class="muted small" style="margin:-4px 2px 8px">한글로 읽는 법이 함께 있어요. 카드를 누르면 뜻이 보여요. 외운 것은 ✓</div>' + ph.groups.map(([gname, list]) =>
     '<div class="card" style="margin-bottom:10px"><b>' + esc(gname) + '</b><div class="phrases">' + list.map((p, i) => { const k = 'ph.' + gname + '.' + i, got = !!LS.get(BKEY(t, k), false);
       return '<div class="phrase' + (got ? ' got' : '') + '"><button class="ph-face" data-act="flip"><span class="jp">' + esc(p[0]) + '</span><span class="ko">' + esc(p[1]) + '</span><span class="mean">' + esc(p[2]) + '</span></button><button class="ph-got" data-act="phrase-got" data-v="' + esc(k) + '" aria-label="외웠어요">' + (got ? '✓' : '') + '</button></div>'; }).join('') + '</div></div>').join('') + '</div>';
   // 주의할 점
@@ -1600,7 +1600,7 @@ function settings() {
     '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
     '<button data-act="install">' + ib('phone', 'var(--sky)', 1) + '<span>홈 화면에 앱처럼 두기</span></button>' +
     '<button data-act="copy-link">' + ib('link', 'var(--mint)', 1) + '<span>앱 주소 복사<small>가족에게 보내 주세요 (암호는 따로)</small></span></button>' +
-    '<button data-act="pull">' + ib('sync', 'var(--sky)', 1) + '<span>지금 새로 받기<small>판 ' + D.rev + (Q.length ? ' · 못 보낸 고침 ' + Q.length + '개' : '') + '</small></span></button>' +
+    '<button data-act="pull">' + ib('sync', 'var(--sky)', 1) + '<span>지금 새로 받기<small>앱 v' + APP_V + ' · 기록 판 ' + D.rev + (Q.length ? ' · 못 보낸 고침 ' + Q.length + '개' : '') + '</small></span></button>' +
     '<button data-act="logout" style="color:var(--warn)">' + ib('out', 'var(--warn)', 1) + '<span>이 기기에서 나가기<small>이 휴대폰의 사본과 암호를 지워요</small></span></button>' +
     '</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
@@ -1644,6 +1644,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.4', d: '2026-11-25', title: '읽는 법이 늘 보여요', items: [
+    ['book', 'var(--sky)', '꼭 쓰는 말', '일본어 아래에 한글로 읽는 법이 늘 보여요. 카드를 누르면 뜻이 나와요.'],
+    ['sync', 'var(--mint)', '늘 새 화면으로', '새 판이 올라오면 휴대폰이 옛 화면을 지우고 저절로 새로 열어요. 날씨·옷차림 그림도 새 그림으로 보여요.']] },
   { v: '3.3', d: '2026-11-25', title: '추억 사진이 붙었어요', items: [
     ['camera', 'var(--coral)', '여행마다 사진 세 장', '구글 포토에서 고른 사진이 지난 여행 카드와 「그때 우리는」 편지에 폴라로이드처럼 붙어요. 누르면 크게 보여요.'],
     ['memory', 'var(--sky)', '표지도 우리 사진으로', '2017 제주 · 2022 제주 · 2025 대만 표지가 그때 찍은 사진으로 바뀌었어요. 원본은 드라이브 「사진」에 있어요.']] },
@@ -1721,4 +1724,22 @@ if (PASS) startRoute();
 render();
 if (PASS) pull().then(() => { if (!location.hash || location.hash === '#') { startRoute(); render(); } if (ME && fam(ME)) newsCheck(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+/* 새 판이 올라왔는데 휴대폰이 옛 화면을 붙들고 있으면 — 기억해 둔 화면을 지우고 새로 열기 */
+const APP_V = ((document.querySelector('script[src*="app.js"]') || {}).src || '').replace(/.*[?&]v=(\d+).*/, '$1');
+async function freshCheck() {
+  if (location.protocol !== 'https:' || !APP_V) return;
+  try {
+    const html = await (await fetch('index.html?fresh=' + Date.now(), { cache: 'no-store' })).text();
+    const nv = (/app\.js\?v=(\d+)/.exec(html) || [])[1];
+    if (!nv || nv === APP_V) return;
+    if (sessionStorage.getItem('haha.fresh') === nv) return;
+    sessionStorage.setItem('haha.fresh', nv);
+    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.update().catch(() => {});
+    location.reload();
+  } catch (e) {}
+}
+freshCheck();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') freshCheck(); });
 })();

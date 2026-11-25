@@ -333,10 +333,11 @@ details.more .f{margin-top:6px}
 .phrase{display:flex;gap:8px;align-items:stretch}
 .ph-face{flex:1;text-align:left;background:var(--fill);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-height:52px;justify-content:center}
 .ph-face .jp{font-size:18px;font-weight:700}
-.ph-face .ko,.ph-face .mean{display:none;font-size:15px}
+.ph-face .ko{display:block;font-size:15px}
+.ph-face .mean{display:none;font-size:15px}
 .ph-face .ko{color:var(--coral);font-weight:700}
 .ph-face .mean{color:var(--soft)}
-.phrase.open .ko,.phrase.open .mean{display:block}
+.phrase.open .mean{display:block}
 .ph-got{width:48px;border-radius:14px;border:2px solid var(--line);font-weight:800;color:#fff;font-size:20px}
 .phrase.got .ph-got{background:var(--mint);border-color:var(--mint)}
 .phrase.got .ph-face{background:color-mix(in srgb,var(--mint) 10%,var(--card))}
