@@ -759,3 +759,8 @@ body.sheet-open .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top));z-i
 .sos-tr{display:grid;place-items:center;gap:2px;background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:8px 14px;font-size:26px}
 .sos-tr span{font-size:12.5px;font-weight:700;color:var(--soft)}
 .iv-hol{background:color-mix(in srgb,var(--warn) 10%,var(--card));color:var(--warn);font-weight:700;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14.5px}
+/* 일정에서 다녀온 곳 */
+.row.plan-place .ib { opacity: .9 }
+.row.plan-place .pp-star { color: var(--sun, #e0a100); font-weight: 600 }
+.ap-trip { margin: 14px 2px 6px; font-size: 14px }
+.ap-trip:first-of-type { margin-top: 4px }

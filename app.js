@@ -458,7 +458,7 @@ function agoCard(cur) {
 /** 지난 여행 카드 (연표) */
 function pastCard(t) {
   const ds = daysOf(t), c = countryOf(t), n = +today().slice(0, 4) - +t.start.slice(0, 4);
-  const its = live('items', t.id), mem = live('notes', t.id).length + live('places', t.id).length;
+  const its = live('items', t.id), mem = live('notes', t.id).length + live('places', t.id).length + planPlaces(t.id).length;
   const line = String(t.story || '').split(/\n/)[0] || String(t.memo || '').split(/\n/)[0];
   return '<button class="pcard" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="pc-img">' + scene(t, { noPlane: 1 }) + coverImg(t) +
     '<span class="pc-year num"><b class="pc-yy">' + t.start.slice(0, 4) + ' · </b>' + (n > 0 ? n + '년 전' : '올해') + '</span>' + stampHtml('다녀옴', 'mini') + '</span>' +
@@ -550,14 +550,14 @@ function homeView() {
   h += pastHtml(past);
   const allDays = trips.reduce((s, t) => s + (t.start <= t0 ? Math.max(0, Math.min(dayDiff(t.start, t.end), dayDiff(t.start, t0)) + 1) : 0), 0);
   let spent = 0; live('spends').forEach(s => { const t = D.trips[s.trip]; if (t) spent += toWon(t, s.amount, s.cur); });
-  const places = live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
+  const places = live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts), plan = allPlan();
   h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div>';
   if (!past.length && !allDays && !places.length) h += '<div class="card empty"><div class="art">🧳✨</div><b>첫 여행을 기다리는 중</b>다녀오면 여기에 우리 가족의 여행이 쌓여요.</div>';
   else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(t => kindOf(t) === 'out').length + ' · 국내 ' + trips.filter(t => kindOf(t) === 'in').length + ' · 부부 ' + trips.filter(couple).length + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
-    '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>가 본 곳</small><b class="num">' + places.length + '곳</b><em>별점 ' + places.filter(p => p.rating > 0).length + '곳</em></div></div>';
+    '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>가 본 곳</small><b class="num">' + (places.length + plan.length) + '곳</b><em>별점 ' + places.filter(p => p.rating > 0).length + '곳</em></div></div>';
   h += '</div>';
   const liked = places.filter(p => p.rating > 0);
-  if (places.length) h += '<div class="sec"><div class="sec-h"><h3>' + (liked.length ? '우리가 좋았던 곳' : '우리가 가 본 곳') + '</h3><button class="linkbtn" data-act="all-places">모두 보기</button></div><div class="card">' + (liked.length ? liked : places).slice(0, 5).map(placeRow).join('') + '</div></div>';
+  if (places.length || plan.length) h += '<div class="sec"><div class="sec-h"><h3>' + (liked.length ? '우리가 좋았던 곳' : '우리가 가 본 곳') + '</h3><button class="linkbtn" data-act="all-places">모두 보기 ' + (places.length + plan.length) + '</button></div><div class="card">' + (liked.length ? liked.slice(0, 5).map(placeRow).join('') : places.slice(0, 5).map(placeRow).concat(plan.slice().reverse().slice(0, Math.max(0, 5 - places.length)).map(planRow)).join('')) + '</div></div>';
   return h + '</div>';
 }
 function heroCard(t, mode) {
@@ -578,6 +578,26 @@ function placeRow(p) {
   const t = D.trips[p.trip];
   return '<button class="row" data-act="place-edit" data-v="' + esc(p.id) + '">' + (safeImg(p.thumb) ? '<img class="th" src="' + p.thumb + '" alt="">' : ib('star', 'var(--sun)', 1)) + '<span class="body"><span class="t">' + esc(p.name) + '</span> <span class="m">' + esc(p.cat || '') + '</span><div class="m">' +
     '<span class="stars">' + '★'.repeat(p.rating || 0) + '</span> ' + esc(p.memo || '') + '</div></span><span class="m" style="text-align:right">' + esc(t ? t.title : '') + '<br>' + esc(p.by || '') + '</span></button>';
+}
+
+/* 일정에서 다녀온 곳 — 다녀온(✓) 일정 가운데 장소가 있는 관광·식사·쇼핑을 「가 본 곳」에 저절로 (가 본 곳 기록이 있으면 그것만) */
+const PLAN_CAT = { 관광: '명소', 식사: '맛집', 간식: '맛집', 쇼핑: '쇼핑', 카페: '카페' };
+const pkey = x => String(x || '').toLowerCase().replace(/[\s·()\-—,.'’]/g, '');
+function planPlaces(tid) {
+  const t = D.trips[tid]; if (!t) return [];
+  const pl = live('places', tid), keys = new Set(), names = [];
+  pl.forEach(p => { [p.name, p.map].forEach(x => { const k = pkey(x); if (k) keys.add(k); }); if (pkey(p.name).length > 1) names.push(pkey(p.name)); if (p.item) keys.add('#' + p.item); });
+  const seen = new Set();
+  return live('items', tid).filter(i => i.done && i.place && PLAN_CAT[i.cat] && !keys.has('#' + i.id) && !keys.has(pkey(i.place)) && !names.some(n => pkey(i.title).includes(n) || pkey(i.place).includes(n)))
+    .filter(i => { const k = pkey(i.place); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || byTime(a, b));
+}
+const allPlan = () => live('trips').flatMap(t => planPlaces(t.id));
+const planName = i => String(i.title).replace(/^(아침|점심|저녁|간식)\s*[—-]\s*/, '').replace(/\s*\([^)]*\)\s*$/, '').trim() || i.place;
+function planRow(i) {
+  const t = D.trips[i.trip];
+  return '<button class="row plan-place" data-act="place-from" data-v="' + esc(i.id) + '">' + ib('pin', 'var(--sky)', 1) + '<span class="body"><span class="t">' + esc(planName(i)) + '</span> <span class="m">' + esc(PLAN_CAT[i.cat]) + '</span><div class="m">' +
+    esc(i.date ? t && t.start.slice(0, 4) !== today().slice(0, 4) ? i.date.slice(0, 4) + '. ' + md(i.date) : md(i.date) : '') + ' 일정 · <span class="pp-star">☆ 별점 남기기</span></div></span><span class="m" style="text-align:right">' + esc(t ? t.title : '') + '</span></button>';
 }
 
 /* 여행 화면 */
@@ -688,7 +708,7 @@ function todayTab(t) {
     if (first.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('plan', 'var(--c-이동)', 1) + '첫날 · ' + esc(md(t.start)) + '</h3><button class="linkbtn" data-act="tab" data-v="plan">전체 일정</button></div><div class="tl">' + first.map(i => tlItem(t, i)).join('') + '</div></div>';
   }
   // 추억
-  const memN = live('notes', t.id).length + live('places', t.id).length;
+  const memN = live('notes', t.id).length + live('places', t.id).length + planPlaces(t.id).length;
   h += '<div class="sec"><button class="alert" style="--cc:var(--pink)" data-act="tab" data-v="memory">' + ib('memory', 'var(--pink)') + '<span><b>추억 ' + memN + '</b><span>여행 일기 · 가 본 곳 별점 · 사진</span></span></button></div>';
   // 기록
   h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('doc', 'var(--lav)', 1) + '기록</h3></div><div class="card"><div class="menu-list">' +
@@ -1027,7 +1047,7 @@ function priceGuess(s) {
 
 function memoryTab(t) {
   const k = UI.memK;
-  let h = '<div class="tabhead th-memory"><div><small>' + esc(t.title) + '</small><b>우리 가족 추억</b><span>일기 ' + live('notes', t.id).length + ' · 가 본 곳 ' + live('places', t.id).length + '</span></div><img class="th-art" src="img/diary-cover.webp" alt=""></div>' +
+  let h = '<div class="tabhead th-memory"><div><small>' + esc(t.title) + '</small><b>우리 가족 추억</b><span>일기 ' + live('notes', t.id).length + ' · 가 본 곳 ' + (live('places', t.id).length + planPlaces(t.id).length) + '</span></div><img class="th-art" src="img/diary-cover.webp" alt=""></div>' +
     '<div class="seg" style="margin:4px 0 14px"><button class="' + (k === 'note' ? 'on' : '') + '" data-act="memk" data-v="note">일기</button><button class="' + (k === 'place' ? 'on' : '') + '" data-act="memk" data-v="place">가 본 곳</button><button class="' + (k === 'photo' ? 'on' : '') + '" data-act="memk" data-v="photo">사진</button></div>';
   if (k === 'note') {
     const all = live('notes', t.id);
@@ -1044,7 +1064,9 @@ function memoryTab(t) {
   } else if (k === 'place') {
     const pl = live('places', t.id).sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
     h += '<div class="sec-h"><h3>가 본 곳</h3><button class="linkbtn" data-act="place-new">＋ 평가하기</button></div>';
-    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : '<div class="card empty">' + art('notebook') + '<b>가 본 곳을 평가해요</b>별점과 한마디가 처음 화면 「우리가 좋았던 곳」에 모여요.</div>';
+    const pp = planPlaces(t.id);
+    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : pp.length ? '' : '<div class="card empty">' + art('notebook') + '<b>가 본 곳을 평가해요</b>일정에서 「다녀옴」을 누른 곳도 여기에 저절로 모여요.</div>';
+    if (pp.length) h += '<div class="sec-h" style="margin-top:14px"><h3 class="ih">' + ib('route', 'var(--sky)', 1) + '일정에서 다녀온 곳 <span class="muted small">' + pp.length + '</span></h3></div><div class="card">' + pp.map(planRow).join('') + '</div><div class="muted small" style="margin:6px 2px">일정에서 「다녀옴」을 누른 곳이에요. 누르면 별점과 한마디를 남길 수 있어요.</div>';
   } else {
     const ph = [];
     [['spends', '영수증', 'spend-edit'], ['bookings', '예약', 'booking-edit'], ['parks', '주차', 'park-edit'], ['notes', '일기', 'note-edit'], ['places', '가 본 곳', 'place-edit']].forEach(([c, lb, act]) =>
@@ -1646,7 +1668,12 @@ document.addEventListener('click', e => {
     'park-new': () => { closeSheet(); pickPhoto('parking'); },
     'park-edit': () => editRec('park', t, D.parks[v]),
     'view-photo': () => { const rec = D[el.dataset.c][v]; openSheet('<div class="viewer"><img src="' + safeImg(rec.thumb) + '" alt=""></div>' + (safeUrl(rec.photoUrl) ? '<a class="btn pri wide big" style="margin-top:12px" href="' + esc(rec.photoUrl) + '" target="_blank" rel="noopener">원본 크게 보기 (드라이브)</a>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); },
-    'all-places': () => openSheet('<h2>우리가 가 본 곳</h2><div>' + live('places').sort((x, y) => (y.rating || 0) - (x.rating || 0)).map(placeRow).join('') + '</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'),
+    'all-places': () => {
+      const tr = live('trips').filter(x => live('places', x.id).length || planPlaces(x.id).length).sort((a, b) => b.start.localeCompare(a.start));
+      openSheet('<h2>우리가 가 본 곳</h2>' + tr.map(x => '<div class="ap-trip"><b>' + esc(x.title) + '</b> <span class="muted small num">' + esc(x.start.slice(0, 4) + '. ' + md(x.start)) + '</span></div><div class="card">' +
+        live('places', x.id).sort((a, b) => (b.rating || 0) - (a.rating || 0)).map(placeRow).join('') + planPlaces(x.id).map(planRow).join('') + '</div>').join('') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
+    },
+    'place-from': () => { const i = D.items[v]; if (!i) return; editRec('place', D.trips[i.trip], { name: planName(i), cat: PLAN_CAT[i.cat] || '명소', rating: 0, memo: i.memo || '', map: i.place, item: i.id, date: i.date }); },
     'trip-menu': () => tripMenu(D.trips[v]),
     'trip-edit': () => editTrip(D.trips[v]),
     'trip-copy': () => copyTrip(D.trips[v]),
@@ -1804,6 +1831,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.1', d: '2026-11-25', title: '가 본 곳이 일정을 따라와요', items: [
+    ['pin', 'var(--sky)', '다녀오면 저절로', '일정에서 「다녀옴」을 누른 명소·식당·쇼핑 곳이 그 여행의 「가 본 곳」에 저절로 모여요. 지난 여행도 일정대로 채워졌어요.'],
+    ['star', 'var(--sun)', '누르면 별점', '「일정에서 다녀온 곳」을 누르면 이름·지도가 채워진 채로 별점과 한마디를 남길 수 있어요. 처음 화면 「모두 보기」는 여행마다 나눠 보여요.']] },
   { v: '4.0', d: '2026-11-25', title: '번역기가 생겼어요', items: [
     ['mic', 'var(--coral)', '말하고 듣는 번역기', '수첩·「＋」에서 「번역기」를 열면 한국어로 말하거나 적은 말을 일본어로 옮기고 소리 내어 읽어 줘요. 마주 보고 번역하면 위쪽은 상대방 쪽으로 뒤집혀 보여요.'],
     ['camera', 'var(--sky)', '사진 찍어 번역', '메뉴판·약·과자 라벨·안내판·영수증을 찍으면 줄마다 한국어로 옮기고, 메뉴판은 요리 설명과 알레르기 재료(새우·땅콩·밀 등)도 짚어 줘요.'],
