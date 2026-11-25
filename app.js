@@ -1358,10 +1358,21 @@ function memoryTab(t) {
 
 /* 따로 보는 쪽 */
 function walletPage(t) {
-  const w = bookingWarnings(t);
-  const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
-  return '<div class="flex" style="gap:8px;margin:4px 0 14px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="booking">' + ic('camera') + '예약 화면 찍기</button><button class="btn big" style="flex:1" data-act="booking-new">' + ic('pen') + '직접 적기</button></div>' +
-    '<div class="stack">' + (bk.length ? bk.map(b => passCard(t, b, w[b.id]) + (w[b.id] ? '<div class="warnline" style="margin:-4px 4px 4px">⚠️ ' + esc(w[b.id]) + '</div>' : '')).join('') : '<div class="card empty">예약이 아직 없어요</div>') + '</div>';
+  const w = bookingWarnings(t), mode = UI.walletSort || LS.get('walletSort', 'date');
+  const bk = live('bookings', t.id).sort((a, b) => ((a.date || '9') + (a.time || '')).localeCompare((b.date || '9') + (b.time || '')));
+  const card = b => passCard(t, b, w[b.id]) + (w[b.id] ? '<div class="warnline" style="margin:-4px 4px 4px">⚠️ ' + esc(w[b.id]) + '</div>' : '');
+  let h = '<div class="flex" style="gap:8px;margin:4px 0 12px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="booking">' + ic('camera') + '예약 화면 찍기</button><button class="btn big" style="flex:1" data-act="booking-new">' + ic('pen') + '직접 적기</button></div>';
+  if (!bk.length) return h + '<div class="card empty">예약이 아직 없어요</div>';
+  h += '<div class="seg wsort"><button class="' + (mode === 'date' ? 'on' : '') + '" data-act="wallet-sort" data-v="date">날짜순</button><button class="' + (mode === 'kind' ? 'on' : '') + '" data-act="wallet-sort" data-v="kind">종류별</button></div>';
+  const groups = [];
+  if (mode === 'kind') {
+    const ORDER = ['항공', '숙소', '교통', '티켓', '주차', '보험', '서류', '기타'];
+    const ks = [...new Set(bk.map(b => b.kind || '기타'))].sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0)));
+    ks.forEach(k => groups.push([k, bk.filter(b => (b.kind || '기타') === k)]));
+  } else {
+    [...new Set(bk.map(b => b.date || ''))].forEach(d => groups.push([d ? md(d) + (d === today() ? ' · 오늘' : '') : '날짜 없음', bk.filter(b => (b.date || '') === d)]));
+  }
+  return h + groups.map(([name, list]) => '<div class="wgroup"><div class="wgroup-h"><b>' + esc(name) + '</b><span class="muted num">' + list.length + '</span></div><div class="stack">' + list.map(card).join('') + '</div></div>').join('');
 }
 function prepPage(t) {
   const ck = live('checks', t.id);
@@ -1994,6 +2005,7 @@ document.addEventListener('click', e => {
     'map-k': () => { UI.mapK = v; const el = $('#tmap'); if (el) { el.dataset.k = v; document.querySelectorAll('[data-act="map-k"]').forEach(b => b.classList.toggle('on', b.dataset.v === v)); mountMap(true); } },
     'map-full': () => { const w = $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); if (on) history.pushState({ map: 1 }, ''); else if (history.state && history.state.map) history.back(); document.body.classList.toggle('map-open', on); setTimeout(() => MAP && MAP.invalidateSize(), 80); },
     'map-trip': () => { document.body.classList.remove('map-open'); MAP && MAP.closePopup(); A['open-trip'](); },
+    'wallet-sort': () => { UI.walletSort = v; LS.set('walletSort', v); render(); },
     'memo-who': () => { UI.memoWho = v; render(); },
     'memo-new': () => memoEdit(t, null),
     'memo-edit': () => { const m = D.memos[v]; if (m && m.owner === ME) memoEdit(t, m); },
@@ -2172,8 +2184,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
-  { v: '4.4', d: '2026-11-25', title: '메모장과 주소 칸', items: [
+  { v: '4.4', d: '2026-11-25', title: '메모장·주소 칸·티켓 정렬', items: [
     ['pen', 'var(--sun)', '나만의 메모장', '수첩 안에 가족마다 메모장이 생겼어요. 챙길 것·사고 싶은 것을 적어 두고, 「나만 보기」를 고르면 다른 가족에게는 안 보여요.'],
+    ['ticket', 'var(--mint)', '티켓 지갑 정렬', '예약·티켓을 「날짜순」(날짜마다 묶어서) 또는 「종류별」(항공·숙소·교통·티켓·주차·보험)로 골라 볼 수 있어요.'],
     ['home', 'var(--sky)', '주소 넣기', '일정·예약·가 본 곳에 주소 칸이 생겼어요. 주소를 넣으면 지도와 길찾기가 그 주소로 바로 가고, 일정 보기에서 「복사」로 택시 기사님께 보여 줄 수 있어요.']] },
   { v: '4.3', d: '2026-11-25', title: '사진만 올리면 여행 기록이 돼요', items: [
     ['camera', 'var(--coral)', '사진으로 여행 정리', '「＋ 새 여행 만들기」 → 「다녀온 여행, 사진으로 정리」에서 사진·영수증·일정표를 한꺼번에 고르면 찍은 날짜·곳으로 일정·가 본 곳·대표 사진을 정리해 줘요. 저장 전에 모두 확인해요. 지난 여행의 「추억 → 가 본 곳」에서도 더할 수 있어요.'],

@@ -851,3 +851,7 @@ body.map-open .nav,body.map-open .fab{display:none}
 .memo-in{min-height:180px;font-size:16px;line-height:1.6}
 .memo-opt{display:flex;align-items:center;gap:8px;margin:10px 2px 0;font-size:14px}
 .memo-opt input{width:18px;height:18px;accent-color:var(--coral)}
+/* 티켓 지갑 정렬 */
+.seg.wsort{margin:0 0 12px}
+.wgroup{margin:0 0 14px}
+.wgroup-h{display:flex;align-items:center;gap:8px;margin:2px 4px 8px;font-size:15px}
