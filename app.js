@@ -1697,9 +1697,9 @@ function bookTab(t) {
     (known.length && !known.every(x => x.real) ? '<div class="muted small">지난 몇 해 같은 날의 평균이에요. 실제 예보는 출발 16일 전부터 바뀌어요.</div>' : '') +
     outfitBlock(t, avgMax, avgMin, known.length && known.reduce((q, x) => q + (x.rainP || 0), 0) / known.length > 45) + '</div></div>';
   // 말
-  h += head('talk', '🗣️', '꼭 쓰는 말 · ' + ph.lang) + '<button class="alert" style="--cc:var(--sky);margin-bottom:10px" data-act="tr-open"><span class="ib" style="--cc:var(--sky)">🗣️</span><span><b>번역기 · 사진 번역</b><span>하고 싶은 말을 바로 옮기고, 메뉴판·성분표·안내판은 찍어서 읽어요</span></span></button><div class="muted small" style="margin:-4px 2px 8px">한글로 읽는 법이 함께 있어요. 카드를 누르면 뜻이 보여요. 외운 것은 ✓</div>' + ph.groups.map(([gname, list]) =>
+  h += head('talk', '🗣️', '꼭 쓰는 말 · ' + ph.lang) + '<button class="alert" style="--cc:var(--sky);margin-bottom:10px" data-act="tr-open"><span class="ib" style="--cc:var(--sky)">🗣️</span><span><b>번역기 · 사진 번역</b><span>하고 싶은 말을 바로 옮기고, 메뉴판·성분표·안내판은 찍어서 읽어요</span></span></button><div class="muted small" style="margin:-4px 2px 8px">한글로 읽는 법이 함께 있어요. 카드를 누르면 뜻이 보여요. 소리 단추를 누르면 현지 말소리로 들려줘요. 외운 것은 ✓</div>' + ph.groups.map(([gname, list]) =>
     '<div class="card" style="margin-bottom:10px"><b>' + esc(gname) + '</b><div class="phrases">' + list.map((p, i) => { const k = 'ph.' + gname + '.' + i, got = !!LS.get(BKEY(t, k), false);
-      return '<div class="phrase' + (got ? ' got' : '') + '"><button class="ph-face" data-act="flip"><span class="jp">' + esc(p[0]) + '</span><span class="ko">' + esc(p[1]) + '</span><span class="mean">' + esc(p[2]) + '</span></button><button class="ph-got" data-act="phrase-got" data-v="' + esc(k) + '" aria-label="외웠어요">' + (got ? '✓' : '') + '</button></div>'; }).join('') + '</div></div>').join('') + '</div>';
+      return '<div class="phrase' + (got ? ' got' : '') + '"><button class="ph-face" data-act="flip"><span class="jp">' + esc(p[0]) + '</span><span class="ko">' + esc(p[1]) + '</span><span class="mean">' + esc(p[2]) + '</span></button><button class="ph-say" data-act="ph-say" data-v="' + esc(String(p[0]).replace(/〇〇/g, '').replace(/\s*\/\s*/g, '、')) + '" data-l="' + esc((TR_LANG[cc0] || TR_LANG.US)[2]) + '" aria-label="소리로 듣기">' + ic('speaker') + '</button><button class="ph-got" data-act="phrase-got" data-v="' + esc(k) + '" aria-label="외웠어요">' + (got ? '✓' : '') + '</button></div>'; }).join('') + '</div></div>').join('') + '</div>';
   // 주의할 점
   const cau = (G.CAUTION || {})[cc0] || [];
   if (cau.length) {
@@ -2135,6 +2135,7 @@ document.addEventListener('click', e => {
     'tr-mic': () => { const S = trState(), L = trLang(t); listen(S.dir === 'ko' ? KO[2] : L[2], txt => { const el = $('#tr-in'); if (el) el.value = txt; S.text = txt; A['tr-go'](); }); },
     'tr-say': () => { const S = trState(), L = trLang(t); speak(S.out, S.dir === 'ko' ? L[2] : KO[2]); },
     'tr-sayq': () => speak(v, 'ja-JP'),
+    'ph-say': () => { speak(v, el.dataset.l || 'ja-JP'); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1600); },
     'tr-show': () => { const S = trState(), L = trLang(t); openSheet('<div class="tr-show" lang="' + (S.dir === 'ko' ? L[0] : 'ko') + '">' + esc(S.out) + '</div><div class="muted" style="text-align:center;margin:8px 0">' + esc(S.text) + '</div><div class="sheet-acts"><button class="btn" data-act="tr-say">' + ic('speaker') + '듣기</button><button class="btn pri" data-act="sheet-close">닫기</button></div>'); },
     'tr-copy': () => { try { navigator.clipboard.writeText(trState().out); toast('복사했어요'); } catch (e) { toast('복사하지 못했어요'); } },
     'tr-save': () => { const S = trState(), L = trLang(t); const sv = LS.get('trSaved', []).filter(x => x.t !== S.out); sv.unshift({ f: S.text, t: S.out, b: S.dir === 'ko' ? L[0] : 'ko' }); LS.set('trSaved', sv.slice(0, 30)); toast('내가 모은 문장에 넣었어요'); render(); },
@@ -2358,6 +2359,7 @@ async function aiEdit() {
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
   { v: '5.0', d: '2026-11-26', title: '그날 사진으로 바로', items: [
+    ['talk', 'var(--sky)', '꼭 쓰는 말 듣기', '수첩의 「꼭 쓰는 말」마다 소리 단추가 생겼어요. 누르면 일본어 말소리로 들려줘요. 휴대폰 소리를 켜 두세요.'],
     ['camera', 'var(--coral)', '구글 포토 링크', '지난 여행을 열면 「그때 우리는」 아래에 날짜마다 「구글 포토」 단추가 있어요. 누르면 그날 찍은 사진이 구글 포토에서 바로 열려요.'],
     ['plan', 'var(--sky)', '날짜 칸이 한 줄에', '접은 폴드처럼 좁은 화면에서도 여행 날짜 칸이 잘리지 않고 한 줄에 다 보여요.'],
     ['memory', 'var(--coral)', '찾은 추억', '2019 태안(새롬교회 교역자 가족), 2018 「시벨리우스의 관록」 연주회를 더했어요.']] },

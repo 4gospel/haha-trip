@@ -984,3 +984,6 @@ body.map-open .nav,body.map-open .fab{display:none}
 .days.fit .day{min-width:0;padding:8px 4px}
 @media (max-width:400px){.days.fit{gap:6px}.days.fit .day b{font-size:14px;letter-spacing:-.3px;white-space:nowrap}.days.fit .day small{font-size:11px}.days.fit .day .dwx{font-size:11px}}
 @media (max-width:330px){.days.fit .day b{font-size:12.5px}}
+.ph-say{width:44px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);font-size:18px;flex:none}
+.ph-say.on{background:color-mix(in srgb,var(--sky) 18%,var(--card));border-color:var(--sky)}
+.ph-say .i{width:20px;height:20px}
