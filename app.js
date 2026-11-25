@@ -420,9 +420,13 @@ const countryOf = t => COUNTRY[t.country] || COUNTRY[((INFO[t.id] || {}).geo || 
 /* 국내여행 · 해외여행 — 나라가 한국이면 국내 (나라를 안 적었으면 지명으로 짐작) */
 const KR_RE = /제주|서귀포|서울|부산|인제|곡성|강릉|속초|양양|경주|전주|여수|순천|군산|대구|광주|대전|인천|강원|전남|전북|경남|경북|충남|충북|가평|남해|통영|거제|포항|안동|단양|태안|보령|울릉|섬진강/;
 const abroad = t => t.country ? t.country !== 'KR' : !KR_RE.test((t.place || '') + ' ' + (t.title || ''));
-const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'] };
+/* 부부여행 — 임요한·장보정 두 사람만 간 여행 (가족 넷은 가족 여행) */
+const COUPLE = ['임요한', '장보정'];
+const couple = t => t.kind === 'couple' || (t.kind !== 'family' && (t.members || []).length === 2 && COUPLE.every(n => (t.members || []).includes(n)));
+const kindOf = t => couple(t) ? 'cp' : abroad(t) ? 'out' : 'in';
+const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'], cp: ['부부여행', 'kind-couple', 'photo'] };
 const kindImg = (k, cls) => '<img class="' + (cls || 'kind-art') + '" src="img/' + KIND[k][1] + '.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-' + KIND[k][2] + '.webp\'">';
-const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong']];
+const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong'], [/타이베이|대만|타이완|taipei/i, 'taipei']];
 function coverImg(t) {
   if (safeImg(t.cover)) return '<img class="cover" src="' + t.cover + '" alt="">';
   const hit = CITY_IMG.find(([re]) => re.test((t.place || '') + ' ' + (t.title || '')));
@@ -451,16 +455,16 @@ function pastCard(t) {
     '<span class="pc-year num"><b class="pc-yy">' + t.start.slice(0, 4) + ' · </b>' + (n > 0 ? n + '년 전' : '올해') + '</span>' + stampHtml('다녀옴', 'mini') + '</span>' +
     '<span class="pc-b"><b>' + esc(t.title) + '</b><span class="num">' + esc(t.start.slice(0, 4) + '. ' + md(t.start) + (t.end !== t.start ? ' – ' + md(t.end) : '')) + ' · ' + (ds.length > 1 ? (ds.length - 1) + '박 ' + ds.length + '일' : '당일') + '</span>' +
     (line ? '<span class="pc-line">' + esc(line) + '</span>' : '') +
-    '<span class="pc-meta">' + (c ? c.f + ' ' : '') + esc(t.place || '') + (its.length ? ' · 일정 ' + its.length : '') + (mem ? ' · 추억 ' + mem : '') + '</span></span></button>';
+    '<span class="pc-meta">' + (couple(t) ? '💑 ' : '') + (c ? c.f + ' ' : '') + esc(t.place || '') + (its.length ? ' · 일정 ' + its.length : '') + (mem ? ' · 추억 ' + mem : '') + '</span></span></button>';
 }
 function pastHtml(past) {
   if (!past.length) return '';
-  const out = past.filter(abroad), inn = past.filter(t => !abroad(t));
+  const G = { out: past.filter(t => kindOf(t) === 'out'), in: past.filter(t => kindOf(t) === 'in'), cp: past.filter(t => kindOf(t) === 'cp') };
   let k = UI.pastKind || LS.get('pastKind', '');
-  if (!KIND[k]) k = out.length ? 'out' : 'in';
-  const list = k === 'out' ? out : inn;
+  if (!KIND[k]) k = G.out.length ? 'out' : 'in';
+  const list = G[k];
   let h = '<div class="sec past"><div class="sec-h"><h3 class="ih">' + kindImg(k, 'h-art') + '지난 여행</h3><span class="muted small">' + past.length + '번의 추억</span></div>' +
-    '<div class="seg kindseg" role="tablist" aria-label="국내여행 해외여행">' + ['out', 'in'].map(v => '<button role="tab" aria-selected="' + (k === v) + '" class="' + (k === v ? 'on' : '') + '" data-act="past-kind" data-v="' + v + '">' + kindImg(v) + KIND[v][0] + ' <em class="num">' + (v === 'out' ? out : inn).length + '</em></button>').join('') + '</div>';
+    '<div class="seg kindseg" role="tablist" aria-label="국내여행 해외여행">' + ['out', 'in', 'cp'].map(v => '<button role="tab" aria-selected="' + (k === v) + '" class="' + (k === v ? 'on' : '') + '" data-act="past-kind" data-v="' + v + '">' + kindImg(v) + KIND[v][0] + ' <em class="num">' + G[v].length + '</em></button>').join('') + '</div>';
   if (!list.length) return h + '<div class="card empty"><div class="art">' + kindImg(k, 'empty-art') + '</div><b>아직 다녀온 ' + KIND[k][0] + '이 없어요</b>다녀오면 여기에 해마다 쌓여요.</div></div>';
   h += '<div class="ptl">';
   let y = '';
@@ -470,9 +474,9 @@ function pastHtml(past) {
 /** 지난 여행 화면: 그때 이야기 */
 function storyCard(t) {
   const s = String(t.story || '').trim(), nu = safeUrl(t.notion);
-  if (!s && !nu) return '';
-  return '<div class="sec"><div class="letter"><div class="lt-h">' + kindImg(abroad(t) ? 'out' : 'in', 'h-art') + '<b>그때 우리는</b><span class="lt-year num">' + esc(t.start.slice(0, 4)) + '</span></div>' +
-    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + '</div></div>';
+  if (!s && !nu && !safeUrl(t.album)) return '';
+  return '<div class="sec"><div class="letter"><div class="lt-h">' + kindImg(kindOf(t), 'h-art') + '<b>그때 우리는</b><span class="lt-year num">' + esc(t.start.slice(0, 4)) + '</span></div>' +
+    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + '<div class="chips">' + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + (safeUrl(t.album) ? '<a class="chipbtn" href="' + esc(t.album) + '" target="_blank" rel="noopener">' + ic('camera') + '사진 앨범</a>' : '') + '</div>' + '</div></div>';
 }
 
 /* ---------- 길 ---------- */
@@ -534,7 +538,7 @@ function homeView() {
   const places = live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
   h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div>';
   if (!past.length && !allDays && !places.length) h += '<div class="card empty"><div class="art">🧳✨</div><b>첫 여행을 기다리는 중</b>다녀오면 여기에 우리 가족의 여행이 쌓여요.</div>';
-  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(abroad).length + ' · 국내 ' + trips.filter(t => !abroad(t)).length + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
+  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(t => kindOf(t) === 'out').length + ' · 국내 ' + trips.filter(t => kindOf(t) === 'in').length + ' · 부부 ' + trips.filter(couple).length + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
     '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>가 본 곳</small><b class="num">' + places.length + '곳</b><em>별점 ' + places.filter(p => p.rating > 0).length + '곳</em></div></div>';
   h += '</div>';
   const liked = places.filter(p => p.rating > 0);
@@ -552,7 +556,7 @@ function heroCard(t, mode) {
     (mini ? '' : '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div>') + '</div></' + tag.split(' ')[0] + '>';
 }
 function tripRow(t) {
-  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + (abroad(t) ? 'out' : 'in') + '">' + (abroad(t) ? '해외' : '국내') + '</i>' +
+  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + kindOf(t) + '">' + ({ out: '해외', in: '국내', cp: '부부' })[kindOf(t)] + '</i>' +
     esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + esc(t.place || '') + '</span></span>' + (t.end < today() ? stampHtml('다녀옴', 'mini') : '<span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span>') + '</button>';
 }
 function placeRow(p) {
@@ -1224,6 +1228,8 @@ const F = {
     { k: 'cur', label: '현지 돈', type: 'opts', options: Object.keys(CUR), names: CUR, more: 1 },
     { k: 'rate', label: '경비 계산 환율 (현지 돈 100 = 몇 원)', type: 'number', ph: '예: 엔화 845', more: 1 },
     { k: 'memo', label: '메모', type: 'textarea', ph: '숙소·교통·꼭 기억할 것', more: 1 },
+    { k: 'kind', label: '어떤 여행', type: 'opts', options: ['', 'family', 'couple'], names: { '': '저절로 (함께 간 사람으로)', family: '👨‍👩‍👧‍👦 가족 여행', couple: '💑 부부여행' }, more: 1 },
+    { k: 'album', label: '구글 포토 앨범 주소 (https://…)', type: 'url', more: 1 },
     { k: 'story', label: '그때 우리는 (다녀온 뒤 이야기)', type: 'textarea', ph: '가장 기억에 남는 순간', more: 1 },
     { k: 'notion', label: '노션 페이지 주소 (https://…)', type: 'url', more: 1 }],
   item: t => [
@@ -1632,6 +1638,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.2', d: '2026-11-25', title: '두 사람의 여행, 부부여행', items: [
+    ['memory', 'var(--pink)', '부부여행 칸', '아빠·엄마 두 사람만 다녀온 여행은 「부부여행」으로 따로 모여요. 여행 만들 때 함께 간 사람을 둘로 고르면 저절로 들어가요.'],
+    ['camera', 'var(--sky)', '2025 새해 대만', '구글 포토 앨범과 사진 위치로 예류·스펀·단수이 일정을 되살렸어요. 「사진 앨범」 단추로 사진 572장을 바로 볼 수 있어요.']] },
   { v: '3.1', d: '2026-11-25', title: '지난 여행이 연표로 모였어요', items: [
     ['globe', 'var(--sky)', '해외여행 | 국내여행', '처음 화면 「지난 여행」에서 해외여행과 국내여행을 나눠 보고, 해마다 쌓인 여행을 연표로 봐요.'],
     ['memory', 'var(--coral)', '노션에 있던 추억 4가지', '2017 봄 제주 · 2017 인제 · 2019 곡성 · 2022 겨울 제주 — 노션 「여행_다녀온곳」 기록을 일정·예약·가 본 곳으로 옮겼어요.'],

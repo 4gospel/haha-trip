@@ -609,7 +609,8 @@ h3.ih .ib.sm svg{width:17px;height:17px}
 
 /* ---------- 지난 여행: 해외여행 | 국내여행 · 연표 · 몇 년 전 오늘 ---------- */
 .kindseg{margin-bottom:14px}
-.kindseg button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:48px}
+.kindseg button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:48px;padding:6px 6px}
+.letter .chips{margin-top:12px}.letter .chips .chipbtn{margin-top:0}
 .kindseg .kind-art{width:28px;height:28px;object-fit:contain;flex:none}
 .kindseg em{font-style:normal;font-size:13px;font-weight:800;color:var(--faint);background:var(--fill);border-radius:99px;padding:0 7px;min-width:22px}
 .kindseg button.on em{background:var(--coral);color:#fff}
@@ -635,6 +636,7 @@ h3.ih .ib.sm svg{width:17px;height:17px}
 .pc-b .pc-meta{font-size:13px;color:var(--faint);margin-top:6px}
 .kindtag{font-style:normal;font-size:11.5px;font-weight:800;border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
 .kindtag.out{background:color-mix(in srgb,var(--sky) 18%,transparent);color:var(--sky)}
+.kindtag.cp{background:color-mix(in srgb,var(--pink) 22%,transparent);color:color-mix(in srgb,var(--pink) 75%,var(--ink))}
 .kindtag.in{background:color-mix(in srgb,var(--mint) 22%,transparent);color:color-mix(in srgb,var(--mint) 70%,var(--ink))}
 .ago{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 16px;border-radius:var(--r);background:linear-gradient(135deg,#FFF4E2,#FFE3D6);box-shadow:var(--sh);color:#3A2A22}
 .ago-art{width:64px;height:64px;object-fit:contain;flex:none;transform:rotate(-4deg)}
@@ -656,4 +658,5 @@ h3.ih .ib.sm svg{width:17px;height:17px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ago{background:linear-gradient(135deg,#3A2E26,#3E2A2A);color:#F3E6DA}:root:not([data-theme="light"]) .ago-b small,:root:not([data-theme="light"]) .ago-b>span{color:#D9BFAE}}
 .pc-yy{display:none;font-weight:800}
 @media (min-width:700px){.ptl{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-left:0}.ptl::before,.ptl-y{display:none}.pc-yy{display:inline}}
-@media (max-width:360px){.kindseg button{font-size:14px;padding:6px}.kindseg .kind-art{width:22px;height:22px}.ago-art{width:50px;height:50px}.pc-img .stampx.mini{width:46px;height:46px}}
+@media (max-width:400px){.kindseg button{font-size:14px;padding:6px 4px;gap:3px}.kindseg .kind-art{width:22px;height:22px}.kindseg em{padding:0 5px;min-width:18px}}
+@media (max-width:360px){.kindseg button{font-size:13.5px}.kindseg .kind-art{display:none}.ago-art{width:50px;height:50px}.pc-img .stampx.mini{width:46px;height:46px}}
