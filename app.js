@@ -724,10 +724,51 @@ function carCard(t, top) {
 function tlItem(t, i, now) {
   const [icn, col] = itemIcon(i);
   return '<div class="tl-card' + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
-    '<button class="body" data-act="item-edit" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
+    '<button class="body" data-act="item-view" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
     '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.place ? '<a class="go" href="' + esc(dirUrl(i.place)) + '" target="_blank" rel="noopener" data-stop="1">' + ic('route') + '길찾기</a>' : '') + '</div></button>' +
     '<button class="chk ' + (i.done ? 'on' : '') + '" data-act="item-done" data-v="' + esc(i.id) + '" aria-label="다녀옴 표시">' + (i.done ? ic('check') : '') + '</button></div>';
+}
+
+/* 일정 하나 보기 — 누르면 고치기 대신 정보·지도·길찾기 */
+const cityOf = t => String(t.place || '').split(/[·,\/]/)[0].replace(/^(일본|대만|베트남|태국|중국|미국|영국|프랑스|이탈리아|스페인|독일|호주|싱가포르|필리핀|홍콩|스위스|체코)\s*/, '').trim();
+const gq = (t, i) => (i.place || i.title || '') + (i.place ? '' : ' ' + cityOf(t));
+const dirTo = (dest, mode, origin) => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest) + (origin ? '&origin=' + encodeURIComponent(origin) : '') + '&travelmode=' + mode;
+function itemView(t, i) {
+  if (!i) return;
+  const [icn, col] = itemIcon(i);
+  const day = live('items', t.id).filter(x => x.date === i.date).sort(byTime);
+  const k = day.findIndex(x => x.id === i.id), prev = k > 0 ? day.slice(0, k).reverse().find(x => x.place || x.title) : null, next = day[k + 1];
+  const fromIt = k > 0 ? day.slice(0, k).reverse().find(x => x.place) : null;
+  const q = gq(t, i), from = fromIt ? fromIt.place : '';
+  const words = String(i.title + ' ' + (i.place || '')).toLowerCase();
+  const rel = live('recs', t.id).filter(r => { const n = String(r.name || '').split(/[\s(·]/)[0].toLowerCase(); return n.length > 1 && words.includes(n); }).slice(0, 3);
+  const bk = live('bookings', t.id).filter(b => b.date === i.date && (words.includes(String(b.provider || '').toLowerCase()) || (b.kind === '항공' && /출발|도착|항공|공항/.test(i.title)) || (b.kind === '주차' && /주차|입차|출차/.test(i.title)) || (b.kind === '숙소' && /숙소|체크인|체크아웃/.test(i.title))));
+  const c = countryOf(t), n = (t.members || []).length || 1;
+  let h = '<div class="iv-head" style="--cc:' + col + '">' + itPic(icn, col) + '<div><div class="iv-when num">' + esc(i.date ? md(i.date) : '날짜 미정') + (i.time ? ' · ' + esc(i.time) : '') + ' · <span class="tag">' + esc(i.cat || '기타') + '</span></div><h2>' + esc(i.title) + '</h2>' + (i.done ? '<span class="pill" style="--cc:var(--ok)">✓ 다녀옴</span>' : '') + '</div></div>';
+  h += '<div class="iv-rows">' +
+    (i.place ? '<div><span>' + ic('pin') + '장소</span><b>' + esc(i.place) + '</b></div>' : '') +
+    (i.cost ? '<div><span>' + ic('wallet') + '비용</span><b class="num">1인 ' + comma(i.cost) + unit(t.cur) + (n > 1 ? ' · ' + n + '명 ' + comma(i.cost * n) + unit(t.cur) : '') + (t.cur && t.cur !== 'KRW' ? ' <small>(약 ' + manWon(toWon(t, i.cost * n)) + ')</small>' : '') + '</b></div>' : '') +
+    (i.memo ? '<div><span>' + ic('pen') + '메모</span><b>' + esc(i.memo) + '</b></div>' : '') +
+    (i.tip ? '<div class="tip"><span>' + ic('bulb') + '여행 팁</span><b>' + esc(i.tip) + '</b></div>' : '') +
+    (prev ? '<div><span>' + ic('route') + '앞 일정</span><b>' + esc((prev.time ? prev.time + ' ' : '') + prev.title) + '</b></div>' : '') +
+    (next ? '<div><span>' + ic('route') + '다음 일정</span><b>' + esc((next.time ? next.time + ' ' : '') + next.title) + '</b></div>' : '') + '</div>';
+  if (q.trim()) {
+    h += '<div class="iv-map"><iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="지도" src="https://www.google.com/maps?q=' + encodeURIComponent(q) + '&hl=ko&z=15&output=embed"></iframe></div>';
+    h += '<div class="iv-go">' +
+      '<a class="btn pri" href="' + esc(dirTo(q, 'transit', from)) + '" target="_blank" rel="noopener">' + ic('train') + '대중교통 길찾기' + (fromIt ? ' (앞 일정에서)' : '') + '</a>' +
+      '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + ic('pin') + '구글 지도</a>' +
+      '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서</a>' +
+      '<a class="btn" href="' + esc(dirTo(q, 'driving', from)) + '" target="_blank" rel="noopener">' + ic('taxi') + '차·택시</a>' +
+      '<a class="btn" href="' + esc(mapUrl('맛집 near ' + q)) + '" target="_blank" rel="noopener">' + ic('bowl') + '주변 맛집</a>' +
+      '<a class="btn" href="' + esc(mapUrl('편의점 near ' + q)) + '" target="_blank" rel="noopener">' + ic('basket') + '주변 편의점</a>' +
+      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + ic('camera') + '주변 볼거리</a></div>' +
+      '<div class="muted small">길찾기는 ' + (fromIt ? '앞 일정 「' + esc(fromIt.title) + '」에서 출발해요. ' : '지금 있는 곳에서 출발해요. ') + '구글 지도 앱이 열려요.</div>';
+  }
+  if (rel.length) h += '<div class="iv-sec"><b>' + ic('star') + '함께 알아 둘 곳</b>' + rel.map(r => '<div class="iv-rec"><b>' + esc(r.name) + '</b>' + (r.area ? ' <span class="muted">' + esc(r.area) + '</span>' : '') + '<div>' + esc(r.desc || '') + '</div>' + (r.hours ? '<div class="muted small">🕘 ' + esc(r.hours) + '</div>' : '') + (r.price ? '<div class="muted small">💴 ' + esc(r.price) + '</div>' : '') + '</div>').join('') + '</div>';
+  if (bk.length) h += '<div class="iv-sec"><b>' + ic('ticket') + '이 일정의 예약</b>' + bk.map(b => '<button class="iv-rec" data-act="booking-edit" data-v="' + esc(b.id) + '"><b>' + esc(b.title) + '</b>' + (b.code ? ' <span class="num muted">' + esc(b.code) + '</span>' : '') + '</button>').join('') + '</div>';
+  h += '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn" data-act="item-done" data-v="' + esc(i.id) + '">' + ic('check') + (i.done ? '다녀옴 풀기' : '다녀옴') + '</button><button class="btn pri" data-act="item-edit" data-v="' + esc(i.id) + '">' + ic('pen') + '고치기</button></div>';
+  openSheet(h);
 }
 
 function planTab(t) {
@@ -769,7 +810,7 @@ function schedTable(t, days, items) {
     if (!list.length) return;
     const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0); total += sum;
     rows += '<tr class="dayrow"><td colspan="2">' + (d ? (days.indexOf(d) + 1) + '일째 · ' + esc(md(d)) : '날짜 미정') + '</td><td class="r num">' + comma(sum) + '</td></tr>';
-    rows += list.map(i => '<tr data-act="item-edit" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td>' + (IT_IMG[itemIcon(i)[0]] ? '<img class="ticon-img" src="img/it-' + IT_IMG[itemIcon(i)[0]] + '.webp" alt="">' : '<span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>') + esc(i.title) +
+    rows += list.map(i => '<tr data-act="item-view" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td>' + (IT_IMG[itemIcon(i)[0]] ? '<img class="ticon-img" src="img/it-' + IT_IMG[itemIcon(i)[0]] + '.webp" alt="">' : '<span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>') + esc(i.title) +
       (i.place ? '<div class="muted" style="font-size:13px;margin-left:15px">' + esc(i.place) + '</div>' : '') + '</td><td class="r num">' + (i.cost ? comma(i.cost) : '') + '</td></tr>').join('');
   });
   if (!rows) return '<div class="card empty">일정이 아직 없어요</div>';
@@ -1473,8 +1514,9 @@ document.addEventListener('click', e => {
     'sheet-del': () => { if (!SHEET || !SHEET.onDelete) return; if (!SHEET.armed) { SHEET.armed = true; el.lastChild.textContent = '한 번 더 누르면 지워요'; return; } SHEET.onDelete(); },
     'trip-new': () => editTrip(null),
     'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
+    'item-view': () => itemView(t, D.items[v]),
     'item-edit': () => editRec('item', t, D.items[v]),
-    'item-done': () => { const i = D.items[v]; buzz(); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } },
+    'item-done': () => { const i = D.items[v]; buzz(); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } if ($('#sheet .iv-head')) itemView(t, D.items[v]); },
     'booking-new': () => editRec('booking', t, { kind: '숙소', date: t.start }),
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
     'spend-new': () => editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
@@ -1651,6 +1693,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.9', d: '2026-11-25', title: '일정을 누르면 정보부터', items: [
+    ['plan', 'var(--c-관광)', '일정 보기', '일정을 누르면 고치는 칸 대신 장소·비용·메모·팁·앞뒤 일정과 지도가 먼저 떠요. 고칠 땐 아래 「고치기」를 눌러요.'],
+    ['route', 'var(--sky)', '길찾기 한 번에', '대중교통·걸어서·차 길찾기(앞 일정에서 출발), 구글 지도, 주변 맛집·편의점·볼거리를 바로 열어요.']] },
   { v: '3.8', d: '2026-11-25', title: '독일 시절 유럽 여행이 돌아왔어요', items: [
     ['globe', 'var(--sky)', '해외여행 4가지 더', '구글 포토 사진으로 2010 남프랑스 · 2011 스위스 체르마트 · 2011 프라하 · 2011 성탄 파리 여행을 찾아 날짜·곳·사진을 남겼어요.'],
     ['memory', 'var(--coral)', '지난 여행은 조용하게', '오래전 여행에서는 예보·환율·예약 안내 대신 그때 이야기와 사진이 먼저 보여요.']] },
