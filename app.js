@@ -142,6 +142,8 @@ function itemIcon(i) {
   if (/택시/.test(x)) return ['taxi', 'var(--c-이동)'];
   if (i.cat === '이동') return ['train', 'var(--c-이동)'];
   if (/숙소|체크인|체크아웃|호텔|짐/.test(x) || i.cat === '숙소') return ['bed', 'var(--c-숙소)'];
+  if (i.cat === '식사' && !/시장/.test(x)) return ['bowl', 'var(--c-식사)'];
+  if (i.cat === '간식' && !/시장/.test(x)) return ['cup', 'var(--c-간식)'];
   if (/USJ|유니버설|입장|티켓|파크/i.test(x)) return ['ticket', 'var(--c-관광)'];
   if (/신사|절|데라|사원|도리이|이나리/.test(x)) return ['torii', 'var(--c-관광)'];
   if (/전망|야경|타워|쓰텐카쿠|하루카스|스카이/.test(x)) return ['tower', 'var(--c-관광)'];
@@ -165,6 +167,12 @@ function prepIcon(c) {
 }
 /** 제미나이 그림이 있으면 그것, 없으면 선 아이콘 */
 const pic = (arr, sz) => '<span class="pic" style="--cc:' + arr[1] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + ic(arr[0]) + '<img src="img/prep-' + arr[2] + '.webp" alt="" onerror="this.remove()"></span>';
+const IT_IMG = { plane: 'plane', land: 'land', train: 'train', bus: 'bus', taxi: 'taxi', bed: 'hotel', bowl: 'food', cup: 'cafe', torii: 'temple', tower: 'tower', bag: 'shop', ticket: 'ticket' };
+const itPic = (icn, col, sm) => IT_IMG[icn] ? '<span class="ib itp' + (sm ? ' sm' : '') + '" style="--cc:' + col + '"><img src="img/it-' + IT_IMG[icn] + '.webp" alt=""></span>' : ib(icn, col, sm);
+const MOOD = { happy: '😊', love: '🥰', laugh: '😆', tired: '😴', hot: '🥵', yum: '🤤' };
+const moodKey = m => MOOD[m] ? m : Object.keys(MOOD).find(k => MOOD[k] === m) || '';
+const moodImg = (m, sz) => { const k = moodKey(m); return k ? '<img class="mood" src="img/mood-' + k + '.webp" alt="" width="' + (sz || 24) + '" height="' + (sz || 24) + '">' : esc(m || ''); };
+function foodArt(r) { const x = (r.name || '') + ' ' + (r.desc || ''); return /다코야키|타코야키/.test(x) ? 'food-takoyaki' : /오코노미야키|미즈노/.test(x) ? 'food-okonomiyaki' : /구시카쓰|쿠시카츠/.test(x) ? 'food-kushikatsu' : /라멘|이치란|소바|우동/.test(x) ? 'it-food' : /치즈케이크|551|찐빵|카페|디저트/.test(x) ? 'it-cafe' : /유니버설|USJ/i.test(x) ? 'usj-day' : /신사|이나리|기요미즈|데라/.test(x) ? 'it-temple' : /전망|쓰텐카쿠|하루카스|스카이/.test(x) ? 'it-tower' : r.kind === '쇼핑' ? 'souvenir' : ''; }
 const IATA = { 인천: 'ICN', 김포: 'GMP', 간사이: 'KIX', 오사카: 'KIX', 이타미: 'ITM', 나리타: 'NRT', 하네다: 'HND', 도쿄: 'NRT', 후쿠오카: 'FUK', 나고야: 'NGO', 삿포로: 'CTS', 오키나와: 'OKA', 나하: 'OKA', 제주: 'CJU', 김해: 'PUS', 부산: 'PUS', 청주: 'CJJ', 대구: 'TAE',
   타이베이: 'TPE', 방콕: 'BKK', 다낭: 'DAD', 세부: 'CEB', 괌: 'GUM', 홍콩: 'HKG', 싱가포르: 'SIN', 마쓰야마: 'MYJ', 다카마쓰: 'TAK', 기타큐슈: 'KKJ', 고마쓰: 'KMQ', 요나고: 'YGJ', 가고시마: 'KOJ', 오이타: 'OIT', 상하이: 'PVG', 하노이: 'HAN', 호찌민: 'SGN', 마닐라: 'MNL', 파리: 'CDG', 런던: 'LHR' };
 function flightInfo(b) {
@@ -432,7 +440,7 @@ function greeting() {
 }
 
 function lockView() {
-  return '<div class="lock"><img class="logo" src="icon.svg" alt=""><h1>하하가족여행</h1><img class="family" src="img/family.webp" alt="우리 가족"><p>우리 가족 여행을 함께 짜고 기록해요.<br>가족 암호를 넣어 주세요.</p>' +
+  return '<div class="lock"><img class="welcome" src="img/welcome.webp" alt="공항에서 손 흔드는 우리 가족"><div class="flex" style="gap:12px"><img class="logo" src="icon-180.png" alt=""><h1>하하가족여행</h1></div><p>우리 가족 여행을 함께 짜고 기록해요.<br>가족 암호를 넣어 주세요.</p>' +
     '<form class="f" data-form="lock"><input class="in" id="pass" type="password" autocomplete="current-password" placeholder="가족 암호" aria-label="가족 암호">' +
     '<button class="btn pri wide big">들어가기</button><div class="muted" id="lockmsg"></div></form></div>';
 }
@@ -606,17 +614,17 @@ function passCard(t, b, warn) {
     const arr = String(b.end || '').match(/(\d{1,2}:\d{2})/);
     const home = ['ICN', 'GMP', 'PUS', 'CJJ', 'TAE'].includes(fi.to);
     return '<button class="pass flight' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main">' +
-      '<div class="k">' + ib('plane', col, 1) + esc(fi.air || '항공') + (fi.fn ? '<span class="fno">' + esc(fi.fn) + '</span>' : '') + '</div>' +
+      '<div class="k">' + itPic('plane', col, 1) + esc(fi.air || '항공') + (fi.fn ? '<span class="fno">' + esc(fi.fn) + '</span>' : '') + '</div>' +
       '<div class="route"><div><b>' + fi.from + '</b><small>' + esc(fi.fromN) + '</small><em class="num">' + esc(b.time || '') + '</em></div>' +
       '<div class="path"><i></i>' + ic('plane') + '<i></i></div>' +
       '<div style="text-align:right"><b>' + fi.to + '</b><small>' + esc(fi.toN) + '</small><em class="num">' + esc(arr ? arr[1] : '') + '</em></div></div>' +
       (b.code ? '<span class="code">' + esc(b.code) + '</span>' : '') + '</div>' +
-      '<div class="side"><small>' + esc(b.date ? md(b.date) : '') + '</small>' + ib(home ? 'land' : 'plane', col, 1) + '<small>' + (home ? '오는 편' : '가는 편') + '</small></div></button>';
+      '<div class="side"><small>' + esc(b.date ? md(b.date) : '') + '</small>' + itPic(home ? 'land' : 'plane', col, 1) + '<small>' + (home ? '오는 편' : '가는 편') + '</small></div></button>';
   }
   const endS = String(b.end || '');
   const sideTop = b.kind === '주차' && endS.length > 5 ? '출차 ' + md(endS.slice(0, 10)) : (b.date ? md(b.date) : '날짜 미정');
   const sideBig = b.kind === '주차' && endS.length > 5 ? endS.slice(11) : (b.time || '—');
-  return '<button class="pass' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + ib(icn, col, 1) + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
+  return '<button class="pass' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + itPic({ 항공: 'plane', 숙소: 'bed', 티켓: 'ticket', 교통: 'train' }[b.kind] || icn, col, 1) + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
     '<div class="t">' + esc(b.title) + '</div>' + (b.kind === '주차' ? '<div class="m">' + esc([b.date && ('입차 ' + md(b.date) + ' ' + (b.time || '')), b.car && ('🚗 ' + b.car)].filter(Boolean).join(' · ')) + '</div>' + (Number(b.grace) ? '<span class="pill" style="align-self:flex-start">앞뒤 ' + Number(b.grace) + '시간 여유</span>' : '') : (b.memo ? '<div class="m">' + esc(b.memo) + '</div>' : '')) +
     (b.code ? '<span class="code">' + esc(b.code) + '</span>' : '') + (warn ? '<div class="warnline">⚠️ 시간 확인</div>' : '') + '</div>' +
     '<div class="side"><small>' + esc(sideTop) + '</small><b class="num">' + esc(sideBig) + '</b>' + (b.kind !== '주차' && endS ? '<small class="num">→ ' + esc(endS.length > 5 ? md(endS.slice(0, 10)) + ' ' + endS.slice(11) : endS) + '</small>' : '') + '</div>' +
@@ -631,7 +639,7 @@ function carCard(t, top) {
 
 function tlItem(t, i, now) {
   const [icn, col] = itemIcon(i);
-  return '<div class="tl-card' + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + '"><span class="tm num">' + ib(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
+  return '<div class="tl-card' + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
     '<button class="body" data-act="item-edit" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
     '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.place ? '<a class="go" href="' + esc(dirUrl(i.place)) + '" target="_blank" rel="noopener" data-stop="1">' + ic('route') + '길찾기</a>' : '') + '</div></button>' +
@@ -660,7 +668,7 @@ function planTab(t) {
   const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0);
   const dayAll = items.filter(i => i.date === sel); if (dayAll.length && dayAll.every(i => i.done)) h += '<div class="daydone">' + stampHtml(md(sel) + ' 다녀옴', 'big') + '<span>이날 일정을 모두 다녀왔어요!</span></div>';
   const kyotoDay = items.some(i => i.date === sel && /교토|후시미|기요미즈|기온|니시키|야사카|Kyoto|Fushimi|Kiyomizu|Gion|Nishiki|Yasaka/i.test((i.title || '') + ' ' + (i.place || '')));
-  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + (kyotoDay ? '<img class="h-art" src="img/kyoto-thumb.webp" alt="">' : ib('plan', 'var(--sky)', 1)) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + (kyotoDay ? ' <span class="pill" style="font-size:12px">교토 가는 날</span>' : '') + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
+  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + (items.some(i => i.date === sel && /USJ|유니버설/i.test(i.title || '')) ? '<img class="h-art" src="img/usj-day.webp" alt="">' : kyotoDay ? '<img class="h-art" src="img/kyoto-thumb.webp" alt="">' : /-(12-31|01-01)$/.test(sel) ? '<img class="h-art" src="img/newyear.webp" alt="">' : ib('plan', 'var(--sky)', 1)) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + (kyotoDay ? ' <span class="pill" style="font-size:12px">교토 가는 날</span>' : '') + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
   let past = '';
   if (sel === today() && !UI.showPast) {
     const p = list.filter(i => i.done || (i.time && i.time < hm().slice(0, 5) && list.some(j => j.time > i.time && !j.done)));
@@ -677,7 +685,7 @@ function schedTable(t, days, items) {
     if (!list.length) return;
     const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0); total += sum;
     rows += '<tr class="dayrow"><td colspan="2">' + (d ? (days.indexOf(d) + 1) + '일째 · ' + esc(md(d)) : '날짜 미정') + '</td><td class="r num">' + comma(sum) + '</td></tr>';
-    rows += list.map(i => '<tr data-act="item-edit" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td><span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>' + esc(i.title) +
+    rows += list.map(i => '<tr data-act="item-edit" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td>' + (IT_IMG[itemIcon(i)[0]] ? '<img class="ticon-img" src="img/it-' + IT_IMG[itemIcon(i)[0]] + '.webp" alt="">' : '<span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>') + esc(i.title) +
       (i.place ? '<div class="muted" style="font-size:13px;margin-left:15px">' + esc(i.place) + '</div>' : '') + '</td><td class="r num">' + (i.cost ? comma(i.cost) : '') + '</td></tr>').join('');
   });
   if (!rows) return '<div class="card empty">일정이 아직 없어요</div>';
@@ -698,7 +706,8 @@ function wantView(t) {
   if (ideas.length) h += '<div class="card" style="margin-bottom:12px"><b>날짜 안 정한 일정</b>' + ideas.map(i => '<button class="row" data-act="item-edit" data-v="' + esc(i.id) + '">' + ib('pin', cc(i.cat), 1) + '<span class="body"><span class="t">' + esc(i.title) + '</span></span></button>').join('') + '</div>';
   h += list.length ? '<div class="stack">' + list.map(r => {
     const col = cc(RECC[r.kind] || '기타');
-    return '<div class="rec"><div class="top">' + ib(RC_IC[r.kind] || 'recs', col) + '<div style="flex:1;min-width:0"><h4>' + esc(r.name) + '</h4><div class="area">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + '</div></div>' +
+    const fa = foodArt(r);
+    return '<div class="rec"><div class="top">' + (fa ? '<img class="rec-art" src="img/' + fa + '.webp" alt="">' : ib(RC_IC[r.kind] || 'recs', col)) + '<div style="flex:1;min-width:0"><h4>' + esc(r.name) + '</h4><div class="area">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + '</div></div>' +
       (inPlan.has(r.id) ? '<span class="pill hot">일정에 있음</span>' : '') + '</div>' +
       (r.desc ? '<p>' + esc(r.desc) + '</p>' : '') +
       ((r.price || r.hours) ? '<div class="info">' + (r.price ? '<span>' + esc(r.price) + '</span>' : '') + (r.hours ? '<span>🕘 ' + esc(r.hours) + '</span>' : '') + '</div>' : '') +
@@ -753,7 +762,7 @@ function moneyTab(t) {
   if (sp.length) h += '<div class="paychips">' + Object.entries(byPay).sort((a, b) => b[1] - a[1]).map(([k, v]) => '<span class="pill">' + (PAY_IC[k] || '•') + ' ' + esc(k) + ' <b class="num">' + manWon(v) + '</b></span>').join('') + '</div>';
   h += '</div>';
   // 정산
-  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">나눠 내기</button></div>';
+  h += '<div class="sec"><img class="settle-art" src="img/settle-family.webp" alt=""><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">나눠 내기</button></div>';
   if (!split) h += '<div class="card muted">가족 공동 지갑으로 써요. 위 「누가 냈나」에서 각자 낸 돈만 봐요. 나눠 내려면 「나눠 내기」를 눌러요.</div>';
   else {
     const owe = {}; mem.forEach(m => owe[m] = 0);
@@ -816,7 +825,7 @@ function memoryTab(t) {
     const mine = who === ME, shared = who === '';
     h += '<div class="diary-head" style="--pc:' + (shared ? 'var(--coral)' : AVC[famIdx(who) % AVC.length]) + '"><div><b>' + (shared ? '우리 가족 함께 쓰는 일기' : esc(who) + '의 여행 다이어리') + '</b><span>' + (shared ? '누구나 쓰고 고칠 수 있어요' : mine ? '나만의 다이어리 · 가족이 읽을 수 있어요' : '읽기만 할 수 있어요 · ' + esc(who) + ' 님만 고쳐요') + '</span></div>' +
       (shared || mine ? '<button class="btn pri" data-act="note-new">' + ic('pen') + '쓰기</button>' : '') + '</div>';
-    h += nt.length ? '<div class="stack">' + nt.map(n => '<button class="note" style="--pc:' + AVC[famIdx(n.by) % AVC.length] + '" data-act="note-edit" data-v="' + esc(n.id) + '"><div class="h">' + av(n.by, 28) + esc(n.by || '') + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + esc(n.mood) : '') + (n.q ? '<span class="q">Q. ' + esc(n.q) + '</span>' : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</button>').join('') + '</div>'
+    h += nt.length ? '<div class="stack">' + nt.map(n => '<button class="note" style="--pc:' + AVC[famIdx(n.by) % AVC.length] + '" data-act="note-edit" data-v="' + esc(n.id) + '"><div class="h">' + av(n.by, 28) + esc(n.by || '') + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + moodImg(n.mood, 22) : '') + (n.q ? '<span class="q">Q. ' + esc(n.q) + '</span>' : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</button>').join('') + '</div>'
       : '<div class="card empty">' + art('empty-diary') + '<b>' + (shared || mine ? '오늘 어땠나요?' : '아직 쓴 일기가 없어요') + '</b>' + (shared || mine ? '한 줄이라도 남기면 나중에 가족 여행 책이 돼요.' : '') + '</div>';
   } else if (k === 'place') {
     const pl = live('places', t.id).sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
@@ -944,7 +953,7 @@ function bookTab(t) {
   const recs = live('recs', t.id);
   const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['caution', '⚠️', '현지 주의할 점'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
   const readN = SECS.filter(([k]) => bookRead(t, k)).length;
-  const HEAD_ART = { sos: 'sos-cover', talk: 'phrase-cover' };
+  const HEAD_ART = { sos: 'sos-cover', talk: 'phrase-cover', docs: 'prep-passport', wx: 'wx-partly', caution: 'bk-caution', culture: 'bk-culture', money: 'bk-money', basic: 'bk-plug', spots: 'bk-spot', tips: 'bk-tip' };
   const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3 class="ih">' + (HEAD_ART[k] ? '<img class="h-art" src="img/' + HEAD_ART[k] + '.webp" alt="">' : e) + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
   let h = '<div class="card book-cover"><img class="bk-art" src="img/notebook.webp" alt=""><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
     '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
@@ -1099,8 +1108,8 @@ function form(title, fields, rec, onSave, onDelete, opts) {
     let x;
     if (f.type === 'textarea') x = '<textarea class="in' + rd + '" id="' + id + '" placeholder="' + esc(f.ph || '') + '">' + esc(v) + '</textarea>';
     else if (f.type === 'opts' || f.type === 'multi') {
-      const vs = f.type === 'multi' ? (Array.isArray(v) ? v : []) : [v];
-      x = '<div class="opts" id="' + id + '" data-type="' + f.type + '">' + f.options.map(o => '<button type="button" class="opt ' + (vs.includes(o) ? 'on' : '') + '" data-opt="' + esc(o) + '">' + esc(o === '' ? '정하지 않음' : (f.names && f.names[o]) || o) + '</button>').join('') + '</div>';
+      const vs = f.type === 'multi' ? (Array.isArray(v) ? v : []) : [f.imgs === 'mood' ? moodKey(v) : v];
+      x = '<div class="opts" id="' + id + '" data-type="' + f.type + '">' + f.options.map(o => '<button type="button" class="opt ' + (vs.includes(o) ? 'on' : '') + '" data-opt="' + esc(o) + '">' + (f.imgs ? '<img src="img/' + f.imgs + '-' + esc(o) + '.webp" alt="' + esc(o) + '" width="34" height="34">' : esc(o === '' ? '정하지 않음' : (f.names && f.names[o]) || o)) + '</button>').join('') + '</div>';
     } else if (f.type === 'stars') {
       x = '<div class="starpick" id="' + id + '" data-v="' + (Number(v) || 0) + '">' + [1, 2, 3, 4, 5].map(k => '<button type="button" class="' + (k <= v ? 'on' : '') + '" data-star="' + k + '" aria-label="별 ' + k + '개">★</button>').join('') + '</div>';
     } else x = '<input class="in' + rd + (f.huge ? ' huge' : '') + '" id="' + id + '" type="' + (f.type === 'number' ? 'text' : f.type || 'text') + '"' + (f.type === 'number' ? ' inputmode="decimal"' : '') + ' value="' + esc(f.type === 'number' && v ? comma(v) : v) + '" placeholder="' + esc(f.ph || '') + '"' + (f.list ? ' list="dl_' + f.k + '"' : '') + '>' +
@@ -1188,7 +1197,7 @@ const F = {
   note: t => [
     { k: 'owner', label: '어디에 쓸까요', type: 'opts', options: ['', ME], names: { '': '👨‍👩‍👧‍👦 우리 가족 함께', [ME]: '📔 나만의 다이어리' } },
     { k: 'text', label: '오늘 이야기', type: 'textarea', ph: DIARY_Q[new Date().getDate() % DIARY_Q.length] },
-    { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'mood', label: '기분', type: 'opts', options: ['😊', '🥰', '😆', '😴', '🥵', '🤤'] }],
+    { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'mood', label: '기분', type: 'opts', options: Object.keys(MOOD), imgs: 'mood' }],
   place: t => [
     { k: 'name', label: '곳 이름' }, { k: 'cat', label: '갈래', type: 'opts', options: ['맛집', '명소', '숙소', '쇼핑', '카페'] },
     { k: 'rating', label: '별점', type: 'stars' }, { k: 'memo', label: '한마디', type: 'textarea', ph: '다시 가고 싶나요? 무엇이 맛있었나요?' },
@@ -1323,7 +1332,7 @@ function quickAdd(t) {
   const Q = [['spend-new', 'receipt', '쓴 돈', 'var(--c-식사)'], ['item-new', 'plan', '일정', 'var(--c-이동)'], ['booking-new', 'ticket', '예약·티켓', 'var(--c-관광)'],
     ['park-new', 'car', '내 차', 'var(--c-주차)'], ['note-new', 'pen', '일기', 'var(--c-쇼핑)'], ['place-new', 'star', '가 본 곳', 'var(--c-간식)'],
     ['check-new', 'prep', '준비물', 'var(--mint)', 'bag'], ['rec-new', 'recs', '가고 싶은 곳', 'var(--c-관광)'], ['photo-any', 'camera', '사진만', 'var(--c-기타)']];
-  openSheet('<h2>무엇을 더할까요?</h2><button class="quick-photo" data-act="photo-pick">' + ib('camera', '#fff') + '<span><b>사진으로 넣기</b><span>영수증 · 예약·티켓 화면 · 주차 위치</span></span></button>' +
+  openSheet('<h2>무엇을 더할까요?</h2><button class="quick-photo" data-act="photo-pick"><img class="qp-cam" src="img/camera.webp" alt=""><span><b>사진으로 넣기</b><span>영수증 · 예약·티켓 화면 · 주차 위치</span></span></button>' +
     '<div class="qgrid">' + Q.map(([a, icn, n, col, pk]) => '<button class="' + (a === hot ? 'hot' : '') + '" data-act="' + a + '">' + (pk ? pic([icn, col, pk], 44) : ib(icn, col)) + n + '</button>').join('') + '</div>' +
     '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
@@ -1386,7 +1395,7 @@ document.addEventListener('click', e => {
     'rec-edit': () => editRec('rec', t, D.recs[v]),
     'rec-add': () => recToPlan(t, D.recs[v]),
     'note-new': () => editRec('note', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start, owner: UI.diaryWho === ME ? ME : '' }),
-    'note-edit': () => { const n = D.notes[v]; if (n.owner && n.owner !== ME) return openSheet('<div class="note" style="box-shadow:none;padding:0"><div class="h">' + av(n.by, 32) + esc(n.by) + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + esc(n.mood) : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</div><div class="muted small" style="margin-top:10px">' + esc(n.owner) + ' 님의 다이어리예요. 읽기만 할 수 있어요.</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); editRec('note', t, n); },
+    'note-edit': () => { const n = D.notes[v]; if (n.owner && n.owner !== ME) return openSheet('<div class="note" style="box-shadow:none;padding:0"><div class="h">' + av(n.by, 32) + esc(n.by) + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + moodImg(n.mood, 22) : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</div><div class="muted small" style="margin-top:10px">' + esc(n.owner) + ' 님의 다이어리예요. 읽기만 할 수 있어요.</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); editRec('note', t, n); },
     'diary-who': () => { UI.diaryWho = v; render(); },
     'place-new': () => editRec('place', t, { cat: '맛집', rating: 5 }),
     'place-edit': () => { const p = D.places[v]; editRec('place', D.trips[p.trip], p); },
@@ -1550,6 +1559,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.8', d: '2026-11-25', title: '그림이 가득해졌어요', items: [
+    ['plane', 'var(--c-이동)', '일정 그림 아이콘', '비행기·전철·버스·택시·호텔·라멘·카페·도리이·전망대·쇼핑·티켓 그림이 일정과 티켓 지갑에 붙어요.'],
+    ['food', 'var(--coral)', '맛집·기분 스티커', '다코야키·오코노미야키·구시카쓰 그림이 추천 카드에, 기분 스티커가 일기에 들어갔어요.'],
+    ['phone', 'var(--mint)', '새 앱 아이콘', '민트 여행 가방 아이콘으로 바뀌었어요. 홈 화면에 다시 추가하면 새 아이콘이 보여요.']] },
   { v: '2.7', d: '2026-11-25', title: '화면마다 그림이 생겼어요', items: [
     ['money', 'var(--mint)', '여행 지갑·여행 길·추억', '경비는 지갑, 일정은 지도, 추억은 리본 묶은 사진 그림이 머리에 들어갔어요.'],
     ['book', 'var(--sky)', '수첩·교토 가는 날', '비상 연락은 구급상자, 꼭 쓰는 말은 말풍선 그림. 교토 가는 날 일정에는 교토 그림이 붙어요.']] },
