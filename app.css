@@ -858,3 +858,14 @@ body.map-open .nav,body.map-open .fab{display:none}
 .wgroup.pinned .wgroup-h b::before{content:'📌 ';font-size:12px}
 .wrest-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 4px 10px;padding-top:14px;border-top:1px dashed var(--line,rgba(127,127,127,.3))}
 .wrest-h .seg.wsort{margin:0}
+/* 준비물 칸 나누기 */
+.prep-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:12px -2px 8px;padding:2px}
+.prep-tabs::-webkit-scrollbar{display:none}
+.prep-tabs button{flex:none;display:flex;align-items:center;gap:6px;padding:6px 12px 6px 6px;border-radius:14px;background:var(--card);box-shadow:var(--sh);color:var(--soft);font-weight:700;font-size:14px;min-height:46px}
+.prep-tabs button span{display:flex;flex-direction:column;line-height:1.15;text-align:left}
+.prep-tabs button small{font-size:11px;font-weight:600;opacity:.75}
+.prep-tabs button.on{background:var(--ink);color:var(--bg)}
+.prep-tabs button.full small::after{content:' ✓'}
+.prep-tabs .ib{width:26px;height:26px}
+.prep-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 4px 6px}
+.prep-head .linkbtn{flex:none}

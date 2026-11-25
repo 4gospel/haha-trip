@@ -1379,19 +1379,47 @@ function walletPage(t) {
   }
   return h;
 }
+/* 준비물 — 할 일 · 함께 챙길 짐 · 사람마다 개인 가방 (여행 준비 전문가 의견으로 나눔) */
+const TODO_CATS = ['서류', '예약', '출발 전', '돌아올 때'];
+const prepKind = c => c.owner ? 'p:' + c.owner : TODO_CATS.includes(c.cat) ? 'todo' : 'common';
+const whoName = n => n === ME ? '나' : ((fam(n) || {}).role) || n;
+function personalKit(t) {
+  const m = +String(t.start || '').slice(5, 7), cold = [11, 12, 1, 2, 3].includes(m), hot = [6, 7, 8].includes(m), out = abroad(t), n = Math.max(1, daysOf(t).length);
+  return [
+    ['옷', cold ? '두꺼운 외투' : hot ? '얇은 겉옷 (실내 냉방 대비)' : '가벼운 겉옷'], cold && ['옷', '장갑·목도리·모자'], cold && ['옷', '내복 (히트텍 같은 것)'], hot && ['옷', '모자·선글라스'],
+    n > 1 && ['옷', '갈아입을 옷 ' + (n - 1) + '벌'], ['옷', '양말·속옷 ' + n + '일치'], n > 1 && ['옷', '잠옷'], ['옷', '오래 걸어도 편한 신발'],
+    ['세면·생활', '칫솔·치약'], ['세면·생활', '렌즈·안경 (쓰는 사람)'], ['세면·생활', '로션·선크림·립밤'],
+    ['전자기기', '휴대폰 충전기·케이블'], ['전자기기', '이어폰'],
+    ['건강', '개인 복용약'], ['건강', '마스크 몇 장'],
+    out && ['서류', '내 여권 (가방 속 정해진 자리)'], out && ['전자기기', 'eSIM·유심 설치 확인']
+  ].filter(Boolean);
+}
 function prepPage(t) {
-  const ck = live('checks', t.id);
+  const ck = live('checks', t.id), mem = t.members || [];
   const done = ck.filter(c => c.done).length, p = ck.length ? Math.round(done / ck.length * 100) : 0;
-  const groups = {};
-  ck.forEach(c => (groups[c.cat || '기타'] = groups[c.cat || '기타'] || []).push(c));
+  const tabs = [['todo', '할 일'], ['common', '함께 챙길 짐'], ...mem.map(n => ['p:' + n, n === ME ? '내 가방' : whoName(n) + ' 가방'])];
+  const cur = tabs.some(x => x[0] === UI.prepTab) ? UI.prepTab : (mem.includes(ME) ? 'p:' + ME : 'todo');
+  const inTab = k => ck.filter(c => prepKind(c) === k);
   let h = '<div class="card flex" style="gap:14px;margin-top:4px"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : done + ' / ' + ck.length + ' 준비 끝') + '</b><div class="muted">' +
-    (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div><button class="btn" style="margin-top:8px" data-act="check-new">＋ 준비물 더하기</button></div><img class="bp" src="img/backpack.webp" alt=""></div>';
-  const ORDER = Object.keys(PREP_CAT); Object.keys(groups).sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0))).forEach(g => {
-    const list = groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts);
-    h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + pic(PREP_CAT[g] || PREP_CAT.기타, 36) + esc(g) + '</h3><span class="muted num">' + list.filter(c => c.done).length + '/' + list.length + '</span></div><div class="card">' +
-      list.map(c => '<div class="row ' + (c.done ? 'done' : '') + '"><button class="chk ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button>' + pic(prepIcon(c), 34) +
+    (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div></div><img class="bp" src="img/backpack.webp" alt=""></div>';
+  h += '<div class="prep-tabs">' + tabs.map(([k, n]) => { const l = inTab(k), d = l.filter(c => c.done).length;
+    return '<button class="' + (k === cur ? 'on' : '') + (l.length && d === l.length ? ' full' : '') + '" data-act="prep-tab" data-v="' + esc(k) + '">' + (k.startsWith('p:') ? av(k.slice(2), 22) : ib(k === 'todo' ? 'check' : 'bag', 'var(--mint)', 1)) + '<span>' + esc(n) + '<small class="num">' + d + '/' + l.length + '</small></span></button>'; }).join('') + '</div>';
+  const list = inTab(cur), owner = cur.startsWith('p:') ? cur.slice(2) : '';
+  const hint = { todo: '떠나기 전에 해 둘 일 — 서류·예약·집 정리·돌아올 때 챙길 것', common: '가족이 함께 쓰는 짐 — 맡은 사람을 정해 두면 겹치지 않아요' }[cur] || (owner === ME ? '내 가방에 넣을 것 — 넣었으면 눌러서 체크해요' : esc(owner) + ' 님 가방 — 아이 가방은 부모님이 함께 확인해 주세요');
+  h += '<div class="prep-head"><span class="muted small">' + hint + '</span><button class="linkbtn" data-act="check-new">＋ 더하기</button></div>';
+  if (!list.length) {
+    h += '<div class="card empty">' + (owner ? '<b>' + esc(whoName(owner)) + ' 가방이 비어 있어요</b>여행 계절·일수에 맞춘 기본 목록(' + personalKit(t).length + '가지)을 넣고 고쳐 써요.<button class="btn pri" style="margin-top:10px" data-act="prep-kit" data-v="' + esc(owner) + '">' + ic('plus') + '기본 개인 준비물 넣기</button>' : '아직 없어요') + '</div>';
+    return h;
+  }
+  const groups = {};
+  list.forEach(c => (groups[c.cat || '기타'] = groups[c.cat || '기타'] || []).push(c));
+  const ORDER = Object.keys(PREP_CAT);
+  Object.keys(groups).sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0))).forEach(g => {
+    const l = groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts);
+    h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + pic(PREP_CAT[g] || PREP_CAT.기타, 36) + esc(g) + '</h3><span class="muted num">' + l.filter(c => c.done).length + '/' + l.length + '</span></div><div class="card">' +
+      l.map(c => '<div class="row ' + (c.done ? 'done' : '') + '"><button class="chk ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button>' + pic(prepIcon(c), 34) +
         '<button class="body" style="text-align:left;min-height:44px" data-act="check-edit" data-v="' + esc(c.id) + '"><div class="t">' + esc(c.text) + '</div>' + (c.memo ? '<div class="m">' + esc(c.memo) + '</div>' : '') + '</button>' +
-        (c.who ? '<span class="pill">' + esc(c.who) + '</span>' : '') + '</div>').join('') + '</div></div>';
+        (c.who && !owner ? '<span class="pill">' + esc(whoName(c.who)) + '</span>' : '') + '</div>').join('') + '</div></div>';
   });
   return h;
 }
@@ -1759,7 +1787,8 @@ const F = {
   check: t => [
     { k: 'text', label: '챙길 것', ph: '예: 보조배터리' },
     { k: 'cat', label: '묶음', type: 'opts', options: Object.keys(PREP_CAT) },
-    { k: 'who', label: '맡은 사람', type: 'opts', options: ['', ...(t.members || [])] },
+    { k: 'owner', label: '누구 짐', type: 'opts', options: ['', ...(t.members || [])], names: { '': '함께 (공통·할 일)' } },
+    { k: 'who', label: '맡은 사람 (함께 챙길 짐·할 일)', type: 'opts', options: ['', ...(t.members || [])], more: 1 },
     { k: 'memo', label: '메모' }],
   rec: t => [
     { k: 'kind', label: '갈래', type: 'opts', options: ['명소', '맛집', '쇼핑', '숙소', '팁'] },
@@ -1987,7 +2016,9 @@ document.addEventListener('click', e => {
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
     'spend-new': () => editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
     'spend-edit': () => editRec('spend', t, D.spends[v]),
-    'check-new': () => editRec('check', t, { cat: '기타', who: '' }),
+    'check-new': () => { const k = UI.prepTab || ''; editRec('check', t, { cat: k === 'todo' ? '출발 전' : k.startsWith('p:') ? '옷' : '기타', who: '', owner: k.startsWith('p:') ? k.slice(2) : '' }); },
+    'prep-tab': () => { UI.prepTab = v; render(); },
+    'prep-kit': () => { personalKit(t).forEach(([cat, text]) => put('checks', { id: uid('c'), trip: t.id, text, cat, who: '', owner: v, done: false }, true)); render(); toast(whoName(v) + ' 가방에 ' + personalKit(t).length + '가지를 넣었어요'); },
     'check-edit': () => editRec('check', t, D.checks[v]),
     'check-done': () => { const c = D.checks[v]; buzz(); put('checks', Object.assign({}, c, { done: !c.done })); const ck = live('checks', c.trip); if (!c.done && ck.every(x => x.done)) { confetti(); toast('준비 끝! 가방만 들면 돼요'); } },
     'rec-new': () => editRec('rec', t, { kind: UI.recK !== '전체' ? UI.recK : '맛집' }),
@@ -2104,7 +2135,7 @@ function tripMenu(t) {
 function copyTrip(t) {
   const id = uid('t');
   put('trips', { id, title: t.title + ' (새)', place: t.place, start: t.start, end: t.end, members: (t.members || []).slice(), cur: t.cur, rate: t.rate, country: t.country, memo: '' });
-  live('checks', t.id).forEach(c => put('checks', { id: uid('c'), trip: id, text: c.text, cat: c.cat, who: '', done: false }, true));
+  live('checks', t.id).forEach(c => put('checks', { id: uid('c'), trip: id, text: c.text, cat: c.cat, who: '', owner: c.owner || '', done: false }, true));
   live('recs', t.id).forEach(r => put('recs', Object.assign({}, r, { id: uid('r'), trip: id, ts: 0 }), true));
   closeSheet(); editTrip(D.trips[id]);
 }
@@ -2189,6 +2220,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.5', d: '2026-11-25', title: '준비물을 나눠서 봐요', items: [
+    ['check', 'var(--mint)', '할 일 · 함께 챙길 짐 · 개인 가방', '준비물이 세 갈래로 나뉘었어요. 서류·예약 같은 「할 일」, 어댑터·상비약 같은 「함께 챙길 짐」, 그리고 아빠·엄마·딸·아들 「가방」이 따로 있어요.'],
+    ['bag', 'var(--coral)', '내 가방', '옷·칫솔·충전기·개인 약은 사람마다 따로 체크해요. 빈 가방은 「기본 개인 준비물 넣기」로 계절·일수에 맞춘 목록을 한 번에 넣어요.']] },
   { v: '4.4', d: '2026-11-25', title: '메모장·주소 칸·티켓 정렬', items: [
     ['pen', 'var(--sun)', '나만의 메모장', '수첩 안에 가족마다 메모장이 생겼어요. 챙길 것·사고 싶은 것을 적어 두고, 「나만 보기」를 고르면 다른 가족에게는 안 보여요.'],
     ['ticket', 'var(--mint)', '티켓 지갑 정리', '항공·숙소·보험은 늘 맨 위에 고정되고, 그 밖의 티켓·교통·주차는 「시간순」 또는 「종류별」로 골라 볼 수 있어요.'],
