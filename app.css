@@ -937,3 +937,37 @@ body.map-open .nav,body.map-open .fab{display:none}
 /* 문화 체험 갈래 */
 .kindtag.cu{background:color-mix(in srgb,#9b5bd4 20%,transparent);color:color-mix(in srgb,#9b5bd4 75%,var(--ink))}
 @media (max-width:460px){.kindseg.four{flex-wrap:wrap}.kindseg.four button{flex:1 1 45%}}
+/* 일정 사이 이동 */
+.goline{display:inline-block;font-size:12.5px;font-weight:700;color:var(--sky);background:color-mix(in srgb,var(--sky) 11%,transparent);border-radius:8px;padding:2px 8px;margin-bottom:5px;line-height:1.45}
+.goline.big{display:block;font-size:14px;padding:8px 10px;margin:6px 0}
+.gosteps{margin:4px 0 10px;padding-left:4px;list-style:none;display:grid;gap:5px;font-size:14px;line-height:1.45}
+.gosteps li{padding-left:2px}
+.iv-go-sec .btn{margin-top:4px}
+/* 일정 흐름: 화살표 + 시간대 색 + 해·달 (밝은·어두운 화면과 상관없이 같은 색) */
+.tl.tl-flow{display:flex;flex-direction:column;gap:0}
+.flow-plan .tl.tl-flow::before{display:none}
+.tl-arrow{display:flex;align-items:center;gap:8px;min-height:34px;padding:4px 0 4px 26px;flex-wrap:wrap}
+.tl-arrow .ar{font-size:18px;font-weight:800;color:var(--faint);width:20px;text-align:center;line-height:1}
+.tl-arrow .goline{margin:0}
+.tl-card.sun{border:0;color:#2b2416}
+.tl-card.sun .t{color:inherit}
+.tl-card.sun .m{color:inherit;opacity:.8}
+.tl-card.sun .tm b{color:inherit;opacity:.85}
+.tl-card.sun .m[style]{opacity:1}
+.tl-card.b-dawn{color:#2e2442;background:radial-gradient(circle at var(--sx) var(--sy),rgba(255,170,110,.45) 0 10px,rgba(255,180,130,.18) 11px 44px,transparent 72px),linear-gradient(135deg,#ECE6F7,#FAD9CB)}
+.tl-card.b-morning{color:#3a2e12;background:radial-gradient(circle at var(--sx) var(--sy),rgba(255,190,50,.6) 0 12px,rgba(255,205,90,.22) 13px 46px,transparent 76px),linear-gradient(135deg,#FFF6DA,#FFE9BC)}
+.tl-card.b-day{color:#14324d;background:radial-gradient(circle at var(--sx) var(--sy),rgba(255,206,64,.62) 0 13px,rgba(255,226,120,.22) 14px 50px,transparent 80px),linear-gradient(135deg,#E8F4FF,#D2E8FF)}
+.tl-card.b-evening{color:#4a2012;background:radial-gradient(circle at var(--sx) var(--sy),rgba(255,110,50,.5) 0 16px,rgba(255,140,80,.22) 17px 60px,transparent 96px),linear-gradient(135deg,#FFE2CF,#F6B9A8)}
+.tl-card.b-night{color:#EEF1FF;background:radial-gradient(circle at var(--sx) var(--sy),rgba(246,248,255,.9) 0 8px,rgba(210,218,255,.16) 9px 34px,transparent 56px),radial-gradient(circle at 70% 18%,rgba(255,255,255,.7) 0 1px,transparent 2px),radial-gradient(circle at 58% 62%,rgba(255,255,255,.5) 0 1px,transparent 2px),linear-gradient(135deg,#1F2552,#323A78)}
+.tl-card.b-dawn .m[style],.tl-card.b-morning .m[style],.tl-card.b-day .m[style],.tl-card.b-evening .m[style]{color:#8a4300!important}
+.tl-card.b-night .m[style]{color:#FFD27A!important}
+.tl-card.sun .chk{background:rgba(255,255,255,.55);border-color:rgba(0,0,0,.18)}
+.tl-card.b-night .chk{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35)}
+.tl-card.sun.done{opacity:.62}
+.sunchip{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 2px 12px;font-size:13.5px;color:var(--soft)}
+.sunchip b{color:var(--ink)}
+.sc-leg{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+.sc-leg i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-left:6px}
+.sc-leg i.b-morning{background:#FFE9BC}.sc-leg i.b-day{background:#D2E8FF}.sc-leg i.b-evening{background:#F6B9A8}.sc-leg i.b-night{background:#323A78}
+@media (min-width:700px){.flow-plan .tl.tl-flow{grid-template-columns:none}}
+@media (min-width:1100px){.flow-plan .tl.tl-flow{max-width:920px}.flow-plan .sunchip{max-width:920px}}

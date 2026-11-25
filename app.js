@@ -804,7 +804,7 @@ function todayTab(t) {
     const now = hm(); const next = list.filter(i => !i.done && (i.time || '99') >= now.slice(0, 5));
     const show = (next.length ? next : list.filter(i => !i.done)).slice(0, 3);
     h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
-      (show.length ? '<div class="tl">' + show.map((i, k) => tlItem(t, i, k === 0)).join('') + '</div>' : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
+      (show.length ? tlList(t, show, true) : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
     h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
   }
   // 티켓 지갑
@@ -823,7 +823,7 @@ function todayTab(t) {
   // 첫날 일정 미리 보기 (출발 전)
   if (ph === 'before') {
     const first = live('items', t.id).filter(i => i.date === t.start).sort(byTime).slice(0, 4);
-    if (first.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('plan', 'var(--c-이동)', 1) + '첫날 · ' + esc(md(t.start)) + '</h3><button class="linkbtn" data-act="tab" data-v="plan">전체 일정</button></div><div class="tl">' + first.map(i => tlItem(t, i)).join('') + '</div></div>';
+    if (first.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('plan', 'var(--c-이동)', 1) + '첫날 · ' + esc(md(t.start)) + '</h3><button class="linkbtn" data-act="tab" data-v="plan">전체 일정</button></div>' + tlList(t, first) + '</div>';
   }
   // 추억
   const memN = live('notes', t.id).length + live('places', t.id).length + planPlaces(t.id).length;
@@ -867,9 +867,66 @@ function carCard(t, top) {
     '<div class="cin"><div class="muted">' + (top ? '🚗 집에 가는 날 — 내 차는 여기' : '🚗 내 차 어디?') + '</div><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(pk.memo || '') + (pb ? ' · 출차 ' + esc(String(pb.end || '')) : '') + '</div></div></button>';
 }
 
+/* 일정 사이 이동 — i.go = { t: walk|transit|taxi, s: 한 줄, min, fare, dep, from, to, steps:[{m,l,f,d,to,a,n,min}] } (구글 길찾기로 확인한 것) */
+const GO_IC = { walk: '🚶', transit: '🚃', taxi: '🚕', bus: '🚌' };
+const goLine = i => i.go && i.go.s ? '<div class="goline">' + (GO_IC[i.go.t] || '➜') + ' ' + esc(i.go.s) + '</div>' : '';
+function goUrl(i) {
+  const g = i.go; if (!g || !g.from || !g.to) return '';
+  let data = '/data=!4m2!4m1!3e2';
+  if (g.t !== 'walk') {
+    const hm = String(g.dep || '').match(/(\d+):(\d+)/);
+    data = hm && i.date ? '/data=!4m6!4m5!2m3!6e0!7e2!8j' + Date.UTC(+i.date.slice(0, 4), +i.date.slice(5, 7) - 1, +i.date.slice(8, 10), +hm[1], +hm[2]) / 1000 + '!3e3' : '/data=!4m2!4m1!3e3';
+  }
+  return 'https://www.google.com/maps/dir/' + encodeURIComponent(g.from) + '/' + encodeURIComponent(g.to) + data + '?hl=ko';
+}
+function goHtml(i) {
+  const g = i.go; if (!g || !g.s) return '';
+  const st = (g.steps || []).map(x => '<li>' + (x.m === 'walk' ? '🚶 걸어서 ' + x.min + '분' + (x.to ? ' → ' + esc(x.to) : '') : (x.m === 'bus' ? '🚌 ' : '🚃 ') + '<b class="num">' + esc(x.d || '') + '</b> ' + esc(x.l || '') + ' <span class="muted">' + esc(x.f || '') + ' → ' + esc(x.to || '') + '</span> <b class="num">' + esc(x.a || '') + '</b>' + (x.n ? ' <span class="muted small">(' + x.n + '정거장)</span>' : '')) + '</li>').join('');
+  return '<div class="iv-sec iv-go-sec"><b>' + ic('route') + '여기까지 가는 길</b><div class="goline big">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + '</div>' + (st ? '<ol class="gosteps">' + st + '</ol>' : '') +
+    (g.note ? '<div class="muted small">' + esc(g.note) + '</div>' : '') + (goUrl(i) ? '<a class="btn" href="' + esc(goUrl(i)) + '" target="_blank" rel="noopener">' + ic('route') + '구글 지도에서 ' + (g.t === 'walk' ? '걷는 길' : '이 시각 경로') + ' 보기</a>' : '') + '</div>';
+}
+/* 해 뜨고 지는 때 — 날짜·위치로 계산(근사, ±2분). 카드 배경에 해·노을·달을 은은하게 */
+function sunRS(ds, lat, lng, tz) {
+  const y = +ds.slice(0, 4), m = +ds.slice(5, 7), d = +ds.slice(8, 10);
+  const N = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 864e5), g = 2 * Math.PI / 365 * (N - 1);
+  const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const la = lat * Math.PI / 180, ha = Math.acos(Math.max(-1, Math.min(1, Math.cos(90.833 * Math.PI / 180) / (Math.cos(la) * Math.cos(dec)) - Math.tan(la) * Math.tan(dec)))) * 180 / Math.PI;
+  return { rise: 720 - 4 * (lng + ha) - eqt + tz * 60, set: 720 - 4 * (lng - ha) - eqt + tz * 60 };
+}
+const TZ = { KR: 9, JP: 9, TW: 8, HK: 8, CN: 8, VN: 7, TH: 7, SG: 8, PH: 8, FR: 1, DE: 1, CH: 1, CZ: 1, IT: 1, ES: 1, GB: 0, US: -5, AU: 10 };
+const GEO0 = { KR: [37.55, 126.98], JP: [34.69, 135.5], TW: [25.04, 121.56], FR: [48.86, 2.35], CH: [46.02, 7.75], CZ: [50.08, 14.43] };
+const SUN_C = {};
+function sunOf(t, ds) {
+  const key = t.id + ds; if (SUN_C[key]) return SUN_C[key];
+  const near = live('items', t.id).find(i => i.date === ds && i.lat != null) || live('items', t.id).find(i => i.lat != null);
+  const c = t.country || 'KR', [lat, lng] = near ? [near.lat, near.lng] : (GEO0[c] || GEO0.KR);
+  const m = +ds.slice(5, 7), eu = ['FR', 'DE', 'CH', 'CZ', 'IT', 'ES', 'GB'].includes(c) && m >= 4 && m <= 10;
+  return SUN_C[key] = sunRS(ds, lat, lng, (TZ[c] != null ? TZ[c] : Math.round(lng / 15)) + (eu ? 1 : 0));
+}
+const mmStr = x => Math.floor(x / 60) + ':' + String(Math.round(x % 60)).padStart(2, '0');
+function sunVars(t, i) {
+  if (!i.date || !/^\d{1,2}:\d\d/.test(i.time || '')) return { b: '', st: '' };
+  const { rise, set } = sunOf(t, i.date), [h, mi] = i.time.split(':').map(Number), x = h * 60 + mi;
+  let b, sx, sy;
+  if (x < rise - 30 || x > set + 75) { b = 'night'; sx = 86; sy = 24; }
+  else if (x < rise) { b = 'dawn'; sx = 6; sy = 92; }
+  else if (x > set) { b = 'evening'; sx = 96; sy = 96; }
+  else { const p = (x - rise) / (set - rise); b = x < rise + 240 ? 'morning' : x > set - 75 ? 'evening' : 'day'; sx = 6 + 88 * p; sy = 88 - 70 * Math.sin(Math.PI * p); }
+  return { b, st: '--sx:' + sx.toFixed(1) + '%;--sy:' + sy.toFixed(1) + '%' };
+}
+function sunChip(t, ds) {
+  if (!ds) return '';
+  const { rise, set } = sunOf(t, ds);
+  return '<div class="sunchip"><span>🌅 해 뜨는 때 <b class="num">' + mmStr(rise) + '</b></span><span>🌇 해 지는 때 <b class="num">' + mmStr(set) + '</b></span><span class="sc-leg"><i class="b-morning"></i>아침<i class="b-day"></i>낮<i class="b-evening"></i>저녁<i class="b-night"></i>밤</span></div>';
+}
+/* 일정 목록 — 시간 순서대로 화살표, 화살표 옆에 가는 길 */
+function tlList(t, list, nowFirst) {
+  return '<div class="tl tl-flow">' + list.map((i, k) => (k > 0 || (i.go && i.go.s) ? '<div class="tl-arrow"><span class="ar">↓</span>' + goLine(i) + '</div>' : '') + tlItem(t, i, nowFirst && k === 0)).join('') + '</div>';
+}
 function tlItem(t, i, now) {
-  const [icn, col] = itemIcon(i);
-  return '<div class="tl-card' + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
+  const [icn, col] = itemIcon(i), sv = sunVars(t, i);
+  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
     '<button class="body" data-act="item-view" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
     '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.place ? '<a class="go" href="' + esc(dirUrl(i.place)) + '" target="_blank" rel="noopener" data-stop="1">' + ic('route') + '길찾기</a>' : '') + '</div></button>' +
@@ -1148,6 +1205,7 @@ function itemView(t, i) {
     (i.tip ? '<div class="tip"><span>' + ic('bulb') + '여행 팁</span><b>' + esc(i.tip) + '</b></div>' : '') +
     (prev ? '<div><span>' + ic('route') + '앞 일정</span><b>' + esc((prev.time ? prev.time + ' ' : '') + prev.title) + '</b></div>' : '') +
     (next ? '<div><span>' + ic('route') + '다음 일정</span><b>' + esc((next.time ? next.time + ' ' : '') + next.title) + '</b></div>' : '') + '</div>';
+  h += goHtml(i);
   if (q.trim()) {
     h += '<div class="iv-map"><iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="지도" src="https://www.google.com/maps?q=' + encodeURIComponent(q) + '&hl=ko&z=15&output=embed"></iframe></div>';
     h += '<div class="iv-go">' +
@@ -1194,7 +1252,8 @@ function planTab(t) {
     const p = list.filter(i => i.done || (i.time && i.time < hm().slice(0, 5) && list.some(j => j.time > i.time && !j.done)));
     if (p.length > 1) { list = list.filter(i => !p.includes(i)); past = '<button class="past-toggle" data-act="show-past">지난 일정 ' + p.length + '개 보기</button>'; }
   }
-  h += list.length || past ? past + '<div class="tl">' + list.map(i => tlItem(t, i)).join('') + '</div><div class="muted num" style="text-align:right;margin-top:10px">이날 1인 예상 ' + comma(sum) + unit(t.cur) + (t.cur !== 'KRW' ? ' · ≈ ' + manWon(toWon(t, sum)) : '') + '</div>'
+  if (list.length) h += sunChip(t, sel);
+  h += list.length || past ? past + tlList(t, list) + '<div class="muted num" style="text-align:right;margin-top:10px">이날 1인 예상 ' + comma(sum) + unit(t.cur) + (t.cur !== 'KRW' ? ' · ≈ ' + manWon(toWon(t, sum)) : '') + '</div>'
     : '<div class="card empty"><div class="art">🗺️</div><b>이날 일정이 비어 있어요</b>「가고 싶은 곳」에서 골라 넣거나 ＋로 더해요.</div>';
   return h;
 }
@@ -2248,6 +2307,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.8', d: '2026-11-25', title: '일정이 시간 흐름대로', items: [
+    ['route', 'var(--sky)', '가는 길까지', '일정 사이마다 ↓ 화살표와 함께 「🚃 11:56 난카이 공항선 → 덴가차야 12:36 · 970엔」, 「🚶 걸어서 6분」처럼 구글 길찾기로 확인한 이동이 보여요. 일정을 누르면 갈아타는 곳까지 자세히, 그 시각의 구글 지도 경로도 열려요.'],
+    ['sun', 'var(--sun)', '해의 움직임', '아침·낮·저녁·밤에 따라 카드 색이 바뀌고, 해 뜨고 지는 시각에 맞춰 해와 달이 은은하게 떠 있어요.'],
+    ['food', 'var(--coral)', '오사카 식사 조율', '첫날 저녁은 회전초밥 원조 겐로쿠 스시, 그믐 저녁은 우설 정식, 아침과 밤 간식은 편의점으로 가볍게.']] },
   { v: '4.7', d: '2026-11-25', title: '문화 체험 칸', items: [
     ['ticket', '#9b5bd4', '문화 체험', '전시·공연·박물관 같은 당일 나들이는 「지난 여행」의 새 칸 「문화 체험」에 따로 모여요. 여행을 만들 때 「어떤 여행」에서 고를 수 있어요.'],
     ['memory', 'var(--coral)', '찾은 추억', '2006 여름 양평(중미산 천문대)과 2008 「황금의 제국 페르시아」 전시를 구글 포토에서 찾아 넣었어요.']] },
