@@ -971,3 +971,10 @@ body.map-open .nav,body.map-open .fab{display:none}
 .sc-leg i.b-morning{background:#FFE9BC}.sc-leg i.b-day{background:#D2E8FF}.sc-leg i.b-evening{background:#F6B9A8}.sc-leg i.b-night{background:#323A78}
 @media (min-width:700px){.flow-plan .tl.tl-flow{grid-template-columns:none}}
 @media (min-width:1100px){.flow-plan .tl.tl-flow{max-width:920px}.flow-plan .sunchip{max-width:920px}}
+
+/* 네이버 지도 단추 — 네이버 초록 N */
+.nvlogo{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:4px;background:#03C75A;color:#fff;font:900 12px/1 Arial,sans-serif;flex:none}
+.btn.nv{background:#03C75A;border-color:#03C75A;color:#fff}
+.btn.nv .nvlogo{background:#fff;color:#03C75A}
+.btn.nv-o{border-color:color-mix(in srgb,#03C75A 45%,var(--line))}
+.mpop-a .nv-o{padding:6px 10px}

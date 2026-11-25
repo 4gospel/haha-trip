@@ -69,6 +69,34 @@ const toWon = (t, amt, cur) => { amt = Number(amt) || 0; cur = cur || t.cur || '
 const manWon = w => Math.abs(w) >= 10000 ? (Math.round(w / 1000) / 10).toLocaleString('ko-KR') + '만 원' : comma(w) + '원';
 const mapUrl = q => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 const dirUrl = (q, lat, lng) => 'https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=' + encodeURIComponent(lat ? lat + ',' + lng : q);
+/* 네이버 지도 — 국내는 장소·길찾기 모두 네이버(가족이 애용), 해외(일본 등)는 한국어 지도로 장소 보기만(네이버 길찾기는 국내만) · 휴대폰은 네이버 지도 앱(nmap://), 컴퓨터는 map.naver.com */
+const UA = navigator.userAgent || '', ANDR = /Android/i.test(UA), IOSD = /iPhone|iPad|iPod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1), MOBD = ANDR || IOSD;
+const NV_APP = encodeURIComponent(location.origin + location.pathname);
+const inKR = (lat, lng) => lat >= 33 && lat <= 38.7 && lng >= 124.5 && lng <= 131.9;
+const nvApp = (path, qs) => { const u = path + '?' + qs + '&appname=' + NV_APP; return ANDR ? 'intent://' + u + '#Intent;scheme=nmap;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.nmap;end' : 'nmap://' + u; };
+const nvWebQ = q => 'https://map.naver.com/p/search/' + encodeURIComponent(q);
+const nvMerc = (lat, lng) => [(lng * 20037508.34 / 180).toFixed(2), (Math.log(Math.tan((90 + Number(lat)) * Math.PI / 360)) / (Math.PI / 180) * 20037508.34 / 180).toFixed(2)];
+/* 장소 보기 */
+function nvPlace(q, lat, lng) {
+  q = String(q || '').trim();
+  if (!MOBD) return nvWebQ(q);
+  return lat != null && inKR(lat, lng) ? nvApp('place', 'lat=' + lat + '&lng=' + lng + '&name=' + encodeURIComponent(q)) : nvApp('search', 'query=' + encodeURIComponent(q));
+}
+/* 길찾기(국내) — mode: public|walk|car · 좌표가 없으면 장소 찾기로 */
+function nvRoute(q, lat, lng, mode, from) {
+  q = String(q || '').trim(); mode = mode || 'public';
+  if (lat == null) return nvPlace(q);
+  if (!MOBD) {
+    const [x, y] = nvMerc(lat, lng), f = from && from.lat != null ? nvMerc(from.lat, from.lng).join(',') + ',' + encodeURIComponent(from.name || '') + ',,ADDRESS_POI' : '-';
+    return 'https://map.naver.com/p/directions/' + f + '/' + x + ',' + y + ',' + encodeURIComponent(q) + ',,ADDRESS_POI/-/' + ({ public: 'transit', walk: 'walk', car: 'car' }[mode] || 'transit');
+  }
+  return nvApp('route/' + mode, (from && from.lat != null ? 'slat=' + from.lat + '&slng=' + from.lng + '&sname=' + encodeURIComponent(from.name || '') + '&' : '') + 'dlat=' + lat + '&dlng=' + lng + '&dname=' + encodeURIComponent(q));
+}
+/* 한국 안의 곳인가 — 좌표·나라·여행 나라로 */
+const isKR = (t, r) => r && r.lat != null ? inKR(r.lat, r.lng) : r && r.cc ? r.cc === 'KR' : r && r.place ? KR_RE.test(r.place) || (!!t && !abroad(t) && !/공항|airport/i.test(r.place) ? true : false) : !!t && !abroad(t);
+/* 길찾기 단추 하나(일정 줄·숙소) — 국내는 네이버, 해외는 구글 */
+const goTo = (t, q, r) => isKR(t, r) ? nvRoute(q, r && r.lat, r && r.lng, 'public') : dirUrl(q);
+const nvA = (href, cls, inner) => '<a class="' + cls + (/^(nmap|intent):/.test(href) ? ' nvapp' : '') + '" href="' + esc(href) + '"' + (/^https:/.test(href) ? ' target="_blank" rel="noopener"' : '') + '>' + inner + '</a>';
 const safeUrl = u => /^https:\/\//i.test(String(u || '')) ? u : '';
 const safeImg = u => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(u || '')) ? u : '';
 
@@ -696,7 +724,7 @@ async function mountMap(again) {
   shown.forEach(p => {
     const icon = L.divIcon({ className: 'mpin-w', html: '<span class="mpin' + (p.city ? ' city' : '') + '" style="--pc:' + PIN_C[p.k] + '"></span>', iconSize: [26, 34], iconAnchor: [13, 32], popupAnchor: [0, -28] });
     L.marker([p.r.lat, p.r.lng], { icon, title: p.name }).addTo(MAP._pins).bindPopup('<div class="mpop"><b>' + esc(p.name) + '</b>' + (p.cat ? ' <span class="tag">' + esc(p.cat) + '</span>' : '') + '<small>' + esc(p.t.title) + ' · ' + esc(p.d ? yy(p.d) : p.t.start.slice(0, 4) + '년') + '</small>' +
-      '<div class="mpop-a"><button class="btn" data-act="map-trip" data-v="' + esc(p.t.id) + '">여행 열기</button><a class="btn" href="' + esc(mapUrl(p.q)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
+      '<div class="mpop-a"><button class="btn" data-act="map-trip" data-v="' + esc(p.t.id) + '">여행 열기</button><a class="btn" href="' + esc(mapUrl(p.q)) + '" target="_blank" rel="noopener">구글 지도</a>' + nvA(nvPlace(p.name, p.r.lat, p.r.lng), 'btn nv-o', '<span class="nvlogo">N</span>네이버') + '</div></div>');
   });
   const ll = shown.map(p => [p.r.lat, p.r.lng]);
   if (ll.length) MAP.fitBounds(ll, { padding: [28, 28], maxZoom: tid ? 13 : mk === 'kr' ? 9 : 5 });
@@ -929,7 +957,7 @@ function tlItem(t, i, now) {
   return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
     '<button class="body" data-act="item-view" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
     '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
-    (i.place ? '<a class="go" href="' + esc(dirUrl(i.place)) + '" target="_blank" rel="noopener" data-stop="1">' + ic('route') + '길찾기</a>' : '') + '</div></button>' +
+    (i.place ? (u => '<a class="go' + (/^(nmap|intent):/.test(u) ? ' nvapp' : '') + '" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + ' data-stop="1">' + ic('route') + '길찾기</a>')(goTo(t, i.place, i)) : '') + '</div></button>' +
     '<button class="chk ' + (i.done ? 'on' : '') + '" data-act="item-done" data-v="' + esc(i.id) + '" aria-label="다녀옴 표시">' + (i.done ? ic('check') : '') + '</button></div>';
 }
 
@@ -1208,15 +1236,26 @@ function itemView(t, i) {
   h += goHtml(i);
   if (q.trim()) {
     h += '<div class="iv-map"><iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="지도" src="https://www.google.com/maps?q=' + encodeURIComponent(q) + '&hl=ko&z=15&output=embed"></iframe></div>';
-    h += '<div class="iv-go">' +
+    const kr = isKR(t, i), fromR = fromIt && fromIt.lat != null ? { lat: fromIt.lat, lng: fromIt.lng, name: fromIt.place } : null, nq = i.place || i.title || q;
+    const gBtns = '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서</a>' +
+      '<a class="btn" href="' + esc(dirTo(q, 'driving', from)) + '" target="_blank" rel="noopener">' + ic('taxi') + '차·택시</a>';
+    const near = '<a class="btn" href="' + esc(mapUrl('맛집 near ' + q)) + '" target="_blank" rel="noopener">' + ic('bowl') + '주변 맛집</a>' +
+      '<a class="btn" href="' + esc(mapUrl('편의점 near ' + q)) + '" target="_blank" rel="noopener">' + ic('basket') + '주변 편의점</a>' +
+      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + ic('camera') + '주변 볼거리</a>';
+    if (kr) h += '<div class="iv-go">' + (i.lat != null ?
+      nvA(nvRoute(nq, i.lat, i.lng, 'public', fromR), 'btn pri nv', '<span class="nvlogo">N</span>네이버 길찾기' + (fromR ? ' (앞 일정에서)' : '')) +
+      nvA(nvPlace(nq, i.lat, i.lng), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도') +
+      nvA(nvRoute(nq, i.lat, i.lng, 'walk', fromR), 'btn nv-o', '<span class="nvlogo">N</span>걸어서') +
+      nvA(nvRoute(nq, i.lat, i.lng, 'car', fromR), 'btn nv-o', '<span class="nvlogo">N</span>차') :
+      nvA(nvPlace(nq), 'btn pri nv', '<span class="nvlogo">N</span>네이버 지도에서 찾기 · 길찾기')) +
+      '<a class="btn" href="' + esc(dirTo(q, 'transit', from)) + '" target="_blank" rel="noopener">' + ic('train') + '구글 길찾기</a>' +
+      '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + ic('pin') + '구글 지도</a>' + near + '</div>' +
+      '<div class="muted small">' + (i.lat == null ? '지도 위치가 아직 없어 네이버 지도에서 「' + esc(nq) + '」을(를) 찾아요. 찾은 곳에서 「도착」을 누르면 길찾기가 돼요. ' : '') + '길찾기는 ' + (fromR ? '앞 일정 「' + esc(fromIt.title) + '」에서 출발해요. ' : '지금 있는 곳에서 출발해요. ') + (MOBD ? '네이버 지도 앱이 열려요.' : '네이버 지도 누리집이 열려요.') + '</div>';
+    else h += '<div class="iv-go">' +
       '<a class="btn pri" href="' + esc(dirTo(q, 'transit', from)) + '" target="_blank" rel="noopener">' + ic('train') + '대중교통 길찾기' + (fromIt ? ' (앞 일정에서)' : '') + '</a>' +
       '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + ic('pin') + '구글 지도</a>' +
-      '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서</a>' +
-      '<a class="btn" href="' + esc(dirTo(q, 'driving', from)) + '" target="_blank" rel="noopener">' + ic('taxi') + '차·택시</a>' +
-      '<a class="btn" href="' + esc(mapUrl('맛집 near ' + q)) + '" target="_blank" rel="noopener">' + ic('bowl') + '주변 맛집</a>' +
-      '<a class="btn" href="' + esc(mapUrl('편의점 near ' + q)) + '" target="_blank" rel="noopener">' + ic('basket') + '주변 편의점</a>' +
-      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + ic('camera') + '주변 볼거리</a></div>' +
-      '<div class="muted small">길찾기는 ' + (fromIt ? '앞 일정 「' + esc(fromIt.title) + '」에서 출발해요. ' : '지금 있는 곳에서 출발해요. ') + '구글 지도 앱이 열려요.</div>';
+      nvA(nvPlace(nq + (i.place ? '' : ' ' + cityOf(t)), i.lat, i.lng), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도(한국어)') + gBtns + near + '</div>' +
+      '<div class="muted small">길찾기는 ' + (fromIt ? '앞 일정 「' + esc(fromIt.title) + '」에서 출발해요. ' : '지금 있는 곳에서 출발해요. ') + '구글 지도 앱이 열려요. 네이버 지도는 이 나라 지도를 한국어로 보여 줘요(네이버 길찾기는 국내만 돼요).</div>';
   }
   if (rel.length) h += '<div class="iv-sec"><b>' + ic('star') + '함께 알아 둘 곳</b>' + rel.map(r => '<div class="iv-rec"><b>' + esc(r.name) + '</b>' + (r.area ? ' <span class="muted">' + esc(r.area) + '</span>' : '') + '<div>' + esc(r.desc || '') + '</div>' + (r.hours ? '<div class="muted small">🕘 ' + esc(r.hours) + '</div>' : '') + (r.price ? '<div class="muted small">💴 ' + esc(r.price) + '</div>' : '') + '</div>').join('') + '</div>';
   if (bk.length) h += '<div class="iv-sec"><b>' + ic('ticket') + '이 일정의 예약</b>' + bk.map(b => '<button class="iv-rec" data-act="booking-edit" data-v="' + esc(b.id) + '"><b>' + esc(b.title) + '</b>' + (b.code ? ' <span class="num muted">' + esc(b.code) + '</span>' : '') + '</button>').join('') + '</div>';
@@ -1290,7 +1329,7 @@ function wantView(t) {
       (inPlan.has(r.id) ? '<span class="pill hot">일정에 있음</span>' : '') + '</div>' +
       (r.desc ? '<p>' + esc(r.desc) + '</p>' : '') +
       ((r.price || r.hours) ? '<div class="info">' + (r.price ? '<span>' + esc(r.price) + '</span>' : '') + (r.hours ? '<span>🕘 ' + esc(r.hours) + '</span>' : '') + '</div>' : '') +
-      '<div class="acts">' + (r.kind !== '팁' ? '<button class="btn navy" data-act="rec-add" data-v="' + esc(r.id) + '">' + ic('plus') + '일정에 넣기</button><a class="btn" href="' + esc(mapUrl(r.map || r.name)) + '" target="_blank" rel="noopener">' + ic('pin') + '지도</a>' : '') +
+      '<div class="acts">' + (r.kind !== '팁' ? '<button class="btn navy" data-act="rec-add" data-v="' + esc(r.id) + '">' + ic('plus') + '일정에 넣기</button><a class="btn" href="' + esc(mapUrl(r.map || r.name)) + '" target="_blank" rel="noopener">' + ic('pin') + '지도</a>' + nvA(nvPlace(r.name + (isKR(t) ? '' : ' ' + cityOf(t))), 'btn nv-o', '<span class="nvlogo">N</span>네이버') : '') +
       (safeUrl(r.link) ? '<a class="btn" href="' + esc(r.link) + '" target="_blank" rel="noopener">' + ic('link') + '누리집</a>' : '') +
       '<button class="btn" data-act="rec-edit" data-v="' + esc(r.id) + '">고치기</button></div></div>';
   }).join('') + '</div>' : '<div class="card empty"><div class="art">⭐</div><b>추천 자료가 없어요</b>가 보고 싶은 명소·맛집을 모아 두세요.</div>';
@@ -1519,7 +1558,7 @@ function carPage(t) {
     h += '<div class="car">' + (safeImg(pk.thumb) ? '<button data-act="view-photo" data-c="parks" data-v="' + esc(pk.id) + '" style="display:block;width:100%"><img src="' + pk.thumb + '" alt="주차 위치 사진"></button>' : '') +
       '<div class="cin"><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(md(pk.date)) + ' ' + esc(pk.time || '') + ' 세움' + (hours ? ' · ' + Math.floor(hours / 24) + '일 ' + (hours % 24) + '시간째' : '') + (pk.by ? ' · ' + esc(pk.by) + ' 기록' : '') + '</div>' +
       (pk.memo ? '<p style="margin:8px 0 0">' + esc(pk.memo) + '</p>' : '') + (pk.keyBy ? '<p class="muted" style="margin:6px 0 0">🔑 차 키: ' + esc(pk.keyBy) + '</p>' : '') + (pk.left ? '<p class="muted" style="margin:4px 0 0">차에 둔 것: ' + esc(pk.left) + '</p>' : '') +
-      '<div class="acts">' + (pk.lat ? '<a class="btn navy" href="' + esc('https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + pk.lat + ',' + pk.lng) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서 길찾기</a>' : '') +
+      '<div class="acts">' + (pk.lat ? (inKR(pk.lat, pk.lng) ? nvA(nvRoute(pk.spot || '내 차', pk.lat, pk.lng, 'walk'), 'btn navy', ic('route') + '걸어서 길찾기 (네이버)') : '<a class="btn navy" href="' + esc('https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + pk.lat + ',' + pk.lng) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서 길찾기</a>') : '') +
       '<button class="btn" data-act="photo" data-v="parking">' + ic('camera') + '사진 더 찍기</button><button class="btn" data-act="park-edit" data-v="' + esc(pk.id) + '">' + ic('pen') + '고치기</button>' +
       (safeUrl(pk.photoUrl) ? '<a class="btn" href="' + esc(pk.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '원본 사진</a>' : '') + '</div></div></div>';
   } else h += '<div class="card empty">' + art('my-car') + '<b>주차한 뒤 기둥을 찍어 두세요</b>층·구역 글자를 읽어 여기 크게 보여 줘요</div><button class="btn pri big wide" style="margin-top:12px" data-act="photo" data-v="parking">' + ic('camera') + '주차 위치 사진 찍기</button>';
@@ -1564,7 +1603,7 @@ function infoPage(t) {
   const hb = live('bookings', t.id).find(b => b.kind === '숙소');
   let h = infoCards(t, false);
   if (hb) h += '<div class="sec"><div class="sec-h"><h3>숙소 (택시에 보여 주기)</h3></div><div class="card"><div style="font-size:20px;font-weight:800">' + esc(hb.title) + '</div>' +
-    (hb.place ? '<div style="font-size:18px;margin-top:6px">' + esc(hb.place) + '</div>' : '') + '<div class="acts flex" style="margin-top:12px;flex-wrap:wrap">' + (hb.place ? '<a class="btn navy" href="' + esc(dirUrl(hb.place)) + '" target="_blank" rel="noopener">' + ic('route') + '길찾기</a>' : '') + '<button class="btn" data-act="booking-edit" data-v="' + esc(hb.id) + '">' + ic('pen') + '주소 고치기</button></div>' +
+    (hb.place ? '<div style="font-size:18px;margin-top:6px">' + esc(hb.place) + '</div>' : '') + '<div class="acts flex" style="margin-top:12px;flex-wrap:wrap">' + (hb.place ? nvA(goTo(t, hb.place, hb), 'btn navy', ic('route') + (isKR(t, hb) ? '네이버 길찾기' : '길찾기')) + (isKR(t, hb) ? '' : nvA(nvPlace(hb.place), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도')) : '') + '<button class="btn" data-act="booking-edit" data-v="' + esc(hb.id) + '">' + ic('pen') + '주소 고치기</button></div>' +
     '<div class="muted small" style="margin-top:8px">예약 확인서의 일본어 주소로 바꿔 두면 택시 기사에게 그대로 보여 줄 수 있어요.</div></div></div>';
   const tips = live('recs', t.id).filter(r => r.kind === '팁');
   if (tips.length) h += '<div class="sec"><div class="sec-h"><h3>알아 둘 것</h3></div><div class="card">' + tips.map(r => '<div class="row"><span class="body"><div class="t">' + esc(r.name) + '</div><div class="m">' + esc(r.desc) + '</div></span></div>').join('') + '</div></div>';
@@ -2038,6 +2077,8 @@ function photoPick() {
 
 /* ---------- 누름 ---------- */
 document.addEventListener('click', e => {
+  const nva = e.target.closest('a.nvapp');
+  if (nva && IOSD) { const t0 = Date.now(), web = 'https://m.map.naver.com/'; setTimeout(() => { if (!document.hidden && Date.now() - t0 < 2500) location.href = web; }, 1600); }
   const sopt = e.target.closest('.opt');
   if (sopt) {
     const box = sopt.parentElement;
@@ -2307,6 +2348,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.9', d: '2026-11-26', title: '네이버 지도로도 봐요', items: [
+    ['route', '#03C75A', '국내 길찾기는 네이버', '국내 일정을 누르면 「네이버 길찾기」가 맨 앞에 있어요. 대중교통·걸어서·차 모두 네이버 지도 앱으로 열리고, 앞 일정에서 출발해요. 구글 길찾기도 그대로 있어요.'],
+    ['pin', '#03C75A', '일본에서도 네이버 지도', '해외 일정에는 「네이버 지도(한국어)」가 생겼어요. 일본 지도를 한국어로 볼 수 있어요. 해외 길찾기는 네이버가 아직 국내만 돼서 구글로 열어요.'],
+    ['memory', 'var(--coral)', '대가족 여행', '부모님·조카들과 함께한 2013 여름 보트 나들이, 2025 겨울 평창 육백마지기를 찾아 넣었어요.']] },
   { v: '4.8', d: '2026-11-25', title: '일정이 시간 흐름대로', items: [
     ['route', 'var(--sky)', '가는 길까지', '일정 사이마다 ↓ 화살표와 함께 「🚃 11:56 난카이 공항선 → 덴가차야 12:36 · 970엔」, 「🚶 걸어서 6분」처럼 구글 길찾기로 확인한 이동이 보여요. 일정을 누르면 갈아타는 곳까지 자세히, 그 시각의 구글 지도 경로도 열려요.'],
     ['sun', 'var(--sun)', '해의 움직임', '아침·낮·저녁·밤에 따라 카드 색이 바뀌고, 해 뜨고 지는 시각에 맞춰 해와 달이 은은하게 떠 있어요.'],
