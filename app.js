@@ -1126,8 +1126,8 @@ function passportPage(t) {
     const num = open ? (p.number || '') : mask(p.number);
     const mrz1 = ('P' + (p.type || 'M') + 'KOR' + String(p.surname || '').replace(/\s/g, '<') + '<<' + String(p.given || '').replace(/\s/g, '<') + '<'.repeat(44)).slice(0, 44);
     h += '<div class="ppcard"><div class="pp-top"><span>여권 <i>PASSPORT</i></span><span>대한민국 <i>REPUBLIC OF KOREA</i></span><span class="pp-chip"></span></div>' +
-      '<div class="pp-body"><div class="pp-photo">' + (f ? '<img src="img/face-' + f + '.webp" alt="">' : av(n, 80)) + '</div><div class="pp-f">' +
-      '<div class="pp-row"><div><small>여권번호 / Passport No.</small><button class="pp-v mono" data-act="pass-reveal" data-v="' + esc(p.id) + '">' + esc(num) + '</button></div></div>' +
+      '<div class="pp-body"><div class="pp-photo">' + (f ? '<img src="img/face-' + f + '-pp.webp" alt="" onerror="this.onerror=null;this.src=\'img/face-' + f + '.webp\'">' : av(n, 80)) + '</div><div class="pp-f">' +
+      '<div class="pp-row"><div><small>여권번호 / No.</small><button class="pp-v mono" data-act="pass-reveal" data-v="' + esc(p.id) + '">' + esc(num) + '</button></div></div>' +
       '<div><small>성 / Surname</small><b class="pp-v">' + esc(p.surname || '—') + '</b></div>' +
       '<div><small>이름 / Given names</small><b class="pp-v">' + esc(p.given || '—') + '</b></div>' +
       '<div><small>한글 성명</small><b class="pp-v">' + esc(p.nameKo || n) + '</b></div>' +
@@ -1647,6 +1647,8 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.6', d: '2026-11-25', title: '여권 사진 자리 바로잡기', items: [
+    ['users', 'var(--lav)', '가족 얼굴 다시 그림', '여권 카드와 가족 얼굴 그림이 가운데에 반듯하게 들어가요. 이마와 턱이 잘리지 않아요.']] },
   { v: '3.5', d: '2026-11-25', title: '접은 폴드에서도 반듯하게', items: [
     ['phone', 'var(--sky)', '좁은 화면 점검', '여행 고르기의 도장, 여권 카드의 날짜가 접은 폴드 화면에서도 잘리거나 겹치지 않아요. 모든 화면을 344px 폭으로 점검했어요.'],
     ['camera', 'var(--coral)', '갤러리에서 고르기', '여권·영수증 사진을 넣을 때 구글 포토만이 아니라 갤러리·카메라·내 파일에서도 고를 수 있어요.']] },
