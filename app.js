@@ -22,7 +22,7 @@ let D = norm(LS.get('data', null));
 let Q = LS.get('q', []);
 let PASS = LS.get('pass', '');
 let ME = LS.get('me', '');
-const UI = { mode: LS.get('mode', 'tl'), recK: '전체', memK: 'note', day: {}, showPast: false };
+const UI = { mode: LS.get('mode', 'tl'), pcat: LS.get('pcat', '전체'), recK: '전체', memK: 'note', day: {}, showPast: false };
 const slim = d => { const c = JSON.parse(JSON.stringify(d)); ['notes', 'spends', 'bookings', 'parks', 'places', 'trips'].forEach(k => Object.values(c[k] || {}).forEach(r => { if (r && r.thumb) delete r.thumb; if (r && r.cover && k === 'trips') delete r.cover; })); return c; };
 const persist = () => {
   const okQ = LS.set('q', Q);
@@ -515,6 +515,7 @@ function render() {
   if (t && !t.del) { app.innerHTML = tripView(t, r.tab); if (!longAgo(t)) loadInfo(t); }
   else app.innerHTML = homeView();
   const s = $('#sync'); if (s) paintSync(s);
+  if ($('#tmap')) mountMap();
 }
 const nightArt = () => partOfDay() === 'night' ? '<img class="night-art" src="img/night-sky.webp" alt="">' : '';
 function greeting() {
@@ -545,19 +546,25 @@ function homeView() {
   h += '<div class="greet">' + nightArt() + greeting() + '</div>';
   h += agoCard();
   if (up[0]) h += heroCard(up[0], 'open');
-  h += '<div class="sec"><div class="sec-h"><h3>' + (up.length > 1 ? '다가오는 여행' : '우리 여행') + '</h3></div><div class="stack">' + up.slice(up[0] ? 1 : 0).map(tripRow).join('') +
-    '<button class="newtrip" data-act="trip-new">' + ic('plus') + '새 여행 만들기</button></div></div>';
+  const rest = up.slice(1);
+  if (!up.length) h += '<div class="sec"><div class="stack"><button class="newtrip" data-act="trip-new">' + ic('plus') + '새 여행 만들기</button></div></div>';
+  else if (rest.length) h += '<div class="sec"><div class="sec-h"><h3>다가오는 여행</h3><button class="linkbtn" data-act="trip-new">＋ 새 여행</button></div><div class="stack">' + rest.map(tripRow).join('') + '</div></div>';
+  else h += '<div class="newtrip-line"><button class="linkbtn" data-act="trip-new">＋ 새 여행 만들기</button></div>';
   h += pastHtml(past);
+  if (past.length) h += mapHtml('');
   const allDays = trips.reduce((s, t) => s + (t.start <= t0 ? Math.max(0, Math.min(dayDiff(t.start, t.end), dayDiff(t.start, t0)) + 1) : 0), 0);
   let spent = 0; live('spends').forEach(s => { const t = D.trips[s.trip]; if (t) spent += toWon(t, s.amount, s.cur); });
-  const places = live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts), plan = allPlan();
+  const places = live('places'), plan = allPlan(), vis = live('trips').flatMap(x => visitedOf(x.id));
   h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div>';
   if (!past.length && !allDays && !places.length) h += '<div class="card empty"><div class="art">🧳✨</div><b>첫 여행을 기다리는 중</b>다녀오면 여기에 우리 가족의 여행이 쌓여요.</div>';
   else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(t => kindOf(t) === 'out').length + ' · 국내 ' + trips.filter(t => kindOf(t) === 'in').length + ' · 부부 ' + trips.filter(couple).length + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
     '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>가 본 곳</small><b class="num">' + (places.length + plan.length) + '곳</b><em>별점 ' + places.filter(p => p.rating > 0).length + '곳</em></div></div>';
   h += '</div>';
-  const liked = places.filter(p => p.rating > 0);
-  if (places.length || plan.length) h += '<div class="sec"><div class="sec-h"><h3>' + (liked.length ? '우리가 좋았던 곳' : '우리가 가 본 곳') + '</h3><button class="linkbtn" data-act="all-places">모두 보기 ' + (places.length + plan.length) + '</button></div><div class="card">' + (liked.length ? liked.slice(0, 5).map(placeRow).join('') : places.slice(0, 5).map(placeRow).concat(plan.slice().reverse().slice(0, Math.max(0, 5 - places.length)).map(planRow)).join('')) + '</div></div>';
+  if (vis.length) {
+    const c = pcatOk(vis, UI.pcat || '전체'), list = vis.filter(e => c === '전체' || e.cat === c).sort((a, b) => b.r - a.r || (b.d || '').localeCompare(a.d || ''));
+    h += '<div class="sec"><div class="sec-h"><h3>' + (vis.some(e => e.r) ? '우리가 좋았던 곳' : '우리가 가 본 곳') + '</h3><button class="linkbtn" data-act="all-places">모두 보기 ' + vis.length + '</button></div>' +
+      pcatChips(vis, c, 'pcat') + '<div class="card">' + list.slice(0, 5).map(vRow).join('') + '</div>' + (list.length > 5 ? '<button class="linkbtn more-line" data-act="all-places">' + (c === '전체' ? '' : c + ' ') + list.length + '곳 모두 보기</button>' : '') + '</div>';
+  }
   return h + '</div>';
 }
 function heroCard(t, mode) {
@@ -576,8 +583,8 @@ function tripRow(t) {
 }
 function placeRow(p) {
   const t = D.trips[p.trip];
-  return '<button class="row" data-act="place-edit" data-v="' + esc(p.id) + '">' + (safeImg(p.thumb) ? '<img class="th" src="' + p.thumb + '" alt="">' : ib('star', 'var(--sun)', 1)) + '<span class="body"><span class="t">' + esc(p.name) + '</span> <span class="m">' + esc(p.cat || '') + '</span><div class="m">' +
-    '<span class="stars">' + '★'.repeat(p.rating || 0) + '</span> ' + esc(p.memo || '') + '</div></span><span class="m" style="text-align:right">' + esc(t ? t.title : '') + '<br>' + esc(p.by || '') + '</span></button>';
+  return '<button class="row vrow" data-act="place-edit" data-v="' + esc(p.id) + '">' + (safeImg(p.thumb) ? '<img class="th" src="' + p.thumb + '" alt="">' : ib('star', 'var(--sun)', 1)) + '<span class="body"><span class="t">' + esc(p.name) + '</span> <span class="vcat">' + esc(p.cat || '') + '</span>' +
+    (p.rating ? '<div class="stars">' + '★'.repeat(p.rating) + '</div>' : '') + (p.memo ? '<div class="m vmemo">' + esc(p.memo) + '</div>' : '') + '<div class="m vtrip">' + esc(t ? t.title : '') + (p.by && p.by !== '도우미' ? ' · ' + esc(p.by) : '') + '</div></span></button>';
 }
 
 /* 일정에서 다녀온 곳 — 다녀온(✓) 일정 가운데 장소가 있는 관광·식사·쇼핑을 「가 본 곳」에 저절로 (가 본 곳 기록이 있으면 그것만) */
@@ -596,8 +603,100 @@ const allPlan = () => live('trips').flatMap(t => planPlaces(t.id));
 const planName = i => String(i.title).replace(/^(아침|점심|저녁|간식)\s*[—-]\s*/, '').replace(/\s*\([^)]*\)\s*$/, '').trim() || i.place;
 function planRow(i) {
   const t = D.trips[i.trip];
-  return '<button class="row plan-place" data-act="place-from" data-v="' + esc(i.id) + '">' + ib('pin', 'var(--sky)', 1) + '<span class="body"><span class="t">' + esc(planName(i)) + '</span> <span class="m">' + esc(PLAN_CAT[i.cat]) + '</span><div class="m">' +
-    esc(i.date ? t && t.start.slice(0, 4) !== today().slice(0, 4) ? i.date.slice(0, 4) + '. ' + md(i.date) : md(i.date) : '') + ' 일정 · <span class="pp-star">☆ 별점 남기기</span></div></span><span class="m" style="text-align:right">' + esc(t ? t.title : '') + '</span></button>';
+  return '<button class="row vrow plan-place" data-act="place-from" data-v="' + esc(i.id) + '">' + ib('pin', 'var(--sky)', 1) + '<span class="body"><span class="t">' + esc(planName(i)) + '</span> <span class="vcat">' + esc(PLAN_CAT[i.cat]) + '</span>' +
+    '<div class="m"><span class="pp-star">☆ 별점 남기기</span></div><div class="m vtrip">' + esc(t ? t.title : '') + (i.date ? ' · ' + esc(md(i.date)) : '') + '</div></span></button>';
+}
+
+/* 가 본 곳 갈래 — 목록이 길어지지 않게 명소·맛집·카페·쇼핑·숙소로 나눠 봄 */
+const PCATS = ['명소', '맛집', '카페', '쇼핑', '숙소'];
+function visitedOf(tid) {
+  const pl = live('places', tid).map(p => ({ p, cat: PCATS.includes(p.cat) ? p.cat : '명소', r: p.rating || 0, ts: p.ts || 0, d: p.date || '' }));
+  return pl.sort((a, b) => b.r - a.r || b.ts - a.ts).concat(planPlaces(tid).map(i => ({ i, cat: PLAN_CAT[i.cat], r: 0, ts: 0, d: i.date || '' })));
+}
+const vRow = e => e.p ? placeRow(e.p) : planRow(e.i);
+const pcatOk = (list, c) => c !== '전체' && list.some(e => e.cat === c) ? c : '전체';
+function pcatChips(list, cur, act) {
+  const n = c => list.filter(e => e.cat === c).length;
+  return '<div class="chips pcat">' + ['전체', ...PCATS].filter(c => c === '전체' || n(c)).map(c => '<button class="chipbtn ' + (cur === c ? 'on' : '') + '" data-act="' + act + '" data-v="' + c + '">' + c + ' <span class="num">' + (c === '전체' ? list.length : n(c)) + '</span></button>').join('') + '</div>';
+}
+const MORE_N = 4;
+function rowsMore(list) {
+  return list.length > MORE_N + 1 ? list.slice(0, MORE_N).map(vRow).join('') + '<details class="rows-more"><summary>' + (list.length - MORE_N) + '곳 더 보기</summary>' + list.slice(MORE_N).map(vRow).join('') + '</details>' : list.map(vRow).join('');
+}
+
+/* 여행 지도 — 진짜 다녀온 곳(가 본 곳 + 다녀온 일정)을 핀으로. 좌표는 서버 구글 지오코더로 한 번 찾아 기록에 남김 */
+const PIN_C = { out: '#2f80ed', in: '#1f9d61', cp: '#e0508f' };
+const geoQ = (t, x) => { const q = String(x || '').trim(), c = cityOf(t); return q && c && !q.includes(c) && !/[A-Za-z]/.test(q) ? q + ' ' + c : q; };
+function mapPins(tid) {
+  const pins = [];
+  live('trips').filter(t => !tid || t.id === tid).forEach(t => {
+    const k = kindOf(t), vs = visitedOf(t.id);
+    vs.forEach(e => { const r = e.p || e.i, q = geoQ(t, e.p ? r.map || r.name : r.place); if (q) pins.push({ c: e.p ? 'places' : 'items', r, q, t, k, name: e.p ? r.name : planName(r), cat: e.cat, d: e.d }); });
+    if (!vs.length && t.end < today()) { const q = String(t.place || '').split(/\s*·\s*/)[0].trim(); if (q) pins.push({ c: 'trips', r: t, q, t, k, name: t.place, cat: '', d: t.start, city: 1 }); }
+  });
+  return pins;
+}
+let GEO_BUSY = false;
+async function geoFill(pins) {
+  const need = pins.filter(p => p.r.geoq !== p.q);
+  if (GEO_BUSY || !need.length || !navigator.onLine || !PASS) return;
+  GEO_BUSY = true;
+  try {
+    for (let k = 0; k < need.length; k += 30) {
+      const part = need.slice(k, k + 30), res = await call('geocode', [...new Set(part.map(p => p.q))]);
+      const alt = p => p.q + ' ' + (cityOf(p.t) || p.t.place || ''), miss = part.filter(p => !res[p.q] && cityOf(p.t) && !p.q.includes(cityOf(p.t)));
+      if (miss.length) { const r2 = await call('geocode', [...new Set(miss.map(alt))]); miss.forEach(p => { if (r2[alt(p)]) res[p.q] = r2[alt(p)]; }); }
+      part.forEach(p => { const g = res[p.q]; const cur = p.c === 'trips' ? D.trips[p.r.id] : D[p.c][p.r.id]; if (!cur) return;
+        const rec = Object.assign({}, cur, { geoq: p.q, lat: g ? g.lat : null, lng: g ? g.lng : null, cc: g ? g.cc : '' });
+        rec.ts = Math.max(Date.now(), (Number(cur.ts) || 0) + 1); D[p.c][rec.id] = rec; Q.push({ c: p.c, id: rec.id, v: rec }); });
+      persist(); kick();
+    }
+  } catch (e) { /* 다음에 다시 */ }
+  GEO_BUSY = false;
+  if ($('#tmap')) mountMap(true);
+}
+let LEAF = null;
+function leaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  return LEAF || (LEAF = new Promise((ok, no) => {
+    const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.append(c);
+    const sc = document.createElement('script'); sc.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; sc.onload = () => ok(window.L); sc.onerror = () => { LEAF = null; no(new Error('지도')); }; document.head.append(sc);
+  }));
+}
+function mapHtml(tid) {
+  const pins = mapPins(tid), got = pins.filter(p => p.r.lat != null), kr = got.filter(p => p.r.cc === 'KR' || p.k !== 'out' && !p.r.cc).length;
+  const mk = tid ? 'trip' : (UI.mapK || 'world');
+  return '<div class="sec tmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + (tid ? '이 여행 지도' : '우리 가족 여행 지도') + '</h3>' +
+    (tid ? '' : '<div class="seg mini"><button class="' + (mk === 'world' ? 'on' : '') + '" data-act="map-k" data-v="world">세계</button><button class="' + (mk === 'kr' ? 'on' : '') + '" data-act="map-k" data-v="kr">국내</button></div>') + '</div>' +
+    '<div class="tmap-wrap"><div id="tmap" class="tmap" data-trip="' + esc(tid || '') + '" data-k="' + mk + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
+    '<div class="tmap-leg"><span><i style="--pc:' + PIN_C.out + '"></i>해외</span><span><i style="--pc:' + PIN_C.in + '"></i>국내</span><span><i style="--pc:' + PIN_C.cp + '"></i>부부</span><b class="num">' + got.length + '곳</b></div></div>';
+}
+let MAP = null;
+async function mountMap(again) {
+  const el = $('#tmap'); if (!el) return;
+  const tid = el.dataset.trip || '', mk = el.dataset.k, pins = mapPins(tid);
+  let L; try { L = await leaflet(); } catch (e) { el.innerHTML = '<div class="tmap-wait">인터넷이 연결되면 지도가 보여요</div>'; return; }
+  if (!document.body.contains(el)) return;
+  if (MAP && MAP.getContainer() !== el) { MAP.remove(); MAP = null; }
+  if (!MAP) {
+    el.innerHTML = '';
+    MAP = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true, worldCopyJump: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(MAP);
+    MAP._pins = L.layerGroup().addTo(MAP);
+  }
+  MAP._pins.clearLayers();
+  const shown = pins.filter(p => p.r.lat != null && (mk !== 'kr' || p.r.cc === 'KR'));
+  const yy = d => d ? d.slice(0, 4) + '. ' + md(d) : '';
+  shown.forEach(p => {
+    const icon = L.divIcon({ className: 'mpin-w', html: '<span class="mpin' + (p.city ? ' city' : '') + '" style="--pc:' + PIN_C[p.k] + '"></span>', iconSize: [26, 34], iconAnchor: [13, 32], popupAnchor: [0, -28] });
+    L.marker([p.r.lat, p.r.lng], { icon, title: p.name }).addTo(MAP._pins).bindPopup('<div class="mpop"><b>' + esc(p.name) + '</b>' + (p.cat ? ' <span class="tag">' + esc(p.cat) + '</span>' : '') + '<small>' + esc(p.t.title) + ' · ' + esc(p.d ? yy(p.d) : p.t.start.slice(0, 4) + '년') + '</small>' +
+      '<div class="mpop-a"><button class="btn" data-act="map-trip" data-v="' + esc(p.t.id) + '">여행 열기</button><a class="btn" href="' + esc(mapUrl(p.q)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
+  });
+  const ll = shown.map(p => [p.r.lat, p.r.lng]);
+  if (ll.length) MAP.fitBounds(ll, { padding: [28, 28], maxZoom: tid ? 13 : mk === 'kr' ? 9 : 5 });
+  else if (mk === 'kr') MAP.setView([36.2, 127.9], 6); else MAP.setView([30, 60], 1);
+  setTimeout(() => MAP && MAP.invalidateSize(), 60);
+  if (!again) geoFill(pins);
 }
 
 /* 여행 화면 */
@@ -1062,11 +1161,15 @@ function memoryTab(t) {
     h += nt.length ? '<div class="stack">' + nt.map(n => '<button class="note" style="--pc:' + AVC[famIdx(n.by) % AVC.length] + '" data-act="note-edit" data-v="' + esc(n.id) + '"><div class="h">' + av(n.by, 28) + esc(n.by || '') + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + moodImg(n.mood, 22) : '') + (n.q ? '<span class="q">Q. ' + esc(n.q) + '</span>' : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</button>').join('') + '</div>'
       : '<div class="card empty">' + art('empty-diary') + '<b>' + (shared || mine ? '오늘 어땠나요?' : '아직 쓴 일기가 없어요') + '</b>' + (shared || mine ? '한 줄이라도 남기면 나중에 가족 여행 책이 돼요.' : '') + '</div>';
   } else if (k === 'place') {
-    const pl = live('places', t.id).sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
+    const all = visitedOf(t.id), c = pcatOk(all, UI.pcatT || '전체'), list = all.filter(e => c === '전체' || e.cat === c);
+    if (all.length) h += mapHtml(t.id);
     h += '<div class="sec-h"><h3>가 본 곳</h3><button class="linkbtn" data-act="place-new">＋ 평가하기</button></div>';
-    const pp = planPlaces(t.id);
-    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : pp.length ? '' : '<div class="card empty">' + art('notebook') + '<b>가 본 곳을 평가해요</b>일정에서 「다녀옴」을 누른 곳도 여기에 저절로 모여요.</div>';
-    if (pp.length) h += '<div class="sec-h" style="margin-top:14px"><h3 class="ih">' + ib('route', 'var(--sky)', 1) + '일정에서 다녀온 곳 <span class="muted small">' + pp.length + '</span></h3></div><div class="card">' + pp.map(planRow).join('') + '</div><div class="muted small" style="margin:6px 2px">일정에서 「다녀옴」을 누른 곳이에요. 누르면 별점과 한마디를 남길 수 있어요.</div>';
+    if (!all.length) h += '<div class="card empty">' + art('notebook') + '<b>가 본 곳을 평가해요</b>일정에서 「다녀옴」을 누른 곳도 여기에 저절로 모여요.</div>';
+    else {
+      if (all.length > 3) h += pcatChips(all, c, 'pcat-t');
+      h += '<div class="card">' + list.map(vRow).join('') + '</div>';
+      if (list.some(e => e.i)) h += '<div class="muted small" style="margin:6px 2px">「☆ 별점 남기기」는 일정에서 「다녀옴」을 누른 곳이에요. 누르면 별점과 한마디를 남길 수 있어요.</div>';
+    }
   } else {
     const ph = [];
     [['spends', '영수증', 'spend-edit'], ['bookings', '예약', 'booking-edit'], ['parks', '주차', 'park-edit'], ['notes', '일기', 'note-edit'], ['places', '가 본 곳', 'place-edit']].forEach(([c, lb, act]) =>
@@ -1669,10 +1772,16 @@ document.addEventListener('click', e => {
     'park-edit': () => editRec('park', t, D.parks[v]),
     'view-photo': () => { const rec = D[el.dataset.c][v]; openSheet('<div class="viewer"><img src="' + safeImg(rec.thumb) + '" alt=""></div>' + (safeUrl(rec.photoUrl) ? '<a class="btn pri wide big" style="margin-top:12px" href="' + esc(rec.photoUrl) + '" target="_blank" rel="noopener">원본 크게 보기 (드라이브)</a>' : '') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); },
     'all-places': () => {
-      const tr = live('trips').filter(x => live('places', x.id).length || planPlaces(x.id).length).sort((a, b) => b.start.localeCompare(a.start));
-      openSheet('<h2>우리가 가 본 곳</h2>' + tr.map(x => '<div class="ap-trip"><b>' + esc(x.title) + '</b> <span class="muted small num">' + esc(x.start.slice(0, 4) + '. ' + md(x.start)) + '</span></div><div class="card">' +
-        live('places', x.id).sort((a, b) => (b.rating || 0) - (a.rating || 0)).map(placeRow).join('') + planPlaces(x.id).map(planRow).join('') + '</div>').join('') + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
+      const tr = live('trips').filter(x => visitedOf(x.id).length).sort((a, b) => b.start.localeCompare(a.start)), all = tr.flatMap(x => visitedOf(x.id)), c = pcatOk(all, UI.pcat || '전체');
+      const body = tr.map(x => { const l = visitedOf(x.id).filter(e => c === '전체' || e.cat === c); return l.length ? '<div class="ap-trip"><b>' + esc(x.title) + '</b> <span class="muted small num">' + esc(x.start.slice(0, 4) + '. ' + md(x.start)) + ' · ' + l.length + '곳</span></div><div class="card">' + rowsMore(l) + '</div>' : ''; }).join('');
+      openSheet('<h2>우리가 가 본 곳</h2>' + pcatChips(all, c, 'pcat-s') + body + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
     },
+    'map-k': () => { UI.mapK = v; const el = $('#tmap'); if (el) { el.dataset.k = v; document.querySelectorAll('[data-act="map-k"]').forEach(b => b.classList.toggle('on', b.dataset.v === v)); mountMap(true); } },
+    'map-full': () => { const w = $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); document.body.classList.toggle('map-open', on); setTimeout(() => MAP && MAP.invalidateSize(), 80); },
+    'map-trip': () => { document.body.classList.remove('map-open'); MAP && MAP.closePopup(); A['open-trip'](); },
+    'pcat': () => { UI.pcat = v; LS.set('pcat', v); render(); },
+    'pcat-s': () => { UI.pcat = v; LS.set('pcat', v); render(); A['all-places'](); },
+    'pcat-t': () => { UI.pcatT = v; render(); },
     'place-from': () => { const i = D.items[v]; if (!i) return; editRec('place', D.trips[i.trip], { name: planName(i), cat: PLAN_CAT[i.cat] || '명소', rating: 0, memo: i.memo || '', map: i.place, item: i.id, date: i.date }); },
     'trip-menu': () => tripMenu(D.trips[v]),
     'trip-edit': () => editTrip(D.trips[v]),
@@ -1831,6 +1940,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.2', d: '2026-11-25', title: '우리 가족 여행 지도', items: [
+    ['globe', 'var(--sky)', '진짜 다녀온 곳에 핀', '처음 화면에 세계·국내 지도가 생겼어요. 가 본 곳과 다녀온 일정마다 핀이 꽂혀요(해외 파랑·국내 초록·부부 분홍). 핀을 누르면 그 여행을 열거나 구글 지도로 볼 수 있어요.'],
+    ['star', 'var(--sun)', '가 본 곳은 갈래별로', '명소·맛집·카페·쇼핑·숙소로 골라 보고, 긴 목록은 「더 보기」로 접혀요.'],
+    ['plus', 'var(--soft)', '처음 화면은 추억 중심', '「새 여행 만들기」는 작은 글자로 줄였어요.']] },
   { v: '4.1', d: '2026-11-25', title: '가 본 곳이 일정을 따라와요', items: [
     ['pin', 'var(--sky)', '다녀오면 저절로', '일정에서 「다녀옴」을 누른 명소·식당·쇼핑 곳이 그 여행의 「가 본 곳」에 저절로 모여요. 지난 여행도 일정대로 채워졌어요.'],
     ['star', 'var(--sun)', '누르면 별점', '「일정에서 다녀온 곳」을 누르면 이름·지도가 채워진 채로 별점과 한마디를 남길 수 있어요. 처음 화면 「모두 보기」는 여행마다 나눠 보여요.']] },

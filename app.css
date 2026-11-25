@@ -764,3 +764,48 @@ body.sheet-open .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top));z-i
 .row.plan-place .pp-star { color: var(--sun, #e0a100); font-weight: 600 }
 .ap-trip { margin: 14px 2px 6px; font-size: 14px }
 .ap-trip:first-of-type { margin-top: 4px }
+/* 가 본 곳 갈래 */
+.chips.pcat{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -2px 10px;padding:2px}
+.chips.pcat::-webkit-scrollbar{display:none}
+.chips.pcat .chipbtn{flex:none;min-height:34px;padding:4px 12px;font-size:14px}
+.chips.pcat .chipbtn .num{opacity:.6;font-weight:600;margin-left:2px}
+.rows-more summary{list-style:none;cursor:pointer;padding:12px 14px;font-weight:700;color:var(--sky);font-size:14px}
+.rows-more summary::-webkit-details-marker{display:none}
+.rows-more[open] summary{display:none}
+.linkbtn.more-line{display:block;margin:8px auto 0}
+/* 여행 지도 */
+.tmap-sec .sec-h{align-items:center}
+.seg.mini{padding:3px;border-radius:12px}
+.seg.mini button{min-height:30px;padding:2px 12px;font-size:13px}
+.tmap-wrap{position:relative;border-radius:18px;overflow:hidden;box-shadow:var(--sh);background:#e9eef2}
+.tmap{height:260px;width:100%;z-index:0}
+.tmap-wait{display:grid;place-items:center;height:100%;color:var(--soft);font-size:14px}
+.tmap-full{position:absolute;right:10px;bottom:22px;z-index:500;display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:99px;background:rgba(255,255,255,.92);box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:13px;font-weight:700;color:#334}
+.tmap-full svg{width:16px;height:16px}
+.tmap-wrap.full{position:fixed;inset:0;z-index:2000;border-radius:0}
+.tmap-wrap.full .tmap{height:100%}
+.tmap-wrap.full .tmap-full{top:calc(12px + env(safe-area-inset-top));bottom:auto}
+.tmap-wrap.full .tmap-full span::after{content:' · 닫기'}
+body.map-open .nav,body.map-open .fab{display:none}
+.tmap-leg{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:8px 4px 0;font-size:13px;color:var(--soft)}
+.tmap-leg i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--pc);margin-right:5px;vertical-align:-1px}
+.tmap-leg b{margin-left:auto;color:var(--ink)}
+.mpin-w{background:none;border:0}
+.mpin{position:absolute;left:3px;top:2px;width:20px;height:20px;border-radius:50% 50% 50% 0;background:var(--pc);transform:rotate(-45deg);box-shadow:0 2px 5px rgba(0,0,0,.3);border:2px solid #fff}
+.mpin::after{content:'';position:absolute;left:5px;top:5px;width:6px;height:6px;border-radius:50%;background:#fff}
+.mpin.city{opacity:.75}
+.mpop{min-width:170px;font-family:inherit}
+.mpop b{font-size:15px}
+.mpop small{display:block;color:#667;margin:3px 0 8px}
+.mpop-a{display:flex;gap:6px}
+.mpop-a .btn{min-height:32px;padding:4px 10px;font-size:13px;text-decoration:none}
+.leaflet-popup-content{margin:12px 14px}
+.newtrip-line{display:flex;justify-content:flex-end;margin:6px 4px 2px}
+.newtrip-line .linkbtn{font-size:14px;color:var(--soft);font-weight:600}
+.row.vrow{align-items:center}
+.row.vrow .body{min-width:0;flex:1}
+.row.vrow .t{font-weight:700}
+.row.vrow .vcat{font-size:12px;color:var(--soft);font-weight:600;margin-left:2px}
+.row.vrow .stars{color:var(--sun,#e0a100);font-size:13px;letter-spacing:1px}
+.row.vrow .vmemo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.vrow .vtrip{font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
