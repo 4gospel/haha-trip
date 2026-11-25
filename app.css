@@ -869,3 +869,68 @@ body.map-open .nav,body.map-open .fab{display:none}
 .prep-tabs .ib{width:26px;height:26px}
 .prep-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 4px 6px}
 .prep-head .linkbtn{flex:none}
+/* ---------- PC (1100px~): 왼쪽 메뉴 · 넓은 본문 · 한눈에 ---------- */
+.snav{display:none}
+.chk.sm{width:28px;height:28px;border-radius:9px}.chk.sm svg{width:16px;height:16px}
+@media (min-width:1100px){
+  .snav{display:flex;flex-direction:column;gap:6px;position:fixed;left:0;top:0;bottom:0;width:248px;z-index:35;padding:20px 14px;overflow-y:auto;
+    background:var(--card);border-right:1px solid var(--line);box-shadow:4px 0 24px rgba(60,40,20,.06)}
+  .snav button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:8px 12px;border-radius:12px;font-size:15px;font-weight:700;color:var(--soft);text-align:left}
+  .snav button svg{width:20px;height:20px;flex:none}
+  .snav nav button:hover,.snav-home:hover{background:var(--fill);color:var(--ink)}
+  .snav nav button.on{background:color-mix(in srgb,var(--coral) 14%,transparent);color:var(--coral)}
+  .snav-home{color:var(--ink)!important;font-size:17px!important;font-weight:800!important;margin-bottom:4px}
+  .snav-trip{display:flex;flex-direction:column;gap:2px;padding:12px;border-radius:14px;background:var(--fill);margin-bottom:6px}
+  .snav-trip small{color:var(--coral);font-weight:800;font-size:13px}.snav-trip b{font-size:16px;line-height:1.3}.snav-trip span{font-size:13px;color:var(--soft)}
+  .snav-trip .linkbtn{width:auto!important;min-height:0!important;padding:4px 0!important;font-size:13px!important;color:var(--sky)!important}
+  .snav-add{justify-content:center!important;color:#fff!important;margin:2px 0 8px}
+  .snav-h{font-size:12px;font-weight:800;color:var(--faint);letter-spacing:.04em;margin:14px 12px 2px}
+  .wrap:has(.snav){margin-left:248px;max-width:none;padding:0 36px 48px}
+  .wrap:has(.snav) .topbar{max-width:1400px}
+  .wrap:has(.snav) .flow{max-width:1400px}
+  body:has(.snav) .nav{display:none}
+  body:has(.snav) .toast{bottom:28px;left:calc(50% + 124px)}
+  .wrap.nonav{max-width:1240px}
+  .flow{column-gap:24px}
+  .flow>.stack,.flow-plan .tl{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .wallet .pass{width:calc(33.33% - 8px)}
+  .wgroup .stack{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .ptl{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .tmap{height:440px}
+  .memo-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .photos{grid-template-columns:repeat(6,1fr)}
+  /* 준비물 칸 보드 */
+  .flow-prep{display:block}
+  .prep-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:12px;margin-top:16px;align-items:start}
+  .pb-col{background:var(--card);border-radius:18px;box-shadow:var(--sh);padding:12px 12px 14px;min-width:0}
+  .pb-col header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .pb-col header b{flex:1;font-size:15px}.pb-col header .num{font-size:13px;color:var(--soft);font-weight:700}
+  .pb-add{width:30px;height:30px;border-radius:10px;background:var(--fill);display:grid;place-items:center}.pb-add svg{width:16px;height:16px}
+  .pb-bar{display:block;height:5px;border-radius:9px;background:var(--fill);overflow:hidden;margin-bottom:8px}.pb-bar i{display:block;height:100%;background:var(--mint)}
+  .pb-cat{font-size:12px;font-weight:800;color:var(--faint);margin:10px 2px 4px}
+  .pb-row{display:flex;align-items:center;gap:8px;padding:3px 0}
+  .pb-row.done .pb-t{color:var(--faint);text-decoration:line-through}
+  .pb-t{flex:1;min-width:0;text-align:left;font-size:14px;line-height:1.35;padding:4px 2px;border-radius:8px}
+  .pb-t .pill{font-size:11px;padding:1px 6px}
+  .pb-kit{width:100%;justify-content:center}
+}
+@media (min-width:1500px){
+  .flow{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .flow>.stack,.flow-plan .tl{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (hover:hover) and (min-width:1100px){
+  .pcard,.pass,.trip-row,.memo-card,.newpick button{transition:transform .15s ease,box-shadow .15s ease}
+  .pcard:hover,.pass:hover,.trip-row:hover,.memo-card:hover,.newpick button:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(60,40,20,.14)}
+  .row.vrow:hover,.pb-t:hover{background:var(--fill)}
+  button,a{cursor:pointer}
+}
+/* PC: 오늘·수첩·경비·추억·정보는 카드를 빈틈없이 채우는 여러 단 */
+@media (min-width:1100px){
+  .flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather{display:block;column-width:340px;column-gap:24px}
+  .flow-today>*,.flow-book>*,.flow-money>*,.flow-memory>*,.flow-info>*,.flow-weather>*{break-inside:avoid}
+  :is(.flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather)>:is(.greet,.hero,.seg,.days,.chips,.between,.book-cover,.diary-head,.wx-now,.grid2,.flex,.sec-h,.tl,.muted,.sched-wrap,.diary-who,.photos,.memo-sec,.tmap-sec,.scan-add,.card.flex),
+  :is(.flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather)>.sec:has(.tl,.outfits,.photos,.memo-grid,.tmap){column-span:all}
+  .flow-today .wallet{flex-wrap:nowrap;overflow-x:auto}.flow-today .wallet .pass{width:300px;flex:none}
+  .flow-today>.grid2,.flow-money>.grid2{display:grid}
+  .flow-book>.book-cover{max-width:none}
+}

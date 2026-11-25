@@ -714,7 +714,7 @@ function tripView(t, tab) {
   if (tab === 'log') tab = 'memory';
   const isPage = !!PAGES[tab];
   if (!isPage && !TABS.some(x => x[0] === tab)) tab = 'today';
-  let h = '<div class="wrap"><div class="topbar">' +
+  let h = '<div class="wrap">' + sideNav(t, tab) + '<div class="topbar">' +
     (isPage ? '<button class="iconbtn" data-act="tab" data-v="today" aria-label="뒤로">' + ic('back') + '</button><h1>' + PAGES[tab] + '</h1>'
       : '<button class="iconbtn" data-act="home" aria-label="여행 목록">' + ic('home') + '</button><h1><button data-act="switch-trip"><span>' + esc(t.title) + '</span>' + ic('down') + '</button></h1>') +
     '<span id="sync" class="sync"></span><button class="iconbtn" data-act="trip-menu" data-v="' + esc(t.id) + '" aria-label="여행 메뉴">' + ic('more') + '</button></div>';
@@ -724,6 +724,19 @@ function tripView(t, tab) {
     : '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k) + '</span>' + n + '</button>').join('') + '</nav>';
   return h;
 }
+/* PC 왼쪽 메뉴 — 넓은 화면(1100px~)에서만 보이고 아래 떠 있는 메뉴를 대신해요 */
+const WIDE = () => matchMedia('(min-width:1100px)').matches;
+function sideNav(t, tab) {
+  const MAIN = [['today', '오늘'], ['plan', '일정'], ['money', '경비'], ['book', '수첩']];
+  const MORE = [['prep', '준비물', 'prep'], ['wallet', '티켓 지갑', 'wallet'], ['memory', '추억', 'memory'], ['talk', '번역기', 'mic'], ['weather', '날씨', 'sun'], ['car', '내 차 어디?', 'car'], ['passport', '여권', 'doc'], ['info', '여행 정보', 'globe']];
+  const b = (k, n, i) => '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '"' + (k === tab ? ' aria-current="page"' : '') + '>' + ic(i || k) + '<span>' + n + '</span></button>';
+  return '<aside class="snav" aria-label="여행 메뉴"><button class="snav-home" data-act="home">' + ic('home') + '<span>하하가족여행</span></button>' +
+    '<div class="snav-trip"><small>' + esc(ddayText(t)) + '</small><b>' + esc(t.title) + '</b><span>' + esc(t.start.slice(5).replace('-', '/') + ' – ' + t.end.slice(5).replace('-', '/')) + '</span><button class="linkbtn" data-act="switch-trip">다른 여행</button></div>' +
+    '<button class="btn pri snav-add" data-act="quick">' + ic('plus') + '더하기</button>' +
+    '<nav class="snav-main">' + MAIN.map(([k, n]) => b(k, n)).join('') + '</nav><div class="snav-h">바로 가기</div><nav class="snav-more">' + MORE.map(([k, n, i]) => b(k, n, i)).join('') + '</nav></aside>';
+}
+let WIDE_NOW = null;
+matchMedia('(min-width:1100px)').addEventListener('change', () => { if (PASS && ME) render(); });
 const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || (a.ts - b.ts);
 function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, i.cost)); return s; }
 function spentWon(t, day) { let s = 0; live('spends', t.id).forEach(x => { if (!day || x.date === day) s += toWon(t, x.amount, x.cur); }); return s; }
@@ -1379,6 +1392,19 @@ function walletPage(t) {
   }
   return h;
 }
+/* PC: 할 일 · 함께 챙길 짐 · 가방들을 칸으로 나란히 (한눈에) */
+function prepBoard(t, tabs, inTab) {
+  const ORDER = Object.keys(PREP_CAT);
+  return '<div class="prep-board">' + tabs.map(([k, n]) => {
+    const l = inTab(k), d = l.filter(c => c.done).length, owner = k.startsWith('p:') ? k.slice(2) : '';
+    const groups = {}; l.forEach(c => (groups[c.cat || '기타'] = groups[c.cat || '기타'] || []).push(c));
+    const body = !l.length ? (owner ? '<button class="btn pri pb-kit" data-act="prep-kit" data-v="' + esc(owner) + '">' + ic('plus') + '기본 준비물 넣기</button>' : '<div class="muted small">아직 없어요</div>')
+      : Object.keys(groups).sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0))).map(g => '<div class="pb-cat">' + esc(g) + '</div>' +
+        groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts).map(c => '<div class="pb-row ' + (c.done ? 'done' : '') + '"><button class="chk sm ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button><button class="pb-t" data-act="check-edit" data-v="' + esc(c.id) + '" title="' + esc(c.memo || '') + '">' + esc(c.text) + (c.who && !owner ? ' <span class="pill">' + esc(whoName(c.who)) + '</span>' : '') + '</button></div>').join('')).join('');
+    return '<section class="pb-col"><header>' + (owner ? av(owner, 26) : ib(k === 'todo' ? 'check' : 'bag', 'var(--mint)', 1)) + '<b>' + esc(n) + '</b><span class="num">' + d + '/' + l.length + '</span><button class="pb-add" data-act="prep-add" data-v="' + esc(k) + '" aria-label="' + esc(n) + '에 더하기">' + ic('plus') + '</button></header>' +
+      '<i class="pb-bar"><i style="width:' + (l.length ? Math.round(d / l.length * 100) : 0) + '%"></i></i><div class="pb-list">' + body + '</div></section>';
+  }).join('') + '</div>';
+}
 /* 준비물 — 할 일 · 함께 챙길 짐 · 사람마다 개인 가방 (여행 준비 전문가 의견으로 나눔) */
 const TODO_CATS = ['서류', '예약', '출발 전', '돌아올 때'];
 const prepKind = c => c.owner ? 'p:' + c.owner : TODO_CATS.includes(c.cat) ? 'todo' : 'common';
@@ -1404,6 +1430,7 @@ function prepPage(t) {
     (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div></div><img class="bp" src="img/backpack.webp" alt=""></div>';
   h += '<div class="prep-tabs">' + tabs.map(([k, n]) => { const l = inTab(k), d = l.filter(c => c.done).length;
     return '<button class="' + (k === cur ? 'on' : '') + (l.length && d === l.length ? ' full' : '') + '" data-act="prep-tab" data-v="' + esc(k) + '">' + (k.startsWith('p:') ? av(k.slice(2), 22) : ib(k === 'todo' ? 'check' : 'bag', 'var(--mint)', 1)) + '<span>' + esc(n) + '<small class="num">' + d + '/' + l.length + '</small></span></button>'; }).join('') + '</div>';
+  if (WIDE()) return h.replace('<div class="prep-tabs">', '<div class="prep-tabs" hidden>') + prepBoard(t, tabs, inTab);
   const list = inTab(cur), owner = cur.startsWith('p:') ? cur.slice(2) : '';
   const hint = { todo: '떠나기 전에 해 둘 일 — 서류·예약·집 정리·돌아올 때 챙길 것', common: '가족이 함께 쓰는 짐 — 맡은 사람을 정해 두면 겹치지 않아요' }[cur] || (owner === ME ? '내 가방에 넣을 것 — 넣었으면 눌러서 체크해요' : esc(owner) + ' 님 가방 — 아이 가방은 부모님이 함께 확인해 주세요');
   h += '<div class="prep-head"><span class="muted small">' + hint + '</span><button class="linkbtn" data-act="check-new">＋ 더하기</button></div>';
@@ -2018,6 +2045,7 @@ document.addEventListener('click', e => {
     'spend-edit': () => editRec('spend', t, D.spends[v]),
     'check-new': () => { const k = UI.prepTab || ''; editRec('check', t, { cat: k === 'todo' ? '출발 전' : k.startsWith('p:') ? '옷' : '기타', who: '', owner: k.startsWith('p:') ? k.slice(2) : '' }); },
     'prep-tab': () => { UI.prepTab = v; render(); },
+    'prep-add': () => { UI.prepTab = v; A['check-new'](); },
     'prep-kit': () => { personalKit(t).forEach(([cat, text]) => put('checks', { id: uid('c'), trip: t.id, text, cat, who: '', owner: v, done: false }, true)); render(); toast(whoName(v) + ' 가방에 ' + personalKit(t).length + '가지를 넣었어요'); },
     'check-edit': () => editRec('check', t, D.checks[v]),
     'check-done': () => { const c = D.checks[v]; buzz(); put('checks', Object.assign({}, c, { done: !c.done })); const ck = live('checks', c.trip); if (!c.done && ck.every(x => x.done)) { confetti(); toast('준비 끝! 가방만 들면 돼요'); } },
@@ -2159,7 +2187,7 @@ function settings() {
     '<button data-act="pass-edit">' + ib('key', 'var(--sun)', 1) + '<span>가족 암호 바꾸기<small>바꾸면 다른 가족도 새 암호를 넣어야 해요</small></span></button>' +
     '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>구글 드라이브 폴더<small>4gospel 「하하가족여행」 — 원본·사진·기록 문서·백업 (저절로 저장)</small></span></button>' +
     '<button data-act="notion-edit">' + ib('notion', 'var(--ink)', 1) + '<span>노션 연결<small>「하하가족여행」 정리함으로 보내기</small></span></button>' +
-    '<button data-act="ai-edit">' + ib('ai', 'var(--lav)', 1) + '<span>AI 도우미<small>클로드·제미나이 열쇠 — 사진으로 여행 정리·영수증 읽기·사진 번역</small></span></button>' +
+
     '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
     '<button data-act="install">' + ib('phone', 'var(--sky)', 1) + '<span>홈 화면에 앱처럼 두기</span></button>' +
     '<button data-act="copy-link">' + ib('link', 'var(--mint)', 1) + '<span>앱 주소 복사<small>가족에게 보내 주세요 (암호는 따로)</small></span></button>' +
@@ -2220,6 +2248,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.6', d: '2026-11-25', title: 'PC에서 한눈에', items: [
+    ['globe', 'var(--sky)', 'PC 화면', '넓은 화면에서는 왼쪽에 메뉴가 늘 있고(오늘·일정·경비·수첩·준비물·티켓 지갑·추억·번역기…), 카드가 세 단으로 빈틈없이 채워져 한눈에 많이 보여요.'],
+    ['check', 'var(--mint)', '준비물 보드', 'PC에서는 할 일 · 함께 챙길 짐 · 네 식구 가방이 나란히 칸으로 보여요. 칸마다 「＋」로 바로 더해요.']] },
   { v: '4.5', d: '2026-11-25', title: '준비물을 나눠서 봐요', items: [
     ['check', 'var(--mint)', '할 일 · 함께 챙길 짐 · 개인 가방', '준비물이 세 갈래로 나뉘었어요. 서류·예약 같은 「할 일」, 어댑터·상비약 같은 「함께 챙길 짐」, 그리고 아빠·엄마·딸·아들 「가방」이 따로 있어요.'],
     ['bag', 'var(--coral)', '내 가방', '옷·칫솔·충전기·개인 약은 사람마다 따로 체크해요. 빈 가방은 「기본 개인 준비물 넣기」로 계절·일수에 맞춘 목록을 한 번에 넣어요.']] },
