@@ -7,7 +7,7 @@
 const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
   ? '/api'
   : 'https://script.google.com/macros/s/AKfycbzW5yTlddAZEjsqm0qbM9KZw2be-0xYKISxUu4BrxR2DSHzfyadiW3MF_OziGKh3Kc3Ww/exec';
-const COLS = ['trips', 'items', 'bookings', 'spends', 'checks', 'notes', 'places', 'recs', 'parks'];
+const COLS = ['trips', 'items', 'bookings', 'spends', 'checks', 'notes', 'places', 'recs', 'parks', 'memos'];
 
 /* ---------- 이 기기 저장 ---------- */
 const LS = {
@@ -601,8 +601,8 @@ function planPlaces(tid) {
   const pl = live('places', tid), keys = new Set(), names = [];
   pl.forEach(p => { [p.name, p.map].forEach(x => { const k = pkey(x); if (k) keys.add(k); }); if (pkey(p.name).length > 1) names.push(pkey(p.name)); if (p.item) keys.add('#' + p.item); });
   const seen = new Set();
-  return live('items', tid).filter(i => i.done && i.place && PLAN_CAT[i.cat] && !keys.has('#' + i.id) && !keys.has(pkey(i.place)) && !names.some(n => pkey(i.title).includes(n) || pkey(i.place).includes(n)))
-    .filter(i => { const k = pkey(i.place); if (seen.has(k)) return false; seen.add(k); return true; })
+  return live('items', tid).filter(i => i.done && (i.place || i.addr) && PLAN_CAT[i.cat] && !keys.has('#' + i.id) && !keys.has(pkey(i.place || i.addr)) && !names.some(n => pkey(i.title).includes(n) || pkey(i.place).includes(n)))
+    .filter(i => { const k = pkey(i.place || i.addr); if (seen.has(k)) return false; seen.add(k); return true; })
     .sort((a, b) => (a.date || '').localeCompare(b.date || '') || byTime(a, b));
 }
 const allPlan = () => live('trips').flatMap(t => planPlaces(t.id));
@@ -637,7 +637,7 @@ function mapPins(tid) {
   const pins = [];
   live('trips').filter(t => !tid || t.id === tid).forEach(t => {
     const k = kindOf(t), vs = visitedOf(t.id);
-    vs.forEach(e => { const r = e.p || e.i, q = geoQ(t, e.p ? r.map || r.name : r.place); if (q) pins.push({ c: e.p ? 'places' : 'items', r, q, t, k, name: e.p ? r.name : planName(r), cat: e.cat, d: e.d }); });
+    vs.forEach(e => { const r = e.p || e.i, q = r.addr || geoQ(t, e.p ? r.map || r.name : r.place); if (q) pins.push({ c: e.p ? 'places' : 'items', r, q, t, k, name: e.p ? r.name : planName(r), cat: e.cat, d: e.d }); });
     if (!vs.length && t.end < today()) { const q = String(t.place || '').split(/\s*·\s*/)[0].trim(); if (q) pins.push({ c: 'trips', r: t, q, t, k, name: t.place, cat: '', d: t.start, city: 1 }); }
   });
   return pins;
@@ -1111,7 +1111,7 @@ async function scanSave(el) {
 
 /* 일정 하나 보기 — 누르면 고치기 대신 정보·지도·길찾기 */
 const cityOf = t => String(t.place || '').split(/[·,\/]/)[0].replace(/^(일본|대만|베트남|태국|중국|미국|영국|프랑스|이탈리아|스페인|독일|호주|싱가포르|필리핀|홍콩|스위스|체코)\s*/, '').trim();
-const gq = (t, i) => (i.place || i.title || '') + (i.place ? '' : ' ' + cityOf(t));
+const gq = (t, i) => i.addr || (i.place || i.title || '') + (i.place ? '' : ' ' + cityOf(t));
 const dirTo = (dest, mode, origin) => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest) + (origin ? '&origin=' + encodeURIComponent(origin) : '') + '&travelmode=' + mode;
 function itemView(t, i) {
   if (!i) return;
@@ -1129,6 +1129,7 @@ function itemView(t, i) {
   if (hol) h += '<div class="iv-hol">🎍 ' + (/-12-31$/.test(i.date) ? '그믐날' : /-12-30$/.test(i.date) ? '연말' : '설 연휴') + '이라 여는 시간이 평소와 달라요. 가기 전에 구글 지도의 「영업시간」을 꼭 확인해요.</div>';
   h += '<div class="iv-rows">' +
     (i.place ? '<div><span>' + ic('pin') + '장소</span><b>' + esc(i.place) + '</b></div>' : '') +
+    (i.addr ? '<div><span>' + ic('home') + '주소</span><b>' + esc(i.addr) + ' <button class="linkbtn" data-act="copy-text" data-v="' + esc(i.addr) + '">복사</button></b></div>' : '') +
     (i.cost ? '<div><span>' + ic('wallet') + '비용</span><b class="num">1인 ' + comma(i.cost) + unit(t.cur) + (n > 1 ? ' · ' + n + '명 ' + comma(i.cost * n) + unit(t.cur) : '') + (t.cur && t.cur !== 'KRW' ? ' <small>(약 ' + manWon(toWon(t, i.cost * n)) + ')</small>' : '') + '</b></div>' : '') +
     (i.memo ? '<div><span>' + ic('pen') + '메모</span><b>' + esc(i.memo) + '</b></div>' : '') +
     (i.tip ? '<div class="tip"><span>' + ic('bulb') + '여행 팁</span><b>' + esc(i.tip) + '</b></div>' : '') +
@@ -1440,6 +1441,36 @@ function infoPage(t) {
   return h;
 }
 
+/* ---------- 개인 메모장 — 수첩 안, 가족마다 자기 메모. 「나만 보기」는 쓴 사람에게만 보여요 ---------- */
+function memoHtml(t) {
+  const names = D.meta.family.map(f => f.name), who = names.includes(UI.memoWho) ? UI.memoWho : (names.includes(ME) ? ME : names[0]);
+  const seen = live('memos', t.id).filter(m => !m.secret || m.owner === ME), mine = who === ME;
+  const list = seen.filter(m => m.owner === who).sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || b.ts - a.ts);
+  let h = '<div class="sec memo-sec" id="bk_memo"><div class="sec-h"><h3 class="ih">' + ib('pen', 'var(--sun)', 1) + '메모장</h3>' + (mine ? '<button class="linkbtn" data-act="memo-new">＋ 메모</button>' : '') + '</div>';
+  h += '<div class="chips memo-who">' + names.map(n => '<button class="chipbtn ' + (who === n ? 'on' : '') + '" data-act="memo-who" data-v="' + esc(n) + '">' + av(n, 22) + ' ' + esc(n === ME ? '나' : ((fam(n) || {}).role) || n) + ' <span class="num">' + seen.filter(m => m.owner === n).length + '</span></button>').join('') + '</div>';
+  if (!list.length) h += '<div class="memo-empty">' + (mine ? '<b>나만의 여행 메모</b>챙길 것·현지에서 떠오른 생각·사고 싶은 것을 적어 두세요. 「나만 보기」를 고르면 다른 가족에게는 안 보여요.<button class="btn pri" data-act="memo-new">' + ic('plus') + '메모 쓰기</button>' : esc(who) + ' 님이 아직 쓴 메모가 없어요.') + '</div>';
+  else h += '<div class="memo-grid">' + list.map(m => {
+    const body = '<p>' + esc(m.text) + '</p><small>' + (m.pin ? '📌 ' : '') + (m.secret ? '🔒 나만 보기 · ' : '') + esc(new Date(m.ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</small>';
+    return mine ? '<button class="memo-card" data-act="memo-edit" data-v="' + esc(m.id) + '">' + body + '</button>' : '<div class="memo-card">' + body + '</div>';
+  }).join('') + '</div>';
+  if (!mine && list.length) h += '<div class="muted small" style="margin:6px 2px">' + esc(who) + ' 님 메모는 읽기만 할 수 있어요.</div>';
+  return h + '</div>';
+}
+function memoEdit(t, m) {
+  const isNew = !m; m = m || { owner: ME, text: '', pin: false, secret: false };
+  openSheet('<h2>' + (isNew ? '새 메모' : '메모 고치기') + '</h2><textarea class="in memo-in" id="memo-txt" rows="8" placeholder="예: 공항 가기 전에 보조배터리 충전 · 하늘이 선물 사기">' + esc(m.text) + '</textarea>' +
+    '<label class="memo-opt"><input type="checkbox" id="memo-pin"' + (m.pin ? ' checked' : '') + '> 📌 위에 고정</label><label class="memo-opt"><input type="checkbox" id="memo-sec"' + (m.secret ? ' checked' : '') + '> 🔒 나만 보기 (다른 가족에게 안 보여요)</label>' +
+    '<div class="sheet-acts">' + (isNew ? '' : '<button class="btn danger" id="memo-del">지우기</button>') + '<button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="memo-go">' + ic('check') + '저장</button></div>', el => {
+      const ta = el.querySelector('#memo-txt'); setTimeout(() => ta.focus(), 50);
+      el.querySelector('#memo-go').onclick = () => {
+        const text = ta.value.trim(); if (!text) return toast('메모를 적어 주세요');
+        put('memos', Object.assign({}, m, { id: m.id || uid('m'), trip: t.id, owner: ME, text, pin: el.querySelector('#memo-pin').checked, secret: el.querySelector('#memo-sec').checked }), true);
+        closeSheet(); render(); toast('저장했어요');
+      };
+      const d = el.querySelector('#memo-del'); if (d) d.onclick = () => { closeSheet(); remove('memos', m.id, '메모'); };
+    });
+}
+
 /* ---------- 여행 수첩 (공부하듯 읽는 여행지 자료) ---------- */
 const BKEY = (t, k) => 'book.' + t.id + '.' + ME + '.' + k;
 const bookRead = (t, k) => !!LS.get(BKEY(t, k), false);
@@ -1470,6 +1501,7 @@ function bookTab(t) {
   const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3 class="ih">' + (HEAD_ART[k] ? '<img class="h-art" src="img/' + HEAD_ART[k] + '.webp" alt="">' : e) + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
   let h = '<div class="card book-cover"><img class="bk-art" src="img/notebook.webp" alt=""><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
     '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
+  h += memoHtml(t);
   // 비상
   const hb = live('bookings', t.id).find(b => b.kind === '숙소');
   h += head('sos', '🆘', '비상 연락') + '<div class="card"><div class="facts">' + (c ? c.sos.map(s => '<div><span>' + esc(s[0]) + '</span><b><a href="tel:' + esc(s[1]) + '">' + esc(s[1]) + '</a></b></div>').join('') : '') +
@@ -1682,6 +1714,7 @@ const F = {
     { k: 'date', label: '날짜 (비우면 날짜 미정)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
     { k: 'cat', label: '갈래', type: 'opts', options: CATS },
     { k: 'place', label: '장소 (지도 검색어)', ph: '예: Fushimi Inari Taisha' },
+    { k: 'addr', label: '주소 (숙소·식당 등, 있으면)', ph: '예: 大阪市浪速区… 또는 우리말 주소' },
     { k: 'cost', label: '1인 비용 (' + unit(t.cur) + ')', type: 'number' },
     { k: 'memo', label: '메모', type: 'textarea', ph: '가는 길·예약번호' },
     { k: 'tip', label: '💡 여행 팁 (여기서 알아 둘 것)', type: 'textarea', ph: '예: 아침 일찍 가면 한적해요', more: 1 }],
@@ -1691,7 +1724,7 @@ const F = {
     { k: 'date', label: '날짜 (입차·체크인)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
     { k: 'end', label: '끝 (도착·출차·체크아웃)', ph: '예: 09:50 또는 2027-01-01 13:30' },
     { k: 'code', label: '예약번호', half: 1 }, { k: 'provider', label: '어디서 예약', half: 1 },
-    { k: 'place', label: '장소·주소', more: 1 }, { k: 'grace', label: '주차 앞뒤 여유 (시간)', type: 'number', ph: '예: 4', half: 1, more: 1 }, { k: 'car', label: '차량번호 (주차)', half: 1, more: 1 }, { k: 'deposit', label: '보증금 (원)', type: 'number', half: 1, more: 1 },
+    { k: 'place', label: '주소', ph: '예: 숙소·주차장 주소 — 택시 기사님께 보여 줄 때도 써요' }, { k: 'grace', label: '주차 앞뒤 여유 (시간)', type: 'number', ph: '예: 4', half: 1, more: 1 }, { k: 'car', label: '차량번호 (주차)', half: 1, more: 1 }, { k: 'deposit', label: '보증금 (원)', type: 'number', half: 1, more: 1 },
     { k: 'phone', label: '전화', type: 'tel', half: 1, more: 1 }, { k: 'seat', label: '좌석', half: 1, more: 1 },
     { k: 'price', label: '결제 금액 (예산에 들어가요)', type: 'number', half: 1, more: 1 }, { k: 'cur', label: '돈', type: 'opts', options: [...new Set(['KRW', t.cur || 'KRW'])], names: CUR, half: 1, more: 1 },
     { k: 'link', label: '예약 주소 (https://…)', type: 'url', more: 1 },
@@ -1724,6 +1757,7 @@ const F = {
   place: t => [
     { k: 'name', label: '곳 이름' }, { k: 'cat', label: '갈래', type: 'opts', options: ['맛집', '명소', '숙소', '쇼핑', '카페'] },
     { k: 'rating', label: '별점', type: 'stars' }, { k: 'memo', label: '한마디', type: 'textarea', ph: '다시 가고 싶나요? 무엇이 맛있었나요?' },
+    { k: 'addr', label: '주소', ph: '예: 제주 서귀포시 성산읍 일출로 284-12' },
     { k: 'map', label: '지도 검색어', more: 1 }],
   park: t => [
     { k: 'spot', label: '주차 위치 (크게 보여요)', ph: '예: 지하 2층 C-15 기둥' },
@@ -1960,10 +1994,14 @@ document.addEventListener('click', e => {
     'map-k': () => { UI.mapK = v; const el = $('#tmap'); if (el) { el.dataset.k = v; document.querySelectorAll('[data-act="map-k"]').forEach(b => b.classList.toggle('on', b.dataset.v === v)); mountMap(true); } },
     'map-full': () => { const w = $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); if (on) history.pushState({ map: 1 }, ''); else if (history.state && history.state.map) history.back(); document.body.classList.toggle('map-open', on); setTimeout(() => MAP && MAP.invalidateSize(), 80); },
     'map-trip': () => { document.body.classList.remove('map-open'); MAP && MAP.closePopup(); A['open-trip'](); },
+    'memo-who': () => { UI.memoWho = v; render(); },
+    'memo-new': () => memoEdit(t, null),
+    'memo-edit': () => { const m = D.memos[v]; if (m && m.owner === ME) memoEdit(t, m); },
+    'copy-text': () => { (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(() => toast('복사했어요'), () => toast(v)); },
     'pcat': () => { UI.pcat = v; LS.set('pcat', v); render(); },
     'pcat-s': () => { UI.pcat = v; LS.set('pcat', v); render(); A['all-places'](); },
     'pcat-t': () => { UI.pcatT = v; render(); },
-    'place-from': () => { const i = D.items[v]; if (!i) return; editRec('place', D.trips[i.trip], { name: planName(i), cat: PLAN_CAT[i.cat] || '명소', rating: 0, memo: i.memo || '', map: i.place, item: i.id, date: i.date }); },
+    'place-from': () => { const i = D.items[v]; if (!i) return; editRec('place', D.trips[i.trip], { name: planName(i), cat: PLAN_CAT[i.cat] || '명소', rating: 0, memo: i.memo || '', map: i.place, addr: i.addr || '', item: i.id, date: i.date }); },
     'trip-menu': () => tripMenu(D.trips[v]),
     'trip-edit': () => editTrip(D.trips[v]),
     'trip-copy': () => copyTrip(D.trips[v]),
@@ -2134,6 +2172,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.4', d: '2026-11-25', title: '메모장과 주소 칸', items: [
+    ['pen', 'var(--sun)', '나만의 메모장', '수첩 안에 가족마다 메모장이 생겼어요. 챙길 것·사고 싶은 것을 적어 두고, 「나만 보기」를 고르면 다른 가족에게는 안 보여요.'],
+    ['home', 'var(--sky)', '주소 넣기', '일정·예약·가 본 곳에 주소 칸이 생겼어요. 주소를 넣으면 지도와 길찾기가 그 주소로 바로 가고, 일정 보기에서 「복사」로 택시 기사님께 보여 줄 수 있어요.']] },
   { v: '4.3', d: '2026-11-25', title: '사진만 올리면 여행 기록이 돼요', items: [
     ['camera', 'var(--coral)', '사진으로 여행 정리', '「＋ 새 여행 만들기」 → 「다녀온 여행, 사진으로 정리」에서 사진·영수증·일정표를 한꺼번에 고르면 찍은 날짜·곳으로 일정·가 본 곳·대표 사진을 정리해 줘요. 저장 전에 모두 확인해요. 지난 여행의 「추억 → 가 본 곳」에서도 더할 수 있어요.'],
     ['ai', 'var(--lav)', 'AI 도우미', '설정 → AI 도우미에 클로드(또는 제미나이) 열쇠를 넣으면 영수증 금액·티켓·일정표까지 읽고 그때 이야기도 써 줘요. 영수증 읽기·메뉴판 번역도 AI가 해요.'],

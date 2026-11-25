@@ -835,3 +835,19 @@ body.map-open .nav,body.map-open .fab{display:none}
 .scan-add svg{width:16px;height:16px}
 #sheet .grid2>*{min-width:0}
 #sheet input[type=date].in{min-width:0;width:100%}
+/* 개인 메모장 */
+.memo-who{display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;margin:0 -2px 10px;padding:2px}
+.memo-who::-webkit-scrollbar{display:none}
+.memo-who .chipbtn{flex:none;display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:4px 12px 4px 6px;font-size:14px}
+.memo-who .chipbtn .num{opacity:.6;font-weight:600}
+.memo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:10px}
+.memo-card{display:flex;flex-direction:column;justify-content:space-between;gap:8px;text-align:left;min-height:96px;padding:12px 12px 10px;border-radius:6px 16px 16px 16px;background:#fff6c8;color:#3a3420;box-shadow:0 2px 8px rgba(0,0,0,.12);transform:rotate(-.4deg)}
+.memo-card:nth-child(2n){background:#e3f4ff;transform:rotate(.5deg)}
+.memo-card:nth-child(3n){background:#ffe6ee}
+.memo-card p{margin:0;white-space:pre-wrap;font-size:15px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;overflow-wrap:anywhere}
+.memo-card small{font-size:11px;opacity:.65}
+.memo-empty{display:flex;flex-direction:column;gap:8px;align-items:flex-start;padding:16px;border-radius:16px;background:var(--fill);font-size:14px;color:var(--soft);line-height:1.5}
+.memo-empty b{color:var(--ink);font-size:15px}
+.memo-in{min-height:180px;font-size:16px;line-height:1.6}
+.memo-opt{display:flex;align-items:center;gap:8px;margin:10px 2px 0;font-size:14px}
+.memo-opt input{width:18px;height:18px;accent-color:var(--coral)}
