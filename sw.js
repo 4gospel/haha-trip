@@ -1,6 +1,6 @@
 // 하하가족여행 — 인터넷이 끊겨도 화면은 열리게 (새 판은 늘 인터넷 먼저)
-const C = 'haha-v5';
-const SHELL = ['./', 'index.html', 'app.css?v=5', 'guide.js?v=5', 'app.js?v=5', 'icon.svg', 'manifest.webmanifest'];
+const C = 'haha-v8';
+const SHELL = ['./', 'index.html', 'app.css?v=8', 'guide.js?v=8', 'app.js?v=8', 'icon.svg', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

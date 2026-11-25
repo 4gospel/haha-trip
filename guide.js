@@ -141,7 +141,10 @@ function outfitFor(person, max, min, rain) {
   const young = /딸|아들|누나|언니|형|오빠|동생/.test(role);
   const lv = level(max, min);
   const key = (g === 'f' ? 'f' : 'm') + (young ? '20' : (g === 'f' ? '40' : '50'));
-  return { svg: figure(g, young, lv, rain), lv, lvName: LV_NAME[lv], text: (ADVICE[key] || ADVICE.m50)[lv], shoes: SHOES[lv] };
+  const who = /아빠|아버지|할아버지|남편/.test(role) ? 'dad' : /엄마|어머니|할머니|아내/.test(role) ? 'mom' : /딸|누나|언니|여동생/.test(role) ? 'daughter' : /아들|형|오빠|남동생/.test(role) ? 'son' : (g === 'f' ? (young ? 'daughter' : 'mom') : (young ? 'son' : 'dad'));
+  const season = lv <= 1 ? 'winter' : lv <= 3 ? 'chilly' : lv <= 5 ? 'mild' : 'summer';
+  const img = 'img/' + who + '-' + season + '.webp';
+  return { svg: figure(g, young, lv, rain), img, lv, lvName: LV_NAME[lv], text: (ADVICE[key] || ADVICE.m50)[lv], shoes: SHOES[lv] };
 }
 return { PHRASES, CULTURE, CAUTION, SOS_MORE, outfitFor, level, LV_NAME };
 })();

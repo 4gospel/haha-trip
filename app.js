@@ -73,7 +73,8 @@ const RECC = { 명소: '관광', 맛집: '식사', 쇼핑: '쇼핑', 팁: '이�
 const AVC = ['#4C8DF6', '#F2629B', '#FF7A59', '#22BFA0', '#9B7BF2', '#E8A400'];
 const fam = n => D.meta.family.find(f => f.name === n);
 const famIdx = n => Math.max(0, D.meta.family.findIndex(f => f.name === n));
-const av = (n, sz) => '<span class="av" style="background:' + AVC[famIdx(n) % AVC.length] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + esc(String(n || '?').slice(-2)) + '</span>';
+const faceOf = n => { const r = (fam(n) || {}).role || ''; return /아빠|아버지/.test(r) ? 'dad' : /엄마|어머니/.test(r) ? 'mom' : /딸/.test(r) ? 'daughter' : /아들/.test(r) ? 'son' : ''; };
+const av = (n, sz) => { const f = faceOf(n); return '<span class="av' + (f ? ' face' : '') + '" style="background:' + AVC[famIdx(n) % AVC.length] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + (f ? '<img src="img/face-' + f + '.webp" alt="' + esc(n) + '">' : esc(String(n || '?').slice(-2))) + '</span>'; };
 
 const ICON = {
   back: '<path d="M15 18l-6-6 6-6"/>', down: '<path d="M6 9l6 6 6-6"/>', more: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
@@ -119,6 +120,14 @@ const ICON = {
   cup: '<path d="M4.5 8.5h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5zM16.5 10h1.5a2.5 2.5 0 0 1 0 5h-1.5M8 3.5c0 1.5 1 1.5 1 3M12 3.5c0 1.5 1 1.5 1 3"/>',
   basket: '<path d="M3.5 10h17l-2 10H5.5zM8 10l3-6M16 10l-3-6M9 14v3M12 14v3M15 14v3"/>',
   land: '<path d="M3 20.5h18M4 13.5l3.5 1 2-1 6.5 2.5c1.5.6 3 .2 3.5-.7.4-.9-.3-1.9-1.8-2.4L12 10.5 9.5 4.5l-2-.5 1 6-3.5-1L4 6.5 2.5 6l.5 5z"/>',
+  plug: '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',
+  shirt: '<path d="M8 3l4 2 4-2 5 4-3 3-2-1v12H8V9L6 10 3 7z"/>',
+  pill: '<rect x="3" y="9" width="18" height="7" rx="3.5" transform="rotate(-35 12 12.5)"/><path d="M9.5 8.5l5 7"/>',
+  brush: '<path d="M7 21V10h4v11zM9 10V6M6 3h6v3H6z"/><path d="M15 21v-6a3 3 0 0 1 6 0v6z"/>',
+  umbrella: '<path d="M3 12a9 9 0 0 1 18 0zM12 12v7a2 2 0 0 1-4 0"/><path d="M12 3v1"/>',
+  gift: '<rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1.5S10 9 12 9zM12 9c2-4 6-4 6-1.5S14 9 12 9z"/>',
+  wallet: '<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1z"/><path d="M4 7l11-3v3M16 13.5h2"/>',
+  house: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10M10 20v-5h4v5"/>',
   ai: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/>'
 };
 const ic = n => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || '') + '</svg>';
@@ -143,6 +152,19 @@ function itemIcon(i) {
   if (i.cat === '관광') return ['camera', 'var(--c-관광)'];
   return ['pin', 'var(--c-기타)'];
 }
+const PREP_CAT = { 서류: ['doc', 'var(--sky)', 'docs'], 예약: ['ticket', 'var(--c-관광)', 'ticket'], 돈: ['wallet', 'var(--mint)', 'money'], 전자기기: ['plug', 'var(--lav)', 'device'], 옷: ['shirt', 'var(--coral)', 'clothes'],
+  '세면·생활': ['brush', 'var(--sky)', 'toiletry'], 건강: ['pill', 'var(--pink)', 'medicine'], '출발 전': ['house', 'var(--sun)', 'home'], '돌아올 때': ['gift', 'var(--c-쇼핑)', 'gift'], 기타: ['bag', 'var(--c-기타)', 'bag'] };
+function prepIcon(c) {
+  const x = c.text || '';
+  const k = /여권/.test(x) ? ['doc', 'var(--sky)', 'passport'] : /항공권|티켓|USJ|예약|e티켓/.test(x) ? ['ticket', 'var(--c-관광)', 'ticket'] : /카드|현금|엔화|환전|동전|ICOCA|트래블/.test(x) ? ['wallet', 'var(--mint)', 'money'] :
+    /충전|배터리|어댑터|플러그|eSIM|유심|이어폰|카메라|멀티탭/.test(x) ? ['plug', 'var(--lav)', 'device'] : /약|밴드|마스크|핫팩/.test(x) ? ['pill', 'var(--pink)', 'medicine'] :
+    /운동화|신발|슬리퍼/.test(x) ? ['shirt', 'var(--coral)', 'shoes'] : /외투|니트|목도리|장갑|모자|양말|속옷|잠옷|히트텍|옷/.test(x) ? ['shirt', 'var(--coral)', 'clothes'] :
+    /칫솔|치약|화장|선크림|렌즈|안경|머리|물티슈|손수건/.test(x) ? ['brush', 'var(--sky)', 'toiletry'] : /우산/.test(x) ? ['umbrella', 'var(--sky)', 'umbrella'] :
+    /가스|문단속|전기|화분|반려/.test(x) ? ['house', 'var(--sun)', 'home'] : /면세|기념품|선물/.test(x) ? ['gift', 'var(--c-쇼핑)', 'gift'] : null;
+  return k || PREP_CAT[c.cat] || PREP_CAT.기타;
+}
+/** 제미나이 그림이 있으면 그것, 없으면 선 아이콘 */
+const pic = (arr, sz) => '<span class="pic" style="--cc:' + arr[1] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + ic(arr[0]) + '<img src="img/prep-' + arr[2] + '.webp" alt="" onerror="this.remove()"></span>';
 const IATA = { 인천: 'ICN', 김포: 'GMP', 간사이: 'KIX', 오사카: 'KIX', 이타미: 'ITM', 나리타: 'NRT', 하네다: 'HND', 도쿄: 'NRT', 후쿠오카: 'FUK', 나고야: 'NGO', 삿포로: 'CTS', 오키나와: 'OKA', 나하: 'OKA', 제주: 'CJU', 김해: 'PUS', 부산: 'PUS', 청주: 'CJJ', 대구: 'TAE',
   타이베이: 'TPE', 방콕: 'BKK', 다낭: 'DAD', 세부: 'CEB', 괌: 'GUM', 홍콩: 'HKG', 싱가포르: 'SIN', 마쓰야마: 'MYJ', 다카마쓰: 'TAK', 기타큐슈: 'KKJ', 고마쓰: 'KMQ', 요나고: 'YGJ', 가고시마: 'KOJ', 오이타: 'OIT', 상하이: 'PVG', 하노이: 'HAN', 호찌민: 'SGN', 마닐라: 'MNL', 파리: 'CDG', 런던: 'LHR' };
 function flightInfo(b) {
@@ -322,6 +344,8 @@ const COUNTRY = {
   AU: { n: '호주', f: '🇦🇺', cur: 'AUD', tz: '지역마다 다름', volt: '230V · I형 어댑터 필요', sos: [['긴급', '000']], tip: '팁 문화 거의 없음', etc: '' },
   KR: { n: '한국', f: '🇰🇷', cur: 'KRW', tz: '', volt: '220V', sos: [['경찰', '112'], ['구급·화재', '119']], tip: '', etc: '' }
 };
+const WXI = c => c === 0 ? 'sunny' : c <= 2 ? 'partly' : c <= 48 ? 'cloudy' : c <= 67 || (c >= 80 && c <= 82) ? 'rain' : c <= 77 || (c >= 85 && c <= 86) ? 'snow' : 'storm';
+const wxi = (c, sz) => '<img class="wxi" src="img/wx-' + WXI(c) + '.webp" alt="' + esc(WMO(c)[1]) + '" width="' + (sz || 32) + '" height="' + (sz || 32) + '">';
 const WMO = c => c === 0 ? ['☀️', '맑음'] : c <= 2 ? ['🌤️', '구름 조금'] : c === 3 ? ['☁️', '흐림'] : c <= 48 ? ['🌫️', '안개'] : c <= 57 ? ['🌦️', '이슬비'] : c <= 67 ? ['🌧️', '비'] : c <= 77 ? ['❄️', '눈'] : c <= 82 ? ['🌦️', '소나기'] : c <= 86 ? ['🌨️', '눈발'] : ['⛈️', '뇌우'];
 const INFO = {};
 let PASSPORTS = null;
@@ -395,6 +419,7 @@ function render() {
   if (!ME || !fam(ME)) { app.innerHTML = whoView(); return; }
   const r = route();
   const t = r.view === 'trip' ? D.trips[r.trip] : null;
+  document.documentElement.dataset.tab = t && !t.del ? (r.tab || 'today') : 'home';
   if (t && !t.del) { app.innerHTML = tripView(t, r.tab); loadInfo(t); }
   else app.innerHTML = homeView();
   const s = $('#sync'); if (s) paintSync(s);
@@ -407,13 +432,13 @@ function greeting() {
 }
 
 function lockView() {
-  return '<div class="lock"><img class="logo" src="icon.svg" alt=""><h1>하하가족여행</h1><p>우리 가족 여행을 함께 짜고 기록해요.<br>가족 암호를 넣어 주세요.</p>' +
+  return '<div class="lock"><img class="logo" src="icon.svg" alt=""><h1>하하가족여행</h1><img class="family" src="img/family.webp" alt="우리 가족"><p>우리 가족 여행을 함께 짜고 기록해요.<br>가족 암호를 넣어 주세요.</p>' +
     '<form class="f" data-form="lock"><input class="in" id="pass" type="password" autocomplete="current-password" placeholder="가족 암호" aria-label="가족 암호">' +
     '<button class="btn pri wide big">들어가기</button><div class="muted" id="lockmsg"></div></form></div>';
 }
 function whoView() {
   const fm = D.meta.family;
-  return '<div class="lock"><h1>누구세요?</h1><p>이 휴대폰을 쓰는 사람을 골라 주세요. 고친 사람이 이름으로 남아요.</p>' +
+  return '<div class="lock"><img class="family" src="img/family.webp" alt="우리 가족"><h1>누구세요?</h1><p>이 휴대폰을 쓰는 사람을 골라 주세요. 고친 사람이 이름으로 남아요.</p>' +
     (fm.length ? '<div class="who">' + fm.map(f => '<button data-act="me" data-v="' + esc(f.name) + '">' + av(f.name) + esc(f.name) + '<small>' + esc(f.role || '') + '</small></button>').join('') + '</div>'
       : '<div class="empty">가족 목록을 받는 중이에요…</div>') + '</div>';
 }
@@ -443,7 +468,9 @@ function heroCard(t, mode) {
   const ds = daysOf(t), mini = mode === 'mini';
   const tag = mode === 'open' ? 'button data-act="open-trip" data-v="' + esc(t.id) + '"' : 'div';
   const c = countryOf(t);
-  return '<' + tag + ' class="hero' + (mini ? ' mini' : '') + '">' + scene(t) + '<div class="hin">' +
+  const cityKey = /오사카|osaka/i.test(t.place + t.title) ? 'osaka' : /교토|kyoto/i.test(t.place) ? 'kyoto' : /도쿄|tokyo/i.test(t.place) ? 'tokyo' : /후쿠오카/.test(t.place) ? 'fukuoka' : /제주/.test(t.place) ? 'jeju' : '';
+  const cover = safeImg(t.cover) ? '<img class="cover" src="' + t.cover + '" alt="">' : cityKey ? '<img class="cover" src="img/cover-' + cityKey + '-' + partOfDay() + '.webp" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src=\'img/cover-' + cityKey + '.webp\'}else this.remove()">' : '';
+  return '<' + tag + ' class="hero' + (mini ? ' mini' : '') + '">' + scene(t) + cover + '<div class="hin">' +
     '<div class="eyebrow">' + (c ? c.f + ' ' : '') + esc(t.place || '여행') + '</div><span class="dday num">' + ddayText(t) + '</span>' +
     '<h2>' + esc(t.title) + '</h2><div class="sub num">' + esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + Math.max(0, ds.length - 1) + '박 ' + ds.length + '일</div>' +
     (mini ? '' : '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div>') + '</div></' + tag.split(' ')[0] + '>';
@@ -527,9 +554,9 @@ function todayTab(t) {
     const urgent = live('checks', t.id).filter(x => !x.done && /예약|서류/.test(x.cat || '')).slice(0, 3);
     const wl = Object.keys(warns);
     if (urgent.length || wl.length) {
-      h += '<div class="sec"><div class="sec-h"><h3>먼저 챙길 것</h3><button class="linkbtn" data-act="tab" data-v="prep">준비물 모두</button></div><div class="stack">';
+      h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('sos', 'var(--warn)', 1) + '먼저 챙길 것</h3><button class="linkbtn" data-act="tab" data-v="prep">준비물 모두</button></div><div class="stack">';
       wl.forEach(id => { h += '<button class="alert" style="--cc:var(--warn)" data-act="booking-edit" data-v="' + esc(id) + '">' + ib('sos', 'var(--warn)') + '<span><b>' + esc(D.bookings[id].title) + '</b><span>' + esc(warns[id]) + '</span></span></button>'; });
-      urgent.forEach(x => { h += '<div class="alert" style="--cc:var(--sun)"><button class="chk" data-act="check-done" data-v="' + esc(x.id) + '" aria-label="끝 표시"></button><span><b>' + esc(x.text) + '</b><span>' + esc(x.memo || x.cat || '') + (x.who ? ' · ' + esc(x.who) : '') + '</span></span></div>'; });
+      urgent.forEach(x => { h += '<div class="alert" style="--cc:var(--sun)"><button class="chk" data-act="check-done" data-v="' + esc(x.id) + '" aria-label="끝 표시"></button>' + pic(prepIcon(x), 36) + '<span><b>' + esc(x.text) + '</b><span>' + esc(x.memo || x.cat || '') + (x.who ? ' · ' + esc(x.who) : '') + '</span></span></div>'; });
       h += '</div></div>';
     }
   }
@@ -538,13 +565,13 @@ function todayTab(t) {
     const list = live('items', t.id).filter(i => i.date === t0).sort(byTime);
     const now = hm(); const next = list.filter(i => !i.done && (i.time || '99') >= now.slice(0, 5));
     const show = (next.length ? next : list.filter(i => !i.done)).slice(0, 3);
-    h += '<div class="sec"><div class="sec-h"><h3>지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
+    h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('route', 'var(--sky)', 1) + '지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
       (show.length ? '<div class="tl">' + show.map((i, k) => tlItem(t, i, k === 0)).join('') + '</div>' : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
     h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
   }
   // 티켓 지갑
   const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
-  h += '<div class="sec"><div class="sec-h"><h3>티켓 지갑</h3><button class="linkbtn" data-act="tab" data-v="wallet">모두 보기</button></div>' +
+  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('ticket', 'var(--c-관광)', 1) + '티켓 지갑</h3><button class="linkbtn" data-act="tab" data-v="wallet">모두 보기</button></div>' +
     (bk.length ? '<div class="wallet">' + bk.map(b => passCard(t, b, warns[b.id])).join('') + '</div>' : '<button class="alert" data-act="photo" data-v="booking">' + ib('camera', 'var(--sky)') + '<span><b>예약 화면을 찍어 넣어요</b><span>항공권·숙소·티켓·주차 예약</span></span></button>') + '</div>';
   // 내 차 (그 밖의 때)
   if (!(ph === 'last' || ph === 'after') && (pb || pk) && ph !== 'before') h += '<div class="sec">' + carCard(t) + '</div>';
@@ -554,17 +581,17 @@ function todayTab(t) {
     h += '<div class="sec"><button class="card flex" style="width:100%;text-align:left;gap:14px" data-act="tab" data-v="prep"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">준비 ' + done + ' / ' + ck.length + '</b><div class="muted">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : '남은 것 ' + (ck.length - done) + '개 · 눌러서 챙기기') + '</div></div>' + ic('back').replace('<svg', '<svg style="transform:rotate(180deg)"') + '</button></div>';
   }
   // 여행 정보 (환율·날씨·나라)
-  h += '<div class="sec"><div class="sec-h"><h3>' + (c ? c.f + ' ' + c.n + ' ' : '') + '여행 정보</h3><button class="linkbtn" data-act="tab" data-v="info">자세히</button></div>' + infoCards(t, true) + '</div>';
+  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + (c ? c.f + ' ' + c.n + ' ' : '') + '여행 정보</h3><button class="linkbtn" data-act="tab" data-v="info">자세히</button></div>' + infoCards(t, true) + '</div>';
   // 첫날 일정 미리 보기 (출발 전)
   if (ph === 'before') {
     const first = live('items', t.id).filter(i => i.date === t.start).sort(byTime).slice(0, 4);
-    if (first.length) h += '<div class="sec"><div class="sec-h"><h3>첫날 · ' + esc(md(t.start)) + '</h3><button class="linkbtn" data-act="tab" data-v="plan">전체 일정</button></div><div class="tl">' + first.map(i => tlItem(t, i)).join('') + '</div></div>';
+    if (first.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('plan', 'var(--c-이동)', 1) + '첫날 · ' + esc(md(t.start)) + '</h3><button class="linkbtn" data-act="tab" data-v="plan">전체 일정</button></div><div class="tl">' + first.map(i => tlItem(t, i)).join('') + '</div></div>';
   }
   // 추억
   const memN = live('notes', t.id).length + live('places', t.id).length;
   h += '<div class="sec"><button class="alert" style="--cc:var(--pink)" data-act="tab" data-v="memory">' + ib('memory', 'var(--pink)') + '<span><b>추억 ' + memN + '</b><span>여행 일기 · 가 본 곳 별점 · 사진</span></span></button></div>';
   // 기록
-  h += '<div class="sec"><div class="sec-h"><h3>기록</h3></div><div class="card"><div class="menu-list">' +
+  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('doc', 'var(--lav)', 1) + '기록</h3></div><div class="card"><div class="menu-list">' +
     (safeUrl(t.docUrl) ? '<a href="' + esc(t.docUrl) + '" target="_blank" rel="noopener">' + ib('doc', 'var(--sky)', 1) + '<span>구글 드라이브 여행 기록<small>고칠 때마다 저절로 정리돼요' + (t.docAt ? ' · ' + new Date(t.docAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') + '</small></span></a>'
       : '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ib('doc', 'var(--sky)', 1) + '<span>구글 드라이브 여행 기록<small>고칠 때마다 저절로 정리돼요 · 지금 만들기</small></span></button>') +
     '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>사진·원본 폴더<small>4gospel 드라이브 「하하가족여행」</small></span></button>' +
@@ -620,16 +647,18 @@ function planTab(t) {
   if (!sel || !days.includes(sel)) sel = (today() >= t.start && today() <= t.end) ? today() : days[0];
   UI.day[t.id] = sel;
   const mode = ['tl', 'table', 'want'].includes(UI.mode) ? UI.mode : 'tl';
-  let h = '<div class="seg" style="margin:4px 0 14px"><button class="' + (mode === 'tl' ? 'on' : '') + '" data-act="mode" data-v="tl">하루씩</button><button class="' + (mode === 'table' ? 'on' : '') + '" data-act="mode" data-v="table">스케줄표</button><button class="' + (mode === 'want' ? 'on' : '') + '" data-act="mode" data-v="want">가고 싶은 곳</button></div>';
+  const n0 = (t.members || []).length || 1, wxd = {}; tripWx(t).forEach(x => wxd[x.d] = x);
+  let h = '<div class="tabhead th-plan"><div><small>' + esc(t.place) + ' · ' + days.length + '일</small><b>우리 여행 길</b><span>일정 ' + items.length + '개 · 가족 예상 ' + manWon(planCost(t) * n0) + '</span></div>' + ib('route', 'var(--sky)') + '</div>' +
+    '<div class="seg" style="margin:4px 0 14px"><button class="' + (mode === 'tl' ? 'on' : '') + '" data-act="mode" data-v="tl">하루씩</button><button class="' + (mode === 'table' ? 'on' : '') + '" data-act="mode" data-v="table">스케줄표</button><button class="' + (mode === 'want' ? 'on' : '') + '" data-act="mode" data-v="want">가고 싶은 곳</button></div>';
   if (mode === 'table') return h + schedTable(t, days, items);
   if (mode === 'want') return h + wantView(t);
   h += '<div class="days">' + days.map((d, k) => {
     const di = items.filter(i => i.date === d), all = di.length && di.every(i => i.done);
-    return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (all ? '<span class="stamp">다녀옴</span>' : '') + '</button>';
+    return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (wxd[d] && wxd[d].max != null ? '<span class="dwx">' + wxi(wxd[d].code, 22) + wxd[d].max + '°</span>' : '') + (all ? '<span class="stamp">다녀옴</span>' : '') + '</button>';
   }).join('') + '</div>';
   let list = items.filter(i => i.date === sel).sort(byTime);
   const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0);
-  h += '<div class="sec-h" style="margin-top:6px"><h3>' + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
+  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + ib('plan', 'var(--sky)', 1) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
   let past = '';
   if (sel === today() && !UI.showPast) {
     const p = list.filter(i => i.done || (i.time && i.time < hm().slice(0, 5) && list.some(j => j.time > i.time && !j.done)));
@@ -679,37 +708,74 @@ function wantView(t) {
   return h;
 }
 
+/* ---------- 경비: 예산(현실적으로) · 누가 어떻게 냈나 · 정산 ---------- */
+const PAYS = ['카드', '현금', '트래블카드', '계좌이체', '기타'];
+const PAY_IC = { 카드: '💳', 현금: '💴', 트래블카드: '🌏', 계좌이체: '🏦', 기타: '🧾' };
+function budgetOf(t) {
+  const n = (t.members || []).length || 1, days = daysOf(t).length || 1;
+  const bk = live('bookings', t.id).filter(b => Number(b.price) > 0);
+  const A = bk.reduce((s, b) => s + toWon(t, b.price, b.cur || 'KRW'), 0);
+  const B = planCost(t) * n;
+  const daily = t.daily != null ? Number(t.daily) : (t.cur === 'KRW' ? 30000 : 3000);
+  const C = toWon(t, daily) * n * days;
+  const pct = t.reserve != null ? Number(t.reserve) : 10;
+  const D = (B + C) * pct / 100;
+  return { A, B, C, D, total: A + B + C + D, bk, daily, pct, n, days };
+}
 function moneyTab(t) {
   const mem = t.members || [];
-  const n = mem.length || 1;
   const split = t.splitMode === 'split';
-  const plan = planCost(t), spent = spentWon(t);
+  const bg = budgetOf(t);
   const sp = live('spends', t.id).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
-  let h = '<div class="grid2" style="margin-top:4px"><div class="stat"><small>실제 쓴 돈</small><b class="num" style="color:var(--coral)">' + manWon(spent) + '</b><em>1인 ' + manWon(spent / n) + '</em></div>' +
-    '<div class="stat"><small>일정 예상</small><b class="num">' + manWon(plan * n) + '</b><em>1인 ' + manWon(plan) + '</em></div></div>';
+  const spent = spentWon(t), shared = sp.filter(s => s.share !== '개인');
+  const pctUsed = bg.total ? Math.min(100, Math.round(spent / bg.total * 100)) : 0;
+  let h = '<div class="tabhead th-money"><div><small>' + esc(t.title) + '</small><b>여행 지갑</b><span>쓴 돈 ' + manWon(spent) + ' · 남은 예산 ' + manWon(Math.max(0, bg.total - spent)) + '</span></div>' + ib('money', 'var(--mint)') + '</div>' +
+    '<div class="card budget receipt"><div class="between"><span class="muted">예상 총액 (가족 ' + bg.n + '명 · ' + bg.days + '일)</span><button class="linkbtn" data-act="budget-edit">예산 고치기</button></div>' +
+    '<div class="big-num num">' + manWon(bg.total) + '</div><div class="muted small">1인 ' + manWon(bg.total / bg.n) + ' · 일정을 바꾸면 저절로 다시 계산돼요</div>' +
+    '<div class="bar" style="margin:12px 0 6px;--cc:var(--coral)"><i style="width:' + pctUsed + '%"></i></div><div class="between small"><span>쓴 돈 <b class="num">' + manWon(spent) + '</b></span><span class="muted">남은 예산 <b class="num">' + manWon(Math.max(0, bg.total - spent)) + '</b></span></div>' +
+    '<div class="brows">' +
+    '<div><span>' + ib('ticket', 'var(--c-관광)', 1) + '예약·결제한 것<small>' + (bg.bk.length ? esc(bg.bk.map(b => b.kind).join('·')) : '예약 금액을 넣으면 더해져요') + '</small></span><b class="num">' + manWon(bg.A) + '</b></div>' +
+    '<div><span>' + ib('plan', 'var(--c-이동)', 1) + '일정 비용<small>일정 ' + live('items', t.id).filter(i => i.cost).length + '개의 1인 비용 × ' + bg.n + '명</small></span><b class="num">' + manWon(bg.B) + '</b></div>' +
+    '<div><span>' + ib('bag', 'var(--c-쇼핑)', 1) + '간식·쇼핑 여유<small>1인 하루 ' + comma(bg.daily) + unit(t.cur) + ' × ' + bg.n + '명 × ' + bg.days + '일</small></span><b class="num">' + manWon(bg.C) + '</b></div>' +
+    '<div><span>' + ib('sos', 'var(--c-기타)', 1) + '예비비<small>일정·여유의 ' + bg.pct + '%</small></span><b class="num">' + manWon(bg.D) + '</b></div></div></div>';
   h += '<div class="flex" style="margin-top:14px;gap:8px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="receipt">' + ic('camera') + '영수증 찍기</button><button class="btn big" style="flex:1" data-act="spend-new">' + ic('pen') + '직접 적기</button></div>';
-  const cats = {};
-  sp.forEach(s => cats[s.cat || '기타'] = (cats[s.cat || '기타'] || 0) + toWon(t, s.amount, s.cur));
-  const max = Math.max(1, ...Object.values(cats));
-  const ce = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-  if (ce.length) h += '<div class="sec"><div class="sec-h"><h3>어디에 썼나</h3></div><div class="card">' +
-    ce.map(([c, v]) => '<div class="cat-row" style="--cc:' + cc(c) + '"><span class="flex" style="gap:8px;font-weight:700"><span class="dot"></span>' + esc(c) + '</span><div class="bar"><i style="width:' + Math.round(v / max * 100) + '%"></i></div><span class="num" style="font-weight:800">' + manWon(v) + '</span></div>').join('') + '</div></div>';
-  // 지갑 방식
-  h += '<div class="sec"><div class="sec-h"><h3>' + (split ? '정산' : '누가 냈나') + '</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">나눠 내기</button></div><div class="card">';
-  if (!sp.length) h += '<div class="muted">아직 쓴 돈이 없어요</div>';
-  else if (!split) h += mem.map(m => { const w = sp.filter(s => s.payer === m).reduce((x, s) => x + toWon(t, s.amount, s.cur), 0); return w ? '<div class="settle">' + av(m) + '<b>' + esc(m) + '</b><span class="amt num">' + manWon(w) + '</span></div>' : ''; }).join('') || '<div class="muted">낸 사람을 적으면 여기 보여요</div>';
+  // 누가 냈나
+  const paid = {}; mem.forEach(m => paid[m] = 0); let unknown = 0;
+  sp.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.payer && s.payer in paid) paid[s.payer] += w; else unknown += w; });
+  const maxP = Math.max(1, ...Object.values(paid), unknown);
+  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('users', 'var(--sky)', 1) + '누가 냈나</h3><span class="muted small">합계 ' + manWon(spent) + '</span></div><div class="card">' +
+    mem.map(m => '<div class="payrow">' + av(m, 34) + '<div class="pr-body"><div class="between"><b>' + esc(m) + '</b><b class="num">' + manWon(paid[m]) + '</b></div><div class="bar" style="--cc:' + AVC[famIdx(m) % AVC.length] + '"><i style="width:' + Math.round(paid[m] / maxP * 100) + '%"></i></div></div></div>').join('') +
+    (unknown ? '<button class="payrow" style="width:100%;text-align:left" data-act="filter-unknown"><span class="av" style="background:var(--faint)">?</span><div class="pr-body"><div class="between"><b>낸 사람 미정</b><b class="num">' + manWon(unknown) + '</b></div><div class="muted small">눌러서 낸 사람을 정해 주세요</div></div></button>' : '') + '</div>';
+  // 결제 수단
+  const byPay = {}; sp.forEach(s => { const k = s.pay || '정하지 않음'; byPay[k] = (byPay[k] || 0) + toWon(t, s.amount, s.cur); });
+  if (sp.length) h += '<div class="paychips">' + Object.entries(byPay).sort((a, b) => b[1] - a[1]).map(([k, v]) => '<span class="pill">' + (PAY_IC[k] || '•') + ' ' + esc(k) + ' <b class="num">' + manWon(v) + '</b></span>').join('') + '</div>';
+  h += '</div>';
+  // 정산
+  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">나눠 내기</button></div>';
+  if (!split) h += '<div class="card muted">가족 공동 지갑으로 써요. 위 「누가 냈나」에서 각자 낸 돈만 봐요. 나눠 내려면 「나눠 내기」를 눌러요.</div>';
   else {
-    const bal = {}; mem.forEach(m => bal[m] = 0);
-    sp.forEach(s => { const w = toWon(t, s.amount, s.cur); const who = (s.split && s.split.length ? s.split : mem).filter(m => m in bal); if (s.payer in bal) bal[s.payer] += w; who.forEach(m => bal[m] -= w / (who.length || 1)); });
-    const pos = Object.entries(bal).filter(x => x[1] > 1).sort((a, b) => b[1] - a[1]), neg = Object.entries(bal).filter(x => x[1] < -1).sort((a, b) => a[1] - b[1]).map(x => [x[0], -x[1]]);
+    const owe = {}; mem.forEach(m => owe[m] = 0);
+    sp.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.share === '개인') { if (s.payer in owe) owe[s.payer] += w; return; } const who = (s.split && s.split.length ? s.split : mem).filter(m => m in owe); who.forEach(m => owe[m] += w / (who.length || 1)); });
+    const bal = {}; mem.forEach(m => bal[m] = paid[m] - owe[m]);
+    h += '<div class="card"><table class="settle-t"><thead><tr><th></th><th class="r">낸 돈</th><th class="r">내 몫</th><th class="r">차액</th></tr></thead><tbody>' +
+      mem.map(m => '<tr><td>' + av(m, 26) + ' ' + esc(m) + '</td><td class="r num">' + manWon(paid[m]) + '</td><td class="r num">' + manWon(owe[m]) + '</td><td class="r num" style="color:' + (bal[m] >= 0 ? 'var(--ok)' : 'var(--warn)') + '">' + (bal[m] >= 0 ? '+' : '−') + manWon(Math.abs(bal[m])) + '</td></tr>').join('') + '</tbody></table>';
+    const pos = Object.entries(bal).filter(x => x[1] > 1).sort((a, b) => b[1] - a[1]).map(x => [x[0], x[1]]), neg = Object.entries(bal).filter(x => x[1] < -1).sort((a, b) => a[1] - b[1]).map(x => [x[0], -x[1]]);
     const moves = []; let i = 0, j = 0;
     while (i < neg.length && j < pos.length) { const m = Math.min(neg[i][1], pos[j][1]); if (m >= 100) moves.push([neg[i][0], pos[j][0], m]); neg[i][1] -= m; pos[j][1] -= m; if (neg[i][1] < 1) i++; if (pos[j][1] < 1) j++; }
-    h += moves.length ? moves.map(([a, b, m]) => '<div class="settle">' + av(a, 28) + '<b>' + esc(a) + '</b> → ' + av(b, 28) + '<b>' + esc(b) + '</b><span class="amt num">' + comma(Math.round(m / 10) * 10) + '원</span></div>').join('') : '<div class="muted">주고받을 돈이 없어요 👍</div>';
+    h += '<div class="hr"></div>' + (moves.length ? moves.map(([a, b, m]) => '<div class="settle">' + av(a, 28) + '<b>' + esc(a) + '</b> → ' + av(b, 28) + '<b>' + esc(b) + '</b><span class="amt num">' + comma(Math.round(m / 10) * 10) + '원</span></div>').join('') : '<div class="muted">주고받을 돈이 없어요 👍</div>') +
+      (unknown ? '<div class="warnline">낸 사람 미정 ' + manWon(unknown) + '은 정산에서 빠졌어요</div>' : '') + '<div class="muted small" style="margin-top:6px">「개인」으로 적은 돈은 그 사람 몫으로만 셈해요</div></div>';
   }
-  h += '</div></div>';
-  h += '<div class="sec"><div class="sec-h"><h3>쓴 돈 기록 ' + sp.length + '</h3></div><div class="card">' +
-    (sp.length ? sp.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + (safeImg(s.thumb) ? '<img class="th" src="' + s.thumb + '" alt="">' : ib(s.cat === '이동' ? 'plane' : s.cat === '식사' ? 'food' : s.cat === '쇼핑' ? 'bag' : 'receipt', cc(s.cat), 1)) +
-      '<span class="body"><div class="t">' + esc(s.title) + '</div><div class="m">' + esc(md(s.date)) + ' · ' + esc(s.cat || '') + (s.payer ? ' · ' + esc(s.payer) : '') + '</div></span>' +
+  h += '</div>';
+  // 갈래별
+  const cats = {}; sp.forEach(s => cats[s.cat || '기타'] = (cats[s.cat || '기타'] || 0) + toWon(t, s.amount, s.cur));
+  const max = Math.max(1, ...Object.values(cats)), ce = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+  if (ce.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('bag', 'var(--c-쇼핑)', 1) + '어디에 썼나</h3></div><div class="card">' + ce.map(([c, v]) => '<div class="cat-row" style="--cc:' + cc(c) + '"><span class="flex" style="gap:8px;font-weight:700"><span class="dot"></span>' + esc(c) + '</span><div class="bar"><i style="width:' + Math.round(v / max * 100) + '%"></i></div><span class="num" style="font-weight:800">' + manWon(v) + '</span></div>').join('') + '</div></div>';
+  // 기록
+  const f = UI.spendFilter;
+  const list = f === 'unknown' ? sp.filter(s => !s.payer || !mem.includes(s.payer)) : sp;
+  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('receipt', 'var(--coral)', 1) + '쓴 돈 기록 ' + list.length + '</h3>' + (f ? '<button class="linkbtn" data-act="filter-clear">모두 보기</button>' : '') + '</div><div class="card">' +
+    (list.length ? list.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + (safeImg(s.thumb) ? '<img class="th" src="' + s.thumb + '" alt="">' : ib(s.cat === '이동' ? 'plane' : s.cat === '숙소' ? 'bed' : s.cat === '식사' ? 'bowl' : s.cat === '쇼핑' ? 'bag' : s.cat === '간식' ? 'cup' : 'receipt', cc(s.cat), 1)) +
+      '<span class="body"><div class="t">' + esc(s.title) + '</div><div class="m">' + esc(md(s.date)) + ' · ' + (s.payer ? esc(s.payer) : '<span style="color:var(--warn)">낸 사람 미정</span>') + (s.pay ? ' · ' + (PAY_IC[s.pay] || '') + esc(s.pay) : '') + (s.share === '개인' ? ' · 개인' : '') + '</div></span>' +
       '<span class="amt num">' + comma(s.amount) + unit(s.cur || t.cur) + ((s.cur || t.cur) !== 'KRW' ? '<small>≈ ' + manWon(toWon(t, s.amount, s.cur)) + '</small>' : '') + '</span></button>').join('')
       : '<div class="empty"><div class="art">🧾</div><b>아직 쓴 돈이 없어요</b>영수증을 찍으면 금액이 저절로 적혀요.</div>') + '</div></div>';
   if (t.cur !== 'KRW') {
@@ -719,10 +785,25 @@ function moneyTab(t) {
   }
   return h;
 }
+function budgetEdit(t) {
+  const bg = budgetOf(t);
+  form('예산 고치기', [
+    { k: 'daily', label: '간식·쇼핑 여유 (1인 하루, ' + unit(t.cur) + ')', type: 'number', ph: t.cur === 'KRW' ? '예: 30,000' : '예: 3,000' },
+    { k: 'reserve', label: '예비비 (%)', type: 'number', ph: '예: 10' }],
+    { daily: bg.daily, reserve: bg.pct }, vals => { put('trips', Object.assign({}, t, { daily: vals.daily, reserve: vals.reserve })); closeSheet(); toast('예산을 고쳤어요'); }, null);
+}
+/** 추천 자료의 값("1인 약 1,500~2,500엔")에서 1인 비용 짐작 */
+function priceGuess(s) {
+  const n = String(s || '').replace(/,/g, '').match(/\d+(?:\.\d+)?/g);
+  if (!n) return 0;
+  const v = n.slice(0, 2).map(Number);
+  return Math.round((v.length === 2 ? (v[0] + v[1]) / 2 : v[0]) / 10) * 10;
+}
 
 function memoryTab(t) {
   const k = UI.memK;
-  let h = '<div class="seg" style="margin:4px 0 14px"><button class="' + (k === 'note' ? 'on' : '') + '" data-act="memk" data-v="note">일기</button><button class="' + (k === 'place' ? 'on' : '') + '" data-act="memk" data-v="place">가 본 곳</button><button class="' + (k === 'photo' ? 'on' : '') + '" data-act="memk" data-v="photo">사진</button></div>';
+  let h = '<div class="tabhead th-memory"><div><small>' + esc(t.title) + '</small><b>우리 가족 추억</b><span>일기 ' + live('notes', t.id).length + ' · 가 본 곳 ' + live('places', t.id).length + '</span></div>' + ib('memory', 'var(--pink)') + '</div>' +
+    '<div class="seg" style="margin:4px 0 14px"><button class="' + (k === 'note' ? 'on' : '') + '" data-act="memk" data-v="note">일기</button><button class="' + (k === 'place' ? 'on' : '') + '" data-act="memk" data-v="place">가 본 곳</button><button class="' + (k === 'photo' ? 'on' : '') + '" data-act="memk" data-v="photo">사진</button></div>';
   if (k === 'note') {
     const all = live('notes', t.id);
     const who = UI.diaryWho == null ? '' : UI.diaryWho;
@@ -764,10 +845,10 @@ function prepPage(t) {
   ck.forEach(c => (groups[c.cat || '기타'] = groups[c.cat || '기타'] || []).push(c));
   let h = '<div class="card flex" style="gap:14px;margin-top:4px"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : done + ' / ' + ck.length + ' 준비 끝') + '</b><div class="muted">' +
     (dayDiff(today(), t.start) > 0 ? '출발까지 ' + dayDiff(today(), t.start) + '일' : '즐거운 여행 되세요') + '</div></div><button class="btn" data-act="check-new">＋ 더하기</button></div>';
-  Object.keys(groups).sort().forEach(g => {
+  const ORDER = Object.keys(PREP_CAT); Object.keys(groups).sort((a, b) => (ORDER.indexOf(a) + 99 * (ORDER.indexOf(a) < 0)) - (ORDER.indexOf(b) + 99 * (ORDER.indexOf(b) < 0))).forEach(g => {
     const list = groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts);
-    h += '<div class="sec"><div class="sec-h"><h3>' + esc(g) + '</h3><span class="muted num">' + list.filter(c => c.done).length + '/' + list.length + '</span></div><div class="card">' +
-      list.map(c => '<div class="row ' + (c.done ? 'done' : '') + '"><button class="chk ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button>' +
+    h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + pic(PREP_CAT[g] || PREP_CAT.기타, 36) + esc(g) + '</h3><span class="muted num">' + list.filter(c => c.done).length + '/' + list.length + '</span></div><div class="card">' +
+      list.map(c => '<div class="row ' + (c.done ? 'done' : '') + '"><button class="chk ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button>' + pic(prepIcon(c), 34) +
         '<button class="body" style="text-align:left;min-height:44px" data-act="check-edit" data-v="' + esc(c.id) + '"><div class="t">' + esc(c.text) + '</div>' + (c.memo ? '<div class="m">' + esc(c.memo) + '</div>' : '') + '</button>' +
         (c.who ? '<span class="pill">' + esc(c.who) + '</span>' : '') + '</div>').join('') + '</div></div>';
   });
@@ -811,8 +892,8 @@ function infoCards(t, compact, only) {
     const dd = w.daily, inTrip = dd.time.filter(d => d >= t.start && d <= t.end);
     const idx = (inTrip.length ? inTrip : dd.time.slice(0, compact ? 5 : 10)).map(d => dd.time.indexOf(d));
     const cur = w.current ? WMO(w.current.weather_code) : null;
-    h += '<div class="card"><div class="between"><button class="linkbtn" style="padding:0;color:var(--soft)" data-act="tab" data-v="weather">🌤️ ' + esc((I.geo && I.geo.name) || t.place) + ' 날씨 ›</button>' + (cur ? '<b class="num">지금 ' + cur[0] + ' ' + Math.round(w.current.temperature_2m) + '°</b>' : '') + '</div>' +
-      '<div class="wx">' + idx.map(k => { const x = WMO(dd.weather_code[k]); return '<div><small>' + esc(md(dd.time[k]).replace(/\(.\)/, '')) + '</small><b>' + x[0] + '</b><span class="num">' + Math.round(dd.temperature_2m_max[k]) + '° / ' + Math.round(dd.temperature_2m_min[k]) + '°</span>' + (dd.precipitation_probability_max[k] > 30 ? '<br><small>☔' + dd.precipitation_probability_max[k] + '%</small>' : '') + '</div>'; }).join('') + '</div>' +
+    h += '<div class="card"><div class="between"><button class="linkbtn" style="padding:0;color:var(--soft)" data-act="tab" data-v="weather">🌤️ ' + esc((I.geo && I.geo.name) || t.place) + ' 날씨 ›</button>' + (cur ? '<b class="num flex" style="gap:4px">지금 ' + wxi(w.current.weather_code, 28) + ' ' + Math.round(w.current.temperature_2m) + '°</b>' : '') + '</div>' +
+      '<div class="wx">' + idx.map(k => { const x = WMO(dd.weather_code[k]); return '<div><small>' + esc(md(dd.time[k]).replace(/\(.\)/, '')) + '</small><b>' + wxi(dd.weather_code[k], 34) + '</b><span class="num">' + Math.round(dd.temperature_2m_max[k]) + '° / ' + Math.round(dd.temperature_2m_min[k]) + '°</span>' + (dd.precipitation_probability_max[k] > 30 ? '<br><small>☔' + dd.precipitation_probability_max[k] + '%</small>' : '') + '</div>'; }).join('') + '</div>' +
       (inTrip.length ? '' : '<div class="muted small" style="margin-top:8px">여행 날 예보는 출발 16일 전부터 보여요. 지금은 요즘 날씨예요.' + (I.normal ? ' <b>여행 날 평균(지난 ' + I.normal.years + '년): 낮 ' + I.normal.avgMax + '° · 아침 ' + I.normal.avgMin + '°</b>' : '') + '</div>') + '</div>';
   } else if (I.wxErr) h += '<div class="card muted">날씨를 불러오지 못했어요</div>';
   // 나라
@@ -850,7 +931,7 @@ function tripWx(t) {
 function outfitBlock(t, max, min, rain) {
   if (max == null || !window.GUIDE) return '<div class="muted">날씨를 받으면 옷차림을 알려 드려요</div>';
   const mem = (t.members || []).map(n => fam(n) || { name: n, role: '' });
-  return '<div class="outfits">' + mem.map(p => { const o = GUIDE.outfitFor(p, max, min, rain); return '<div class="outfit">' + o.svg + '<b>' + esc(p.role || p.name) + '</b><span>' + esc(o.text) + '</span><small>👟 ' + esc(o.shoes) + '</small></div>'; }).join('') + '</div>';
+  return '<div class="outfits">' + mem.map(p => { const o = GUIDE.outfitFor(p, max, min, rain); return '<div class="outfit"><div class="fig-wrap"><img class="fig-img" src="' + o.img + '" alt="' + esc((p.role || p.name) + ' 옷차림') + '" loading="lazy">' + (rain ? '<img class="fig-rain" src="img/wx-rain.webp" alt="우산 챙기기">' : '') + '</div><b>' + esc(p.role || p.name) + '</b><span>' + esc(o.text) + '</span><small>👟 ' + esc(o.shoes) + (rain ? ' · ☂️ 우산' : '') + '</small></div>'; }).join('') + '</div>';
 }
 function bookTab(t) {
   const c = countryOf(t), cc0 = t.country || (c && Object.keys(COUNTRY).find(k => COUNTRY[k] === c)) || '';
@@ -913,16 +994,16 @@ function weatherPage(t) {
   if (!wx.some(x => x.d === sel)) sel = t.start;
   UI.wday = sel;
   const cur = w && w.current ? WMO(w.current.weather_code) : null;
-  let h = '<div class="card wx-now"><div class="between"><div><div class="muted">' + esc((I.geo && I.geo.name) || t.place) + ' 지금</div><div class="big-num">' + (cur ? cur[0] + ' ' + Math.round(w.current.temperature_2m) + '°' : '…') + '</div><div class="muted">' + (cur ? cur[1] : '불러오는 중') + '</div></div>' +
+  let h = '<div class="card wx-now"><div class="between"><div><div class="muted">' + esc((I.geo && I.geo.name) || t.place) + ' 지금</div><div class="big-num flex" style="gap:8px">' + (cur ? wxi(w.current.weather_code, 52) + Math.round(w.current.temperature_2m) + '°' : '…') + '</div><div class="muted">' + (cur ? cur[1] : '불러오는 중') + '</div></div>' +
     '<div style="text-align:right" class="muted small">' + (I.normal ? '여행 날 평균<br><b class="num" style="font-size:18px;color:var(--ink)">' + I.normal.avgMax + '° / ' + I.normal.avgMin + '°</b><br>지난 ' + I.normal.years + '년 같은 날' : '') + '</div></div></div>';
-  h += '<div class="sec"><div class="sec-h"><h3>여행 날마다</h3></div><div class="days">' + wx.map((x, k) => { const ic2 = x.max != null ? WMO(x.code)[0] : '·'; return '<button class="day wxday ' + (x.d === sel ? 'on' : '') + '" data-act="wday" data-v="' + x.d + '"><small>' + (k + 1) + '일째 ' + esc(md(x.d)) + '</small><b>' + ic2 + '</b><span class="num">' + (x.max != null ? x.max + '° / ' + x.min + '°' : '—') + '</span>' + (x.max != null && !x.real ? '<em>평균</em>' : '') + '</button>'; }).join('') + '</div></div>';
+  h += '<div class="sec"><div class="sec-h"><h3>여행 날마다</h3></div><div class="days">' + wx.map((x, k) => { const ic2 = x.max != null ? wxi(x.code, 40) : '·'; return '<button class="day wxday ' + (x.d === sel ? 'on' : '') + '" data-act="wday" data-v="' + x.d + '"><small>' + (k + 1) + '일째 ' + esc(md(x.d)) + '</small><b>' + ic2 + '</b><span class="num">' + (x.max != null ? x.max + '° / ' + x.min + '°' : '—') + '</span>' + (x.max != null && !x.real ? '<em>평균</em>' : '') + '</button>'; }).join('') + '</div></div>';
   const x = wx.find(y => y.d === sel) || {};
-  h += '<div class="card"><div class="between"><b style="font-size:18px">' + esc(md(sel)) + ' ' + (x.max != null ? WMO(x.code)[0] + ' ' + WMO(x.code)[1] : '') + '</b>' + (x.max != null ? '<span class="pill ' + (x.real ? 'hot' : '') + '">' + (x.real ? '실시간 예보' : '평균 · 지난 ' + ((INFO[t.id] || {}).normal || {}).years + '년') + '</span>' : '') + '</div>';
+  h += '<div class="card"><div class="between"><b style="font-size:18px" class="flex">' + esc(md(sel)) + ' ' + (x.max != null ? wxi(x.code, 36) + ' ' + WMO(x.code)[1] : '') + '</b>' + (x.max != null ? '<span class="pill ' + (x.real ? 'hot' : '') + '">' + (x.real ? '실시간 예보' : '평균 · 지난 ' + ((INFO[t.id] || {}).normal || {}).years + '년') + '</span>' : '') + '</div>';
   if (x.max != null) h += '<div class="big-num num" style="margin-top:6px">낮 ' + x.max + '° · 아침 ' + x.min + '°</div>' + (x.rainP != null ? '<div class="muted">' + (x.real ? '비 올 확률 ' + x.rainP + '%' : '지난 몇 해 이날 비 온 비율 ' + x.rainP + '%') + '</div>' : '');
   // 시간별
   if (x.real && w.hourly) {
     const hrs = w.hourly.time.map((tm, i) => [tm, i]).filter(([tm]) => tm.startsWith(sel)).filter(([tm]) => Number(tm.slice(11, 13)) % 2 === 0);
-    h += '<div class="hourly">' + hrs.map(([tm, i]) => { const c2 = WMO(w.hourly.weather_code[i]); return '<div><small>' + Number(tm.slice(11, 13)) + '시</small><b>' + c2[0] + '</b><span class="num">' + Math.round(w.hourly.temperature_2m[i]) + '°</span>' + (w.hourly.precipitation_probability[i] > 20 ? '<small>☔' + w.hourly.precipitation_probability[i] + '%</small>' : '') + '</div>'; }).join('') + '</div>';
+    h += '<div class="hourly">' + hrs.map(([tm, i]) => { return '<div><small>' + Number(tm.slice(11, 13)) + '시</small><b>' + wxi(w.hourly.weather_code[i], 30) + '</b><span class="num">' + Math.round(w.hourly.temperature_2m[i]) + '°</span>' + (w.hourly.precipitation_probability[i] > 20 ? '<small>☔' + w.hourly.precipitation_probability[i] + '%</small>' : '') + '</div>'; }).join('') + '</div>';
   } else if (x.max != null) h += '<div class="muted small" style="margin-top:8px">시간별 예보는 출발 16일 전부터 보여요 (' + esc(md(ymd(new Date(pd(sel).getTime() - 15 * 864e5)))) + '쯤). 그때까지는 지난 몇 해 같은 날의 평균을 적어 둬요.</div>';
   h += '</div>';
   h += '<div class="sec"><div class="sec-h"><h3>👕 ' + esc(md(sel)) + ' 우리 가족 옷차림</h3></div><div class="card">' + (x.max != null ? '<div class="pill" style="display:inline-block;margin-bottom:6px">' + esc(GUIDE.LV_NAME[GUIDE.level(x.max, x.min)]) + '</div>' : '') + outfitBlock(t, x.max, x.min, (x.rainP || 0) > 50) + '</div></div>';
@@ -933,23 +1014,40 @@ function weatherPage(t) {
 /* ---------- 여권 (드라이브 「여권」 폴더에만) ---------- */
 async function loadPassports() { try { PASSPORTS = await call('passList'); } catch (e) { PASSPORTS = PASSPORTS || []; toast('여권 정보를 불러오지 못했어요'); } render(); }
 const mask = s => String(s || '').replace(/^(.{4}).*$/, (m, a) => a + '•'.repeat(Math.max(0, s.length - 4)));
+const MONS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const ppDate = d => { if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return d || ''; const [y, m, dd] = d.split('-'); return dd + ' ' + Number(m) + '월/' + MONS[Number(m) - 1] + ' ' + y; };
+function leftText(from, to) { const n = dayDiff(from, to); if (n < 0) return '만료됨'; const y = Math.floor(n / 365), mo = Math.floor(n % 365 / 30.4); return (y ? y + '년 ' : '') + mo + '개월'; }
 function passportPage(t) {
   if (PASSPORTS == null) { loadPassports(); return '<div class="card empty">여권 정보를 불러오는 중…</div>'; }
   const mem = (t.members || []);
-  let h = '<div class="muted" style="margin:4px 2px 12px">여권 정보는 가족 공용 기록에 넣지 않고 4gospel 드라이브 「하하가족여행/여권」에만 보관돼요. 번호는 눌러야 보여요.</div><div class="stack">';
+  const have = mem.filter(n => PASSPORTS.some(x => x.member === n));
+  const soon = PASSPORTS.filter(p => mem.includes(p.member) && p.expiry).sort((a, b) => a.expiry.localeCompare(b.expiry))[0];
+  let h = '<div class="tabhead th-pass"><div><small>' + esc(t.title) + '</small><b>가족 여권</b><span>' + have.length + ' / ' + mem.length + '명 등록' + (soon ? ' · 가장 빠른 만료 ' + esc(soon.expiry) + ' (' + esc(soon.member) + ')' : '') + '</span></div>' + ib('doc', 'var(--sky)') + '</div>';
+  h += '<div class="muted small" style="margin:0 2px 12px">여권 정보는 가족 공용 기록에 넣지 않고 4gospel 드라이브 「하하가족여행/여권」에만 보관돼요. 번호·생년월일은 눌러야 보여요.</div><div class="stack">';
   mem.forEach(n => {
     const p = PASSPORTS.find(x => x.member === n);
-    if (!p) { h += '<button class="alert" style="--cc:var(--sun)" data-act="pass-add" data-v="' + esc(n) + '">' + ib('camera', 'var(--sun)') + '<span><b>' + esc(n) + ' 여권 넣기</b><span>여권 사진을 고르면 저절로 읽어요</span></span></button>'; return; }
+    if (!p) { h += '<button class="alert" style="--cc:var(--sun)" data-act="pass-add" data-v="' + esc(n) + '">' + av(n, 44) + '<span><b>' + esc(n) + ' 여권 넣기</b><span>여권 사진을 고르면 번호·영문 이름·날짜를 저절로 읽어요</span></span></button>'; return; }
+    const open = UI.reveal === p.id;
     const left = p.expiry ? dayDiff(t.end, p.expiry) : null;
-    h += '<div class="card passcard"><div class="between"><b style="font-size:18px">' + esc(p.nameKo || n) + '</b>' + (left != null ? '<span class="pill ' + (left < 183 ? 'hot' : '') + '">' + (left < 183 ? '⚠️ 만료 가까움' : '유효') + '</span>' : '') + '</div>' +
-      '<div class="facts"><div><span>영문 이름</span><b>' + esc((p.surname || '') + ' ' + (p.given || '')) + '</b></div>' +
-      '<div><span>여권번호</span><b><button class="linkbtn" style="padding:0;min-height:0" data-act="pass-reveal" data-v="' + esc(p.id) + '">' + esc(UI.reveal === p.id ? p.number : mask(p.number)) + '</button></b></div>' +
-      '<div><span>만료일</span><b>' + esc(p.expiry || '') + (left != null ? ' <small class="muted">(여행 뒤 ' + Math.floor(left / 365) + '년 ' + Math.floor(left % 365 / 30) + '달)</small>' : '') + '</b></div>' +
-      (p.birth ? '<div><span>생년월일</span><b>' + esc(UI.reveal === p.id ? p.birth : p.birth.slice(0, 4) + '-••-••') + '</b></div>' : '') + '</div>' +
-      '<div class="flex" style="margin-top:10px;flex-wrap:wrap">' + (safeUrl(p.photoUrl) ? '<a class="btn" href="' + esc(p.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '여권 사진</a>' : '') + '<button class="btn" data-act="pass-edit2" data-v="' + esc(p.id) + '">' + ic('pen') + '고치기</button></div></div>';
+    const st = left == null ? '' : left < 0 ? 'bad' : left < 183 ? 'warn' : 'ok';
+    const f = faceOf(n);
+    const num = open ? (p.number || '') : mask(p.number);
+    const mrz1 = ('P' + (p.type || 'M') + 'KOR' + String(p.surname || '').replace(/\s/g, '<') + '<<' + String(p.given || '').replace(/\s/g, '<') + '<'.repeat(44)).slice(0, 44);
+    h += '<div class="ppcard"><div class="pp-top"><span>여권 <i>PASSPORT</i></span><span>대한민국 <i>REPUBLIC OF KOREA</i></span><span class="pp-chip"></span></div>' +
+      '<div class="pp-body"><div class="pp-photo">' + (f ? '<img src="img/face-' + f + '.webp" alt="">' : av(n, 80)) + '</div><div class="pp-f">' +
+      '<div class="pp-row"><div><small>여권번호 / Passport No.</small><button class="pp-v mono" data-act="pass-reveal" data-v="' + esc(p.id) + '">' + esc(num) + '</button></div></div>' +
+      '<div><small>성 / Surname</small><b class="pp-v">' + esc(p.surname || '—') + '</b></div>' +
+      '<div><small>이름 / Given names</small><b class="pp-v">' + esc(p.given || '—') + '</b></div>' +
+      '<div><small>한글 성명</small><b class="pp-v">' + esc(p.nameKo || n) + '</b></div>' +
+      '<div class="pp-row"><div><small>생년월일 / Date of birth</small><b class="pp-v">' + esc(open ? ppDate(p.birth) : (p.birth ? '•• ••/••• ' + p.birth.slice(0, 4) : '—')) + '</b></div><div><small>성별 / Sex</small><b class="pp-v">' + esc(p.sex || '—') + '</b></div></div>' +
+      '<div class="pp-row"><div><small>발급일 / Date of issue</small><b class="pp-v">' + esc(ppDate(p.issue) || '—') + '</b></div><div><small>기간만료일 / Date of expiry</small><b class="pp-v pp-exp ' + st + '">' + esc(ppDate(p.expiry) || '—') + '</b></div></div>' +
+      '</div></div><div class="pp-mrz mono">' + esc(mrz1) + '<br>' + esc((open ? (p.number || '') : mask(p.number)).padEnd(9, '<') + '<KOR' + '<'.repeat(31)) + '</div>' +
+      '<div class="pp-foot"><span class="pill ' + (st === 'ok' ? '' : 'hot') + '">' + (left == null ? '만료일을 넣어 주세요' : st === 'bad' ? '⚠️ 여행 전에 만료돼요' : st === 'warn' ? '⚠️ 여행 뒤 6개월 안에 만료' : '✓ 만료까지 ' + leftText(today(), p.expiry)) + '</span>' +
+      '<span class="flex">' + (safeUrl(p.photoUrl) ? '<a class="btn" href="' + esc(p.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '사진</a>' : '') + '<button class="btn" data-act="pass-edit2" data-v="' + esc(p.id) + '">' + ic('pen') + '고치기</button></span></div></div>';
   });
   return h + '</div><div class="muted small" style="margin-top:12px">항공권에 여권 정보를 넣을 때 영문 이름 철자가 여권과 똑같은지 꼭 확인하세요.</div>';
 }
+
 const PASS_F = [{ k: 'nameKo', label: '한글 이름' }, { k: 'surname', label: '영문 성', half: 1 }, { k: 'given', label: '영문 이름', half: 1 }, { k: 'number', label: '여권번호' },
   { k: 'expiry', label: '만료일', type: 'date', half: 1 }, { k: 'birth', label: '생년월일', type: 'date', half: 1 }, { k: 'issue', label: '발급일', type: 'date', more: 1 }, { k: 'sex', label: '성별', type: 'opts', options: ['M', 'F'], names: { M: '남', F: '여' }, more: 1 }];
 function passForm(rec, ph, read) {
@@ -1013,6 +1111,7 @@ function form(title, fields, rec, onSave, onDelete, opts) {
   h += '<form class="f" data-form="sheet">' + block(fields.filter(f => !f.more));
   const more = fields.filter(f => f.more);
   if (more.length) h += '<details class="more"' + (more.some(f => read.has(f.k) && rec[f.k]) ? ' open' : '') + '><summary>더 적기</summary><div class="f">' + block(more) + '</div></details>';
+  if (opts.cover) h += '<div class="flex" style="flex-wrap:wrap"><button type="button" class="btn" data-act="cover-pick">' + ic('camera') + '표지 사진 고르기</button>' + (rec.cover ? '<button type="button" class="btn" data-act="cover-clear">표지 그림으로 되돌리기</button>' : '') + '</div>';
   if (opts.attach) h += '<button type="button" class="btn" data-act="attach">' + ic('camera') + (th ? '사진 바꾸기' : '사진 붙이기') + '</button>';
   if (opts.geo) h += '<button type="button" class="btn" data-act="geo" id="geobtn">' + ic('pin') + (rec.lat ? '지금 위치로 다시 저장' : '지금 위치도 저장 (길찾기용)') + '</button>';
   h += '<div class="sheet-acts">' + (onDelete ? '<button type="button" class="btn danger" data-act="sheet-del">' + ic('trash') + '지우기</button>' : '') +
@@ -1059,7 +1158,7 @@ const F = {
     { k: 'code', label: '예약번호', half: 1 }, { k: 'provider', label: '어디서 예약', half: 1 },
     { k: 'place', label: '장소·주소', more: 1 }, { k: 'grace', label: '주차 앞뒤 여유 (시간)', type: 'number', ph: '예: 4', half: 1, more: 1 }, { k: 'car', label: '차량번호 (주차)', half: 1, more: 1 }, { k: 'deposit', label: '보증금 (원)', type: 'number', half: 1, more: 1 },
     { k: 'phone', label: '전화', type: 'tel', half: 1, more: 1 }, { k: 'seat', label: '좌석', half: 1, more: 1 },
-    { k: 'price', label: '결제 금액', type: 'number', half: 1, more: 1 }, { k: 'cur', label: '돈', type: 'opts', options: [...new Set(['KRW', t.cur || 'KRW'])], names: CUR, half: 1, more: 1 },
+    { k: 'price', label: '결제 금액 (예산에 들어가요)', type: 'number', half: 1, more: 1 }, { k: 'cur', label: '돈', type: 'opts', options: [...new Set(['KRW', t.cur || 'KRW'])], names: CUR, half: 1, more: 1 },
     { k: 'link', label: '예약 주소 (https://…)', type: 'url', more: 1 },
     { k: 'memo', label: '메모', type: 'textarea', more: 1 }],
   spend: t => [
@@ -1068,12 +1167,14 @@ const F = {
     { k: 'title', label: '어디에', ph: '예: 구로몬 시장 점심' },
     { k: 'cat', label: '갈래', type: 'opts', options: CATS },
     { k: 'payer', label: '낸 사람', type: 'opts', options: t.members || [] },
+    { k: 'pay', label: '어떻게 냈나', type: 'opts', options: PAYS },
+    { k: 'share', label: '누구 돈', type: 'opts', options: ['함께', '개인'], names: { 함께: '👨‍👩‍👧‍👦 가족 함께', 개인: '🙋 개인 (내 몫만)' } },
     { k: 'date', label: '날짜', type: 'date', more: 1 },
     { k: 'split', label: '나눠 낼 사람 (나눠 내기일 때)', type: 'multi', options: t.members || [], more: 1 },
     { k: 'memo', label: '메모', type: 'textarea', more: 1 }],
   check: t => [
     { k: 'text', label: '챙길 것', ph: '예: 보조배터리' },
-    { k: 'cat', label: '묶음', list: ['서류', '예약', '전자기기', '돈', '옷', '생활', '기타'], ph: '예: 전자기기' },
+    { k: 'cat', label: '묶음', type: 'opts', options: Object.keys(PREP_CAT) },
     { k: 'who', label: '맡은 사람', type: 'opts', options: ['', ...(t.members || [])] },
     { k: 'memo', label: '메모' }],
   rec: t => [
@@ -1109,6 +1210,7 @@ function editRec(kind, t, rec, opts) {
   form((isNew ? '새 ' : '') + TITLE[kind], F[kind](t), rec, vals => {
     if (kind === 'spend' && !(vals.amount > 0)) return toast('얼마인지 적어 주세요');
     if (kind === 'spend' && !vals.title) vals.title = vals.cat || '쓴 돈';
+    if (kind === 'spend' && vals.pay) LS.set('lastPay', vals.pay);
     if (kind === 'park' && !vals.spot) vals.spot = '주차 위치';
     if (!vals[MAIN[kind]]) return toast('내용을 적어 주세요');
     if (kind === 'spend' && isNew && !SHEET.dupOk) {
@@ -1140,6 +1242,7 @@ function editTrip(t) {
   const isNew = !t;
   const rec = t || { start: ymd(new Date(Date.now() + 30 * 864e5)), end: ymd(new Date(Date.now() + 33 * 864e5)), members: D.meta.family.map(f => f.name), cur: 'JPY', rate: (LS.get('fx.JPY', {}) || {}).rate || 900, country: 'JP' };
   form(isNew ? '새 여행' : '여행 정보', F.trip(), rec, vals => {
+    if (SHEET.photo && SHEET.photo.cover) vals.cover = SHEET.photo.cover;
     if (!vals.title) return toast('여행 이름을 적어 주세요');
     if (!vals.start || !vals.end || vals.end < vals.start) return toast('날짜를 확인해 주세요');
     if (vals.country && COUNTRY[vals.country] && (!vals.cur || (isNew && vals.cur === 'JPY'))) vals.cur = COUNTRY[vals.country].cur;
@@ -1147,7 +1250,7 @@ function editTrip(t) {
     put('trips', Object.assign({}, rec, vals, { id, cur: vals.cur || 'KRW' }));
     closeSheet();
     if (isNew) go(tripUrl(id));
-  }, null);
+  }, null, { cover: true });
 }
 
 /* ---------- 사진으로 넣기 ---------- */
@@ -1192,7 +1295,7 @@ function openFromRead(kind, t, f, ph, read) {
   if (kind === 'receipt') {
     const cur = f.cur && CUR[f.cur] ? f.cur : t.cur;
     const cat = CATS.includes(f.cat) ? f.cat : guessCat(f.title || '');
-    editRec('spend', t, { amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { photo: ph, read, focus: 'amount' });
+    editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { photo: ph, read, focus: 'amount' });
   } else if (kind === 'booking') {
     const r = {}; ['kind', 'title', 'date', 'time', 'end', 'code', 'provider', 'place', 'car', 'deposit', 'phone', 'seat', 'price', 'cur', 'memo'].forEach(k => { if (f[k] != null && f[k] !== '') r[k] = f[k]; });
     if (!BK[r.kind]) r.kind = '티켓';
@@ -1269,7 +1372,7 @@ document.addEventListener('click', e => {
     'item-done': () => { const i = D.items[v]; buzz(); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } },
     'booking-new': () => editRec('booking', t, { kind: '숙소', date: t.start }),
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
-    'spend-new': () => editRec('spend', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
+    'spend-new': () => editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
     'spend-edit': () => editRec('spend', t, D.spends[v]),
     'check-new': () => editRec('check', t, { cat: '기타', who: '' }),
     'check-edit': () => editRec('check', t, D.checks[v]),
@@ -1312,6 +1415,11 @@ document.addEventListener('click', e => {
     'pass-edit2': () => { const p = (PASSPORTS || []).find(x => x.id === v); if (p) passForm(p, null, []); },
     'news-ok': () => { LS.set('newsSeen', NEWS[0].v); closeSheet(); },
     news: () => newsOpen(true),
+    'budget-edit': () => budgetEdit(t),
+    'filter-unknown': () => { UI.spendFilter = 'unknown'; render(); },
+    'filter-clear': () => { UI.spendFilter = ''; render(); },
+    'cover-pick': () => pickPhoto('', async f => { try { const c = await shrink(f, 1000, .72); SHEET.photo = { cover: c }; el.textContent = '✓ 표지 사진 골랐어요 (간직을 누르세요)'; } catch (er) { toast('사진을 열지 못했어요'); } }),
+    'cover-clear': () => { SHEET.photo = { cover: '' }; SHEET.rec.cover = ''; el.textContent = '✓ 표지 그림으로 (간직을 누르세요)'; },
     'copy-link': () => { const u = location.origin + location.pathname; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('주소를 복사했어요'), () => toast(u)); }
   };
   if (A[a]) { e.preventDefault(); A[a](); }
@@ -1345,7 +1453,7 @@ function recToPlan(t, r) {
     '<label class="fl"><span>시간</span><input class="in" id="rp_time" type="time"></label></div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="rp_go">일정에 넣기</button></div>',
     el => el.querySelector('#rp_go').onclick = () => {
       const on = el.querySelector('#rp_day .opt.on');
-      put('items', { id: uid('i'), trip: t.id, date: on ? on.dataset.opt : '', time: el.querySelector('#rp_time').value, title: r.name, cat: RECC[r.kind] || '관광', place: r.map || r.name, cost: 0, memo: [r.desc, r.price].filter(Boolean).join(' · '), rec: r.id, done: false });
+      put('items', { id: uid('i'), trip: t.id, date: on ? on.dataset.opt : '', time: el.querySelector('#rp_time').value, title: r.name, cat: RECC[r.kind] || '관광', place: r.map || r.name, cost: priceGuess(r.price), memo: [r.desc, r.price].filter(Boolean).join(' · '), rec: r.id, done: false });
       closeSheet(); toast('일정에 넣었어요');
     });
 }
@@ -1437,6 +1545,15 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.4', d: '2026-11-25', title: '여권·준비물이 꼼꼼해졌어요', items: [
+    ['doc', 'var(--sky)', '여권처럼 보는 여권 정보', '여권 사진을 고르면 영문 이름·번호·발급일·만료일을 읽어 여권 모양 카드로 보여 줘요. 만료일과 남은 기간도 크게.'],
+    ['prep', 'var(--mint)', '준비물 54가지', '서류·예약·돈·전자기기·옷·세면·건강·출발 전·돌아올 때 아홉 묶음으로 정리하고 그림을 달았어요.'],
+    ['camera', 'var(--coral)', '표지 사진', '여행 정보 고치기에서 가족 사진을 표지로 고를 수 있어요.']] },
+  { v: '2.3', d: '2026-11-25', title: '여행 지갑이 똑똑해졌어요', items: [
+    ['money', 'var(--mint)', '현실적인 예산', '예약·결제한 항공권·숙소 + 일정 비용 + 간식·쇼핑 여유 + 예비비로 예상 총액을 셈해요. 일정을 바꾸면 저절로 다시 계산돼요.'],
+    ['users', 'var(--sky)', '누가 어떻게 냈나', '가족별 낸 돈, 카드·현금·트래블카드 같은 결제 수단, 함께 쓴 돈과 개인 돈을 나눠 보고 정산표로 정리해요.'],
+    ['sun', 'var(--sun)', '새 그림', '날씨 아이콘과 계절별 가족 옷차림, 가족 얼굴 그림으로 바꿨어요.'],
+    ['plan', 'var(--pink)', '메뉴마다 다른 모습', '일정은 여행 길, 경비는 영수증, 수첩은 줄 공책, 추억은 폴라로이드 느낌이에요.']] },
   { v: '2.2', d: '2026-11-25', title: '접는 폰에 맞췄어요', items: [
     ['phone', 'var(--sky)', '폴드·플립·아이폰', '폴드를 펼치면 두 단으로 넓게, 접으면 좁은 화면에 맞게 보여요. 플립·아이폰 화면도 맞췄어요.'],
     ['sos', 'var(--warn)', '현지 주의할 점', '수첩에 안전·생활 습관·식당·교통·사진·건강·연말연시 주의할 점을 모았어요.'],

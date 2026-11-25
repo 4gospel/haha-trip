@@ -442,3 +442,122 @@ details.more .f{margin-top:6px}
 .cau:last-child{border:0}
 .cau-e{font-size:24px;line-height:1.2;flex:none;width:32px;text-align:center}
 .cau b{display:block;font-size:16px}.cau span{font-size:14px;color:var(--soft);line-height:1.55}
+
+/* 받은 그림 */
+.wxi{display:inline-block;object-fit:contain;vertical-align:middle;flex:none}
+.wx b{display:grid;place-items:center;height:38px}
+.hourly b{display:grid;place-items:center;height:34px}
+.wxday b{display:grid;place-items:center;height:44px}
+.fig-wrap{position:relative;width:100%;display:grid;place-items:center}
+.fig-img{width:100%;max-width:150px;aspect-ratio:3/5;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(60,40,20,.12))}
+.fig-rain{position:absolute;right:4px;top:4px;width:40px;height:40px;object-fit:contain}
+.outfit{background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 10%,var(--card)),var(--fill))}
+.lock .family{width:100%;max-width:420px;height:auto;margin:6px 0 10px;filter:drop-shadow(0 6px 10px rgba(60,40,20,.12))}
+@media (max-width:360px){.fig-img{max-width:120px}}
+.av.face{background:color-mix(in srgb,var(--sun) 25%,var(--card))!important;overflow:hidden;padding:0;box-shadow:0 0 0 2px var(--card)}
+.av.face img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* 예산·누가 냈나·정산 */
+.budget{background:linear-gradient(160deg,color-mix(in srgb,var(--coral) 10%,var(--card)),var(--card))}
+.brows{margin-top:12px;border-top:1px dashed var(--line)}
+.brows>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.brows>div:last-child{border:0}
+.brows span{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}
+.brows small{display:block;font-weight:500;font-size:13px;color:var(--soft)}
+.brows span{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}
+.brows span .ib{grid-row:1/3}
+.brows span small{grid-column:2}
+.payrow{display:flex;gap:12px;align-items:center;padding:8px 0}
+.pr-body{flex:1;min-width:0;display:grid;gap:6px}
+.paychips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.settle-t{width:100%;border-collapse:collapse;font-size:15px}
+.settle-t th{font-size:13px;color:var(--soft);font-weight:700;text-align:left;padding:4px}
+.settle-t td{padding:8px 4px;border-top:1px solid var(--line);white-space:nowrap}
+.settle-t td:first-child{display:flex;align-items:center;gap:6px;font-weight:700}
+.settle-t .r{text-align:right}
+@media (max-width:360px){.settle-t{font-size:13px}.settle-t td:first-child .av{display:none}}
+
+/* ===== 메뉴마다 다른 화면 성격 ===== */
+.tabhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-radius:22px;margin:4px 0 14px;color:var(--ink);position:relative;overflow:hidden}
+.tabhead small{display:block;font-size:13px;font-weight:700;color:var(--soft)}
+.tabhead b{display:block;font-size:24px;font-weight:800;letter-spacing:-.03em}
+.tabhead span{display:block;font-size:14px;color:var(--soft);font-weight:600}
+.tabhead .ib{width:56px;height:56px;border-radius:18px;background:var(--card)}
+.tabhead .ib svg{width:28px;height:28px}
+
+/* 일정: 하늘색 여행 길 */
+:root[data-tab="plan"] body{background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 9%,var(--bg)) 0,var(--bg) 420px)}
+.th-plan{background:linear-gradient(120deg,color-mix(in srgb,var(--sky) 22%,var(--card)),color-mix(in srgb,var(--mint) 14%,var(--card)))}
+.th-plan::after{content:"";position:absolute;left:18px;right:90px;bottom:10px;border-top:2px dashed color-mix(in srgb,var(--sky) 45%,transparent)}
+[data-tab="plan"] .day.on{background:linear-gradient(160deg,var(--sky),#3A6FD8);color:#fff}
+.day .dwx{display:flex;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:800;color:var(--soft);margin-top:2px}
+.day.on .dwx{color:rgba(255,255,255,.9)}
+.flow-plan .tl{position:relative}
+.flow-plan .tl::before{content:"";position:absolute;left:39px;top:22px;bottom:22px;border-left:3px dotted color-mix(in srgb,var(--sky) 40%,transparent);z-index:0}
+.flow-plan .tl-card{z-index:1}
+.flow-plan .tl-card .tm .ib{box-shadow:0 0 0 4px var(--card)}
+@media (min-width:700px){.flow-plan .tl::before{display:none}}
+
+/* 경비: 민트 지갑 · 영수증 */
+:root[data-tab="money"] body{background:linear-gradient(180deg,color-mix(in srgb,var(--mint) 9%,var(--bg)) 0,var(--bg) 420px)}
+.th-money{background:linear-gradient(120deg,color-mix(in srgb,var(--mint) 24%,var(--card)),color-mix(in srgb,var(--sun) 16%,var(--card)))}
+.receipt{position:relative;border-radius:18px 18px 0 0;padding-bottom:26px;background:var(--card);
+  -webkit-mask:radial-gradient(circle 9px at 50% 100%,transparent 98%,#000) bottom/22px 100% repeat-x;mask:radial-gradient(circle 9px at 50% 100%,transparent 98%,#000) bottom/22px 100% repeat-x}
+.receipt .big-num{font-family:ui-monospace,"SF Mono",Menlo,var(--font);letter-spacing:-.02em;font-size:32px}
+.receipt .brows{border-top:2px dashed var(--line)}
+[data-tab="money"] .bar i{background:linear-gradient(90deg,var(--mint),var(--cc,var(--mint)))}
+
+/* 수첩: 줄 공책 · 손글씨 제목 */
+:root[data-tab="book"] body{background:color-mix(in srgb,var(--sun) 7%,var(--bg))}
+.flow-book .sec-h h3,.flow-book .book-cover b{font-family:"Gaegu","Nanum Pen Script",var(--font);font-size:24px;font-weight:700;letter-spacing:0}
+.flow-book .card{background-image:repeating-linear-gradient(180deg,transparent 0 31px,color-mix(in srgb,var(--sky) 14%,transparent) 31px 32px);background-color:var(--card);border-left:6px solid color-mix(in srgb,var(--coral) 35%,var(--card))}
+.flow-book .book-cover{border-left:0;background-image:none;background:linear-gradient(135deg,#F7D8A8,#FBE9CF 50%,#FFF6E8);box-shadow:inset 10px 0 0 #E8B77A,var(--sh)}
+.flow-book .readchk.on{background:var(--mint)}
+
+/* 추억: 분홍 폴라로이드 · 마스킹테이프 */
+:root[data-tab="memory"] body{background:linear-gradient(180deg,color-mix(in srgb,var(--pink) 8%,var(--bg)) 0,var(--bg) 420px)}
+.th-memory{background:linear-gradient(120deg,color-mix(in srgb,var(--pink) 20%,var(--card)),color-mix(in srgb,var(--lav) 16%,var(--card)))}
+.flow-memory .note{position:relative;border-radius:6px;border-left:0;padding:20px 16px 16px;box-shadow:0 6px 18px rgba(80,40,60,.12)}
+.flow-memory .note::before{content:"";position:absolute;left:50%;top:-8px;width:84px;height:20px;transform:translateX(-50%) rotate(-3deg);background:color-mix(in srgb,var(--pc,var(--pink)) 45%,transparent);border-radius:2px}
+.flow-memory .stack>.note:nth-child(odd){transform:rotate(-.6deg)}
+.flow-memory .stack>.note:nth-child(even){transform:rotate(.6deg)}
+.flow-memory .note img{border-radius:4px;border:8px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.flow-memory .photos button{border-radius:4px;background:#fff;padding:5px 5px 18px;box-shadow:0 3px 10px rgba(0,0,0,.12)}
+.flow-memory .photos button:nth-child(3n+1){transform:rotate(-2deg)}.flow-memory .photos button:nth-child(3n+2){transform:rotate(1.5deg)}
+.facts a{white-space:nowrap}
+
+/* 여권처럼 */
+.th-pass{background:linear-gradient(120deg,color-mix(in srgb,var(--sky) 20%,var(--card)),color-mix(in srgb,var(--lav) 14%,var(--card)))}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.ppcard{border-radius:16px;overflow:hidden;box-shadow:var(--sh);color:#1E2A3A;
+  background:radial-gradient(circle at 80% 30%,rgba(255,170,120,.25),transparent 55%),repeating-radial-gradient(circle at 70% 40%,rgba(80,120,160,.06) 0 2px,transparent 2px 9px),linear-gradient(135deg,#FBF3E6,#F4E7D6 60%,#EADFF0)}
+.pp-top{display:flex;align-items:center;gap:10px;padding:12px 14px 6px;font-weight:800;font-size:14px;color:#24345A}
+.pp-top span:nth-child(2){margin-left:auto}
+.pp-top i{font-style:normal;font-weight:700;letter-spacing:.04em;margin-left:4px}
+.pp-chip{width:32px;height:22px;border-radius:4px;background:linear-gradient(135deg,#D8C46A,#B39A3A);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.pp-body{display:grid;grid-template-columns:92px 1fr;gap:12px;padding:6px 14px 10px}
+.pp-photo{width:92px;height:118px;border-radius:6px;overflow:hidden;background:#E8E2D8;display:grid;place-items:center;filter:grayscale(.85) contrast(1.05)}
+.pp-photo img{width:100%;height:100%;object-fit:cover}
+.pp-f{display:grid;gap:6px;min-width:0}
+.pp-f small{display:block;font-size:10.5px;color:#5A6478;font-weight:700;letter-spacing:.01em}
+.pp-v{display:block;font-size:16px;font-weight:800;letter-spacing:.03em;text-align:left;color:#14203A;overflow-wrap:anywhere}
+button.pp-v{padding:0;min-height:0}
+.pp-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+.pp-exp.ok{color:#1F7A4E}.pp-exp.warn{color:#B86B00}.pp-exp.bad{color:#C2283A}
+.pp-mrz{padding:8px 14px;font-size:12.5px;letter-spacing:.12em;color:#2A2A2A;background:rgba(255,255,255,.45);white-space:nowrap;overflow:hidden;text-overflow:clip;line-height:1.6}
+.pp-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px 14px;flex-wrap:wrap}
+@media (max-width:360px){.pp-body{grid-template-columns:72px 1fr}.pp-photo{width:72px;height:94px}.pp-v{font-size:14px}.pp-mrz{font-size:10.5px}}
+
+/* 제목 아이콘·그림 아이콘·표지 */
+h3.ih{display:flex;align-items:center;gap:10px}
+h3.ih .ib.sm{width:32px;height:32px;border-radius:10px}
+h3.ih .ib.sm svg{width:17px;height:17px}
+.pic{position:relative;flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--cc) 15%,var(--card));color:var(--cc)}
+.pic svg{width:58%;height:58%;stroke-width:2.1}
+.pic img{position:absolute;inset:-2px;width:calc(100% + 4px);height:calc(100% + 4px);object-fit:contain;background:var(--card);border-radius:12px}
+.hero img.cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.hero:has(img.cover) .hin{background:linear-gradient(180deg,rgba(10,20,40,.35),rgba(10,20,40,0) 45%,rgba(10,20,40,.45))}
+.pp-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.pp-row .pp-v{font-size:14.5px;white-space:nowrap}
+.pp-top{font-size:13px}
+@media (max-width:420px){.pp-top i{display:none}}
