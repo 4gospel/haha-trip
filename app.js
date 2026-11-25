@@ -58,7 +58,7 @@ function ddayText(t) {
   if (e >= 0) return (1 - n) + '일째';
   return '다녀옴';
 }
-const CUR = { JPY: '엔', KRW: '원', USD: '달러', EUR: '유로', CNY: '위안', TWD: '대만달러', THB: '바트', VND: '동', PHP: '페소', SGD: '싱가포르달러', GBP: '파운드', AUD: '호주달러', HKD: '홍콩달러' };
+const CUR = { CHF: '스위스 프랑', CZK: '코루나', JPY: '엔', KRW: '원', USD: '달러', EUR: '유로', CNY: '위안', TWD: '대만달러', THB: '바트', VND: '동', PHP: '페소', SGD: '싱가포르달러', GBP: '파운드', AUD: '호주달러', HKD: '홍콩달러' };
 const unit = c => CUR[c] || c || '';
 const toWon = (t, amt, cur) => { amt = Number(amt) || 0; cur = cur || t.cur || 'KRW'; return cur === 'KRW' ? amt : amt * (Number(t.rate) || 0) / 100; };
 const manWon = w => Math.abs(w) >= 10000 ? (Math.round(w / 1000) / 10).toLocaleString('ko-KR') + '만 원' : comma(w) + '원';
@@ -192,7 +192,7 @@ function flightInfo(b) {
   if (!m || !code(m[1]) || !code(m[2])) return null;
   return { from: code(m[1]), to: code(m[2]), fromN: m[1], toN: m[2], fn, air };
 }
-const BK = { 항공: ['plane', 'var(--c-이동)'], 숙소: ['bed', 'var(--c-숙소)'], 티켓: ['ticket', 'var(--c-관광)'], 교통: ['train', 'var(--c-이동)'], 주차: ['park', 'var(--c-주차)'], 보험: ['sos', 'var(--pink)'], 서류: ['doc', 'var(--c-기타)'], 기타: ['ticket', 'var(--c-기타)'] };
+const BK = { 항공: ['plane', 'var(--c-이동)'], 숙소: ['bed', 'var(--c-숙소)'], 티켓: ['ticket', 'var(--c-관광)'], 교통: ['train', 'var(--c-이동)'], 주차: ['park', 'var(--c-주차)'], 보험: ['doc', 'var(--pink)'], 서류: ['doc', 'var(--c-기타)'], 기타: ['ticket', 'var(--c-기타)'] };
 const RC_IC = { 명소: 'recs', 맛집: 'food', 쇼핑: 'bag', 팁: 'bulb', 숙소: 'bed' };
 
 /* ---------- 알림 띠·되돌리기·색종이 ---------- */
@@ -358,6 +358,8 @@ const COUNTRY = {
   ES: { n: '스페인', f: '🇪🇸', cur: 'EUR', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 맞음', sos: [['긴급', '112']], tip: '팁은 마음대로', etc: '' },
   DE: { n: '독일', f: '🇩🇪', cur: 'EUR', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 맞음', sos: [['긴급', '112']], tip: '5~10% 정도', etc: '' },
   AU: { n: '호주', f: '🇦🇺', cur: 'AUD', tz: '지역마다 다름', volt: '230V · I형 어댑터 필요', sos: [['긴급', '000']], tip: '팁 문화 거의 없음', etc: '' },
+  CH: { n: '스위스', f: '🇨🇭', cur: 'CHF', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · J형 플러그 — 어댑터 필요', sos: [['경찰', '117'], ['구급', '144'], ['긴급', '112']], tip: '봉사료 포함', etc: '' },
+  CZ: { n: '체코', f: '🇨🇿', cur: 'CZK', tz: '한국보다 8시간 늦음(겨울)', volt: '230V · 한국 플러그 대부분 맞음', sos: [['긴급', '112']], tip: '10% 정도', etc: '' },
   KR: { n: '한국', f: '🇰🇷', cur: 'KRW', tz: '', volt: '220V', sos: [['경찰', '112'], ['구급·화재', '119']], tip: '', etc: '' }
 };
 const WXI = c => c === 0 ? 'sunny' : c <= 2 ? 'partly' : c <= 48 ? 'cloudy' : c <= 67 || (c >= 80 && c <= 82) ? 'rain' : c <= 77 || (c >= 85 && c <= 86) ? 'snow' : 'storm';
@@ -426,7 +428,7 @@ const couple = t => t.kind === 'couple' || (t.kind !== 'family' && (t.members ||
 const kindOf = t => couple(t) ? 'cp' : abroad(t) ? 'out' : 'in';
 const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'], cp: ['부부여행', 'kind-couple', 'photo'] };
 const kindImg = (k, cls) => '<img class="' + (cls || 'kind-art') + '" src="img/' + KIND[k][1] + '.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-' + KIND[k][2] + '.webp\'">';
-const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong'], [/타이베이|대만|타이완|taipei/i, 'taipei']];
+const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong'], [/타이베이|대만|타이완|taipei/i, 'taipei'], [/파리|paris/i, 'paris'], [/프라하|prague/i, 'prague'], [/스위스|체르마트|알프스/i, 'swiss'], [/남프랑스|니스|마르세유|아비뇽/i, 'provence']];
 function coverImg(t) {
   if (safeImg(t.cover)) return '<img class="cover" src="' + t.cover + '" alt="">';
   const hit = CITY_IMG.find(([re]) => re.test((t.place || '') + ' ' + (t.title || '')));
@@ -503,7 +505,7 @@ function render() {
   const r = route();
   const t = r.view === 'trip' ? D.trips[r.trip] : null;
   document.documentElement.dataset.tab = t && !t.del ? (r.tab || 'today') : 'home';
-  if (t && !t.del) { app.innerHTML = tripView(t, r.tab); loadInfo(t); }
+  if (t && !t.del) { app.innerHTML = tripView(t, r.tab); if (!longAgo(t)) loadInfo(t); }
   else app.innerHTML = homeView();
   const s = $('#sync'); if (s) paintSync(s);
 }
@@ -624,6 +626,8 @@ function bookingWarnings(t) {
   return out;
 }
 
+/** 다녀온 지 일주일 넘은 여행 — 예보·환율·예약 안내는 쉼 */
+const longAgo = t => t.end < today() && dayDiff(t.end, today()) > 7;
 function todayTab(t) {
   const ph = phase(t), t0 = today();
   const c = countryOf(t);
@@ -659,7 +663,7 @@ function todayTab(t) {
   }
   // 티켓 지갑
   const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
-  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('ticket', 'var(--c-관광)', 1) + '티켓 지갑</h3><button class="linkbtn" data-act="tab" data-v="wallet">모두 보기</button></div>' +
+  if (!(longAgo(t) && !bk.length)) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('ticket', 'var(--c-관광)', 1) + '티켓 지갑</h3><button class="linkbtn" data-act="tab" data-v="wallet">모두 보기</button></div>' +
     (bk.length ? '<div class="wallet">' + bk.map(b => passCard(t, b, warns[b.id])).join('') + '</div>' : '<button class="alert" data-act="photo" data-v="booking">' + ib('camera', 'var(--sky)') + '<span><b>예약 화면을 찍어 넣어요</b><span>항공권·숙소·티켓·주차 예약</span></span></button>') + '</div>';
   // 내 차 (그 밖의 때)
   if (!(ph === 'last' || ph === 'after') && (pb || pk) && ph !== 'before') h += '<div class="sec">' + carCard(t) + '</div>';
@@ -669,7 +673,7 @@ function todayTab(t) {
     h += '<div class="sec"><button class="card flex" style="width:100%;text-align:left;gap:14px" data-act="tab" data-v="prep"><div class="ring" style="--p:' + p + '"><span class="num">' + p + '%</span></div><div style="flex:1"><b style="font-size:17px">준비 ' + done + ' / ' + ck.length + '</b><div class="muted">' + (p === 100 ? '준비 끝! 가방만 들면 돼요' : '남은 것 ' + (ck.length - done) + '개 · 눌러서 챙기기') + '</div></div>' + '<img class="bp" src="img/backpack.webp" alt="">' + '</button></div>';
   }
   // 여행 정보 (환율·날씨·나라)
-  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + (c ? c.f + ' ' + c.n + ' ' : '') + '여행 정보</h3><button class="linkbtn" data-act="tab" data-v="info">자세히</button></div>' + infoCards(t, true) + '</div>';
+  if (!longAgo(t)) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + (c ? c.f + ' ' + c.n + ' ' : '') + '여행 정보</h3><button class="linkbtn" data-act="tab" data-v="info">자세히</button></div>' + infoCards(t, true) + '</div>';
   // 첫날 일정 미리 보기 (출발 전)
   if (ph === 'before') {
     const first = live('items', t.id).filter(i => i.date === t.start).sort(byTime).slice(0, 4);
@@ -1048,7 +1052,7 @@ function bookTab(t) {
   h += head('docs', '🛂', '여권·서류') + '<div class="stack"><button class="alert" style="--cc:var(--sky)" data-act="tab" data-v="passport"><img class="alert-art" src="img/pass-cover.webp" alt=""><span><b>가족 여권 정보</b><span>여권 사진을 고르면 번호·만료일이 저절로 적혀요 (드라이브 「여권」 폴더에만 보관)</span></span></button>' +
     '<button class="alert" style="--cc:var(--mint)" data-act="tab" data-v="wallet">' + pic(['ticket', 'var(--mint)', 'ticket'], 44) + '<span><b>티켓 지갑</b><span>항공권·숙소·티켓·주차 예약</span></span></button></div></div>';
   // 날씨·코디
-  h += head('wx', '🌤️', '날씨와 옷차림') + '<div class="card"><div class="between"><b>' + (known.length ? '여행 날 낮 ' + avgMax + '° · 아침 ' + avgMin + '°' : '날씨를 불러오는 중') + '</b><button class="linkbtn" data-act="tab" data-v="weather">날짜·시간별 ›</button></div>' +
+  h += head('wx', '🌤️', '날씨와 옷차림') + '<div class="card"><div class="between"><b>' + (known.length ? '여행 날 낮 ' + avgMax + '° · 아침 ' + avgMin + '°' : longAgo(t) ? '다녀온 여행이라 날씨는 쉬어요' : '날씨를 불러오는 중') + '</b><button class="linkbtn" data-act="tab" data-v="weather">날짜·시간별 ›</button></div>' +
     (known.length && !known.every(x => x.real) ? '<div class="muted small">지난 몇 해 같은 날의 평균이에요. 실제 예보는 출발 16일 전부터 바뀌어요.</div>' : '') +
     outfitBlock(t, avgMax, avgMin, known.length && known.reduce((q, x) => q + (x.rainP || 0), 0) / known.length > 45) + '</div></div>';
   // 말
@@ -1647,8 +1651,11 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.8', d: '2026-11-25', title: '독일 시절 유럽 여행이 돌아왔어요', items: [
+    ['globe', 'var(--sky)', '해외여행 4가지 더', '구글 포토 사진으로 2010 남프랑스 · 2011 스위스 체르마트 · 2011 프라하 · 2011 성탄 파리 여행을 찾아 날짜·곳·사진을 남겼어요.'],
+    ['memory', 'var(--coral)', '지난 여행은 조용하게', '오래전 여행에서는 예보·환율·예약 안내 대신 그때 이야기와 사진이 먼저 보여요.']] },
   { v: '3.7', d: '2026-11-25', title: '보험도, 여권도 더 잘 읽어요', items: [
-    ['sos', 'var(--pink)', '여행자보험', '보험 가입 화면이나 결제 문자를 찍으면 「캐롯손해보험 여행자보험」처럼 보험사 이름까지 읽어요. 티켓 지갑에 「보험」 칸도 생겼어요.'],
+    ['doc', 'var(--pink)', '여행자보험', '보험 가입 화면이나 결제 문자를 찍으면 「캐롯손해보험 여행자보험」처럼 보험사 이름까지 읽어요. 티켓 지갑에 「보험」 칸도 생겼어요.'],
     ['doc', 'var(--sky)', '여권 판독', '새 여권(번호 가운데 영문 글자)과 0이 O로 읽히는 경우도 바로잡아, 이름·번호·성별·날짜를 모두 읽어요.']] },
   { v: '3.6', d: '2026-11-25', title: '여권 사진 자리 바로잡기', items: [
     ['users', 'var(--lav)', '가족 얼굴 다시 그림', '여권 카드와 가족 얼굴 그림이 가운데에 반듯하게 들어가요. 이마와 턱이 잘리지 않아요.']] },
