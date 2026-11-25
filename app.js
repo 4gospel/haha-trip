@@ -514,12 +514,21 @@ function photoStrip(t, max) {
   const ph = tripPhotos(t); if (!ph.length) return '';
   return '<span class="pc-strip">' + ph.slice(0, max).map(n => '<img src="' + n.thumb + '" alt="" loading="lazy">').join('') + (ph.length > max ? '<i class="num">+' + (ph.length - max) + '</i>' : '') + '</span>';
 }
+/** 구글 포토에서 그날 사진 보기 — 날짜 찾기 주소(가족은 사진첩을 함께 받아 봄) · 여행에 `gphotos`(앨범 주소)가 있으면 그것 먼저 */
+const gpUrl = ds => { const [y, m, d] = ds.split('-').map(Number); return 'https://photos.google.com/search/' + encodeURIComponent(y + '년 ' + m + '월 ' + d + '일'); };
+function gpChips(t) {
+  if (!t.start || t.start > today()) return '';
+  const ds = daysOf(t), al = safeUrl(t.gphotos);
+  const pick = ds.length <= 6 ? ds : ds.slice(0, 5);
+  return (al ? '<a class="chipbtn gp" href="' + esc(al) + '" target="_blank" rel="noopener">' + ic('camera') + '구글 포토 앨범</a>' : '') +
+    pick.map((d, i) => '<a class="chipbtn gp" href="' + esc(gpUrl(d)) + '" target="_blank" rel="noopener">' + (i ? '' : ic('camera') + '구글 포토 ') + '<span class="num">' + md(d) + '</span></a>').join('') + (ds.length > pick.length ? '<span class="muted small">…</span>' : '');
+}
 /** 지난 여행 화면: 그때 이야기 */
 function storyCard(t) {
   const s = String(t.story || '').trim(), nu = safeUrl(t.notion);
-  if (!s && !nu && !safeUrl(t.album)) return '';
+  if (!s && !nu && !safeUrl(t.album) && !gpChips(t)) return '';
   return '<div class="sec"><div class="letter"><div class="lt-h">' + kindImg(kindOf(t), 'h-art') + '<b>그때 우리는</b><span class="lt-year num">' + esc(t.start.slice(0, 4)) + '</span></div>' +
-    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + (tripPhotos(t).length ? '<div class="lt-photos">' + tripPhotos(t).slice(0, 6).map((n, i) => '<button data-act="note-edit" data-v="' + esc(n.id) + '" style="--r:' + ((i % 3) - 1) * 3 + 'deg"><img src="' + n.thumb + '" alt="" loading="lazy"><small>' + esc(String(n.text || '').replace(/^📷\s*/, '').split(/\n/)[0].slice(0, 18)) + '</small></button>').join('') + '</div>' : '') + '<div class="chips">' + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + (safeUrl(t.album) ? '<a class="chipbtn" href="' + esc(t.album) + '" target="_blank" rel="noopener">' + ic('camera') + '사진 앨범</a>' : '') + '</div>' + '</div></div>';
+    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + (tripPhotos(t).length ? '<div class="lt-photos">' + tripPhotos(t).slice(0, 6).map((n, i) => '<button data-act="note-edit" data-v="' + esc(n.id) + '" style="--r:' + ((i % 3) - 1) * 3 + 'deg"><img src="' + n.thumb + '" alt="" loading="lazy"><small>' + esc(String(n.text || '').replace(/^📷\s*/, '').split(/\n/)[0].slice(0, 18)) + '</small></button>').join('') + '</div>' : '') + '<div class="chips">' + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + (safeUrl(t.album) ? '<a class="chipbtn" href="' + esc(t.album) + '" target="_blank" rel="noopener">' + ic('camera') + '사진 앨범</a>' : '') + '</div>' + (gpChips(t) ? '<div class="chips gpchips">' + gpChips(t) + '</div><div class="muted small">그날 찍은 사진을 구글 포토에서 날짜로 찾아 보여 줘요. 공유받은 사진첩도 함께 나와요.</div>' : '') + '</div></div>';
 }
 
 /* ---------- 길 ---------- */
@@ -1277,7 +1286,7 @@ function planTab(t) {
     '<div class="seg" style="margin:4px 0 14px"><button class="' + (mode === 'tl' ? 'on' : '') + '" data-act="mode" data-v="tl">하루씩</button><button class="' + (mode === 'table' ? 'on' : '') + '" data-act="mode" data-v="table">스케줄표</button><button class="' + (mode === 'want' ? 'on' : '') + '" data-act="mode" data-v="want">가고 싶은 곳</button></div>';
   if (mode === 'table') return h + schedTable(t, days, items);
   if (mode === 'want') return h + wantView(t);
-  h += '<div class="days">' + days.map((d, k) => {
+  h += '<div class="days' + (days.length <= 5 ? ' fit' : '') + '" style="--n:' + days.length + '">' + days.map((d, k) => {
     const di = items.filter(i => i.date === d), all = di.length && di.every(i => i.done);
     return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (wxd[d] && wxd[d].max != null ? '<span class="dwx">' + wxi(wxd[d].code, 22) + wxd[d].max + '°</span>' : '') + (all ? stampHtml('다녀옴', 'mini') : '') + '</button>';
   }).join('') + '</div>';
@@ -2348,6 +2357,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '5.0', d: '2026-11-26', title: '그날 사진으로 바로', items: [
+    ['camera', 'var(--coral)', '구글 포토 링크', '지난 여행을 열면 「그때 우리는」 아래에 날짜마다 「구글 포토」 단추가 있어요. 누르면 그날 찍은 사진이 구글 포토에서 바로 열려요.'],
+    ['plan', 'var(--sky)', '날짜 칸이 한 줄에', '접은 폴드처럼 좁은 화면에서도 여행 날짜 칸이 잘리지 않고 한 줄에 다 보여요.'],
+    ['memory', 'var(--coral)', '찾은 추억', '2019 태안(새롬교회 교역자 가족), 2018 「시벨리우스의 관록」 연주회를 더했어요.']] },
   { v: '4.9', d: '2026-11-26', title: '네이버 지도로도 봐요', items: [
     ['route', '#03C75A', '국내 길찾기는 네이버', '국내 일정을 누르면 「네이버 길찾기」가 맨 앞에 있어요. 대중교통·걸어서·차 모두 네이버 지도 앱으로 열리고, 앞 일정에서 출발해요. 구글 길찾기도 그대로 있어요.'],
     ['pin', '#03C75A', '일본에서도 네이버 지도', '해외 일정에는 「네이버 지도(한국어)」가 생겼어요. 일본 지도를 한국어로 볼 수 있어요. 해외 길찾기는 네이버가 아직 국내만 돼서 구글로 열어요.'],

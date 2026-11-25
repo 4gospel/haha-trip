@@ -978,3 +978,9 @@ body.map-open .nav,body.map-open .fab{display:none}
 .btn.nv .nvlogo{background:#fff;color:#03C75A}
 .btn.nv-o{border-color:color-mix(in srgb,#03C75A 45%,var(--line))}
 .mpop-a .nv-o{padding:6px 10px}
+.gpchips{margin-top:8px}.gpchips .chipbtn.gp{text-decoration:none}
+/* 날짜 칸이 다섯 개까지면 한 줄에 다 보이게(폴드 접은 화면 344px에서도 넷째 날이 잘리지 않게) */
+.days.fit{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));overflow:visible;margin-left:0;margin-right:0;padding-left:0;padding-right:0}
+.days.fit .day{min-width:0;padding:8px 4px}
+@media (max-width:400px){.days.fit{gap:6px}.days.fit .day b{font-size:14px;letter-spacing:-.3px;white-space:nowrap}.days.fit .day small{font-size:11px}.days.fit .day .dwx{font-size:11px}}
+@media (max-width:330px){.days.fit .day b{font-size:12.5px}}
