@@ -648,7 +648,7 @@ function planTab(t) {
   UI.day[t.id] = sel;
   const mode = ['tl', 'table', 'want'].includes(UI.mode) ? UI.mode : 'tl';
   const n0 = (t.members || []).length || 1, wxd = {}; tripWx(t).forEach(x => wxd[x.d] = x);
-  let h = '<div class="tabhead th-plan"><div><small>' + esc(t.place) + ' · ' + days.length + '일</small><b>우리 여행 길</b><span>일정 ' + items.length + '개 · 가족 예상 ' + manWon(planCost(t) * n0) + '</span></div>' + ib('route', 'var(--sky)') + '</div>' +
+  let h = '<div class="tabhead th-plan"><div><small>' + esc(t.place) + ' · ' + days.length + '일</small><b>우리 여행 길</b><span>일정 ' + items.length + '개 · 가족 예상 ' + manWon(planCost(t) * n0) + '</span></div><img class="th-art" src="img/route-cover.webp" alt=""></div>' +
     '<div class="seg" style="margin:4px 0 14px"><button class="' + (mode === 'tl' ? 'on' : '') + '" data-act="mode" data-v="tl">하루씩</button><button class="' + (mode === 'table' ? 'on' : '') + '" data-act="mode" data-v="table">스케줄표</button><button class="' + (mode === 'want' ? 'on' : '') + '" data-act="mode" data-v="want">가고 싶은 곳</button></div>';
   if (mode === 'table') return h + schedTable(t, days, items);
   if (mode === 'want') return h + wantView(t);
@@ -659,7 +659,8 @@ function planTab(t) {
   let list = items.filter(i => i.date === sel).sort(byTime);
   const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0);
   const dayAll = items.filter(i => i.date === sel); if (dayAll.length && dayAll.every(i => i.done)) h += '<div class="daydone">' + stampHtml(md(sel) + ' 다녀옴', 'big') + '<span>이날 일정을 모두 다녀왔어요!</span></div>';
-  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + ib('plan', 'var(--sky)', 1) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
+  const kyotoDay = items.some(i => i.date === sel && /교토|후시미|기요미즈|기온|니시키|야사카|Kyoto|Fushimi|Kiyomizu|Gion|Nishiki|Yasaka/i.test((i.title || '') + ' ' + (i.place || '')));
+  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + (kyotoDay ? '<img class="h-art" src="img/kyoto-thumb.webp" alt="">' : ib('plan', 'var(--sky)', 1)) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + (kyotoDay ? ' <span class="pill" style="font-size:12px">교토 가는 날</span>' : '') + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
   let past = '';
   if (sel === today() && !UI.showPast) {
     const p = list.filter(i => i.done || (i.time && i.time < hm().slice(0, 5) && list.some(j => j.time > i.time && !j.done)));
@@ -730,7 +731,7 @@ function moneyTab(t) {
   const sp = live('spends', t.id).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
   const spent = spentWon(t), shared = sp.filter(s => s.share !== '개인');
   const pctUsed = bg.total ? Math.min(100, Math.round(spent / bg.total * 100)) : 0;
-  let h = '<div class="tabhead th-money"><div><small>' + esc(t.title) + '</small><b>여행 지갑</b><span>쓴 돈 ' + manWon(spent) + ' · 남은 예산 ' + manWon(Math.max(0, bg.total - spent)) + '</span></div>' + ib('money', 'var(--mint)') + '</div>' +
+  let h = '<div class="tabhead th-money"><div><small>' + esc(t.title) + '</small><b>여행 지갑</b><span>쓴 돈 ' + manWon(spent) + ' · 남은 예산 ' + manWon(Math.max(0, bg.total - spent)) + '</span></div><img class="th-art wide" src="img/wallet-cover.webp" alt=""></div>' +
     '<div class="card budget receipt"><div class="between"><span class="muted">예상 총액 (가족 ' + bg.n + '명 · ' + bg.days + '일)</span><button class="linkbtn" data-act="budget-edit">예산 고치기</button></div>' +
     '<div class="big-num num">' + manWon(bg.total) + '</div><div class="muted small">1인 ' + manWon(bg.total / bg.n) + ' · 일정을 바꾸면 저절로 다시 계산돼요</div>' +
     '<div class="bar" style="margin:12px 0 6px;--cc:var(--coral)"><i style="width:' + pctUsed + '%"></i></div><div class="between small"><span>쓴 돈 <b class="num">' + manWon(spent) + '</b></span><span class="muted">남은 예산 <b class="num">' + manWon(Math.max(0, bg.total - spent)) + '</b></span></div>' +
@@ -803,7 +804,7 @@ function priceGuess(s) {
 
 function memoryTab(t) {
   const k = UI.memK;
-  let h = '<div class="tabhead th-memory"><div><small>' + esc(t.title) + '</small><b>우리 가족 추억</b><span>일기 ' + live('notes', t.id).length + ' · 가 본 곳 ' + live('places', t.id).length + '</span></div>' + ib('memory', 'var(--pink)') + '</div>' +
+  let h = '<div class="tabhead th-memory"><div><small>' + esc(t.title) + '</small><b>우리 가족 추억</b><span>일기 ' + live('notes', t.id).length + ' · 가 본 곳 ' + live('places', t.id).length + '</span></div><img class="th-art" src="img/diary-cover.webp" alt=""></div>' +
     '<div class="seg" style="margin:4px 0 14px"><button class="' + (k === 'note' ? 'on' : '') + '" data-act="memk" data-v="note">일기</button><button class="' + (k === 'place' ? 'on' : '') + '" data-act="memk" data-v="place">가 본 곳</button><button class="' + (k === 'photo' ? 'on' : '') + '" data-act="memk" data-v="photo">사진</button></div>';
   if (k === 'note') {
     const all = live('notes', t.id);
@@ -943,7 +944,8 @@ function bookTab(t) {
   const recs = live('recs', t.id);
   const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['caution', '⚠️', '현지 주의할 점'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
   const readN = SECS.filter(([k]) => bookRead(t, k)).length;
-  const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3>' + e + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
+  const HEAD_ART = { sos: 'sos-cover', talk: 'phrase-cover' };
+  const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3 class="ih">' + (HEAD_ART[k] ? '<img class="h-art" src="img/' + HEAD_ART[k] + '.webp" alt="">' : e) + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
   let h = '<div class="card book-cover"><img class="bk-art" src="img/notebook.webp" alt=""><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
     '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
   // 비상
@@ -1548,6 +1550,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.7', d: '2026-11-25', title: '화면마다 그림이 생겼어요', items: [
+    ['money', 'var(--mint)', '여행 지갑·여행 길·추억', '경비는 지갑, 일정은 지도, 추억은 리본 묶은 사진 그림이 머리에 들어갔어요.'],
+    ['book', 'var(--sky)', '수첩·교토 가는 날', '비상 연락은 구급상자, 꼭 쓰는 말은 말풍선 그림. 교토 가는 날 일정에는 교토 그림이 붙어요.']] },
   { v: '2.6', d: '2026-11-25', title: '「다녀옴」 도장을 찍어요', items: [
     ['check', 'var(--warn)', '다녀옴 도장', '하루 일정을 모두 체크하면 그날에 여권 도장이 쾅! 지난 여행에도 도장이 찍혀요.'],
     ['car', 'var(--c-주차)', '새 그림', '내 차·여행 수첩·일기·사진·영수증 그림을 더했어요.']] },
