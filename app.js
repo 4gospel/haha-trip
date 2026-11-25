@@ -142,6 +142,8 @@ function itemIcon(i) {
   if (/택시/.test(x)) return ['taxi', 'var(--c-이동)'];
   if (i.cat === '이동') return ['train', 'var(--c-이동)'];
   if (/숙소|체크인|체크아웃|호텔|짐/.test(x) || i.cat === '숙소') return ['bed', 'var(--c-숙소)'];
+  if (/오사카성|성 공원|천수각|castle/i.test(x)) return ['castle', 'var(--c-관광)'];
+  if (/산책|걸어|걷기|산넨자카|니넨자카|골목|거리/.test(x) && i.cat !== '식사') return ['walk', 'var(--c-관광)'];
   if (i.cat === '식사' && !/시장/.test(x)) return ['bowl', 'var(--c-식사)'];
   if (i.cat === '간식' && !/시장/.test(x)) return ['cup', 'var(--c-간식)'];
   if (/USJ|유니버설|입장|티켓|파크/i.test(x)) return ['ticket', 'var(--c-관광)'];
@@ -167,7 +169,7 @@ function prepIcon(c) {
 }
 /** 제미나이 그림이 있으면 그것, 없으면 선 아이콘 */
 const pic = (arr, sz) => '<span class="pic" style="--cc:' + arr[1] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + ic(arr[0]) + '<img src="img/prep-' + arr[2] + '.webp" alt="" onerror="this.remove()"></span>';
-const IT_IMG = { plane: 'plane', land: 'land', train: 'train', bus: 'bus', taxi: 'taxi', bed: 'hotel', bowl: 'food', cup: 'cafe', torii: 'temple', tower: 'tower', bag: 'shop', ticket: 'ticket' };
+const IT_IMG = { castle: 'castle', walk: 'walk', basket: 'market', park: 'park', plane: 'plane', land: 'land', train: 'train', bus: 'bus', taxi: 'taxi', bed: 'hotel', bowl: 'food', cup: 'cafe', torii: 'temple', tower: 'tower', bag: 'shop', ticket: 'ticket' };
 const itPic = (icn, col, sm) => IT_IMG[icn] ? '<span class="ib itp' + (sm ? ' sm' : '') + '" style="--cc:' + col + '"><img src="img/it-' + IT_IMG[icn] + '.webp" alt=""></span>' : ib(icn, col, sm);
 const MOOD = { happy: '😊', love: '🥰', laugh: '😆', tired: '😴', hot: '🥵', yum: '🤤' };
 const moodKey = m => MOOD[m] ? m : Object.keys(MOOD).find(k => MOOD[k] === m) || '';
@@ -432,6 +434,7 @@ function render() {
   else app.innerHTML = homeView();
   const s = $('#sync'); if (s) paintSync(s);
 }
+const nightArt = () => partOfDay() === 'night' ? '<img class="night-art" src="img/night-sky.webp" alt="">' : '';
 function greeting() {
   const h = new Date().getHours();
   const hi = h >= 5 && h < 11 ? '좋은 아침이에요' : h < 17 && h >= 11 ? '좋은 오후예요' : h >= 17 && h < 22 ? '좋은 저녁이에요' : '편안한 밤이에요';
@@ -457,7 +460,7 @@ function homeView() {
   const t0 = today();
   const up = trips.filter(t => t.end >= t0), past = trips.filter(t => t.end < t0).reverse();
   let h = '<div class="wrap nonav"><div class="topbar"><h1>하하가족여행</h1><span id="sync" class="sync"></span><button class="iconbtn" data-act="settings" aria-label="설정">' + ic('gear') + '</button></div>';
-  h += '<div class="greet">' + greeting() + '</div>';
+  h += '<div class="greet">' + nightArt() + greeting() + '</div>';
   if (up[0]) h += heroCard(up[0], 'open');
   h += '<div class="sec"><div class="sec-h"><h3>우리 여행</h3></div><div class="stack">' + [...up.slice(up[0] ? 1 : 0), ...past].map(tripRow).join('') +
     '<button class="newtrip" data-act="trip-new">' + ic('plus') + '새 여행 만들기</button></div></div>';
@@ -549,7 +552,7 @@ function bookingWarnings(t) {
 function todayTab(t) {
   const ph = phase(t), t0 = today();
   const c = countryOf(t);
-  let h = '<div class="greet">' + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
+  let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
   const warns = bookingWarnings(t);
   const pb = parkBooking(t), pk = lastPark(t);
@@ -573,7 +576,7 @@ function todayTab(t) {
     const list = live('items', t.id).filter(i => i.date === t0).sort(byTime);
     const now = hm(); const next = list.filter(i => !i.done && (i.time || '99') >= now.slice(0, 5));
     const show = (next.length ? next : list.filter(i => !i.done)).slice(0, 3);
-    h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('route', 'var(--sky)', 1) + '지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
+    h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
       (show.length ? '<div class="tl">' + show.map((i, k) => tlItem(t, i, k === 0)).join('') + '</div>' : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
     h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
   }
@@ -953,7 +956,7 @@ function bookTab(t) {
   const recs = live('recs', t.id);
   const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['caution', '⚠️', '현지 주의할 점'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
   const readN = SECS.filter(([k]) => bookRead(t, k)).length;
-  const HEAD_ART = { sos: 'sos-cover', talk: 'phrase-cover', docs: 'prep-passport', wx: 'wx-partly', caution: 'bk-caution', culture: 'bk-culture', money: 'bk-money', basic: 'bk-plug', spots: 'bk-spot', tips: 'bk-tip' };
+  const HEAD_ART = { sos: 'sos-cover', talk: 'phrase-cover', docs: 'pass-cover', wx: 'wx-partly', caution: 'bk-caution', culture: 'bk-culture', money: 'bk-money', basic: 'bk-plug', spots: 'bk-spot', tips: 'bk-tip' };
   const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3 class="ih">' + (HEAD_ART[k] ? '<img class="h-art" src="img/' + HEAD_ART[k] + '.webp" alt="">' : e) + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
   let h = '<div class="card book-cover"><img class="bk-art" src="img/notebook.webp" alt=""><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
     '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
@@ -965,7 +968,7 @@ function bookTab(t) {
     (hb ? '<div><span>우리 숙소</span><b>' + esc(hb.title) + (hb.place ? '<br><small>' + esc(hb.place) + '</small>' : '') + '</b></div>' : '') +
     '<div><span>가족 모임 장소 (길을 잃으면)</span><b>' + esc(t.meet || '숙소 앞에서 만나요') + '</b></div></div><div class="muted small" style="margin-top:8px">전화번호를 누르면 바로 걸려요. 해외에서 한국 번호로 걸 땐 요금이 붙어요.</div></div></div>';
   // 서류
-  h += head('docs', '🛂', '여권·서류') + '<div class="stack"><button class="alert" style="--cc:var(--sky)" data-act="tab" data-v="passport">' + pic(['doc', 'var(--sky)', 'passport'], 44) + '<span><b>가족 여권 정보</b><span>여권 사진을 고르면 번호·만료일이 저절로 적혀요 (드라이브 「여권」 폴더에만 보관)</span></span></button>' +
+  h += head('docs', '🛂', '여권·서류') + '<div class="stack"><button class="alert" style="--cc:var(--sky)" data-act="tab" data-v="passport"><img class="alert-art" src="img/pass-cover.webp" alt=""><span><b>가족 여권 정보</b><span>여권 사진을 고르면 번호·만료일이 저절로 적혀요 (드라이브 「여권」 폴더에만 보관)</span></span></button>' +
     '<button class="alert" style="--cc:var(--mint)" data-act="tab" data-v="wallet">' + pic(['ticket', 'var(--mint)', 'ticket'], 44) + '<span><b>티켓 지갑</b><span>항공권·숙소·티켓·주차 예약</span></span></button></div></div>';
   // 날씨·코디
   h += head('wx', '🌤️', '날씨와 옷차림') + '<div class="card"><div class="between"><b>' + (known.length ? '여행 날 낮 ' + avgMax + '° · 아침 ' + avgMin + '°' : '날씨를 불러오는 중') + '</b><button class="linkbtn" data-act="tab" data-v="weather">날짜·시간별 ›</button></div>' +
@@ -1034,7 +1037,7 @@ function passportPage(t) {
   const mem = (t.members || []);
   const have = mem.filter(n => PASSPORTS.some(x => x.member === n));
   const soon = PASSPORTS.filter(p => mem.includes(p.member) && p.expiry).sort((a, b) => a.expiry.localeCompare(b.expiry))[0];
-  let h = '<div class="tabhead th-pass"><div><small>' + esc(t.title) + '</small><b>가족 여권</b><span>' + have.length + ' / ' + mem.length + '명 등록' + (soon ? ' · 가장 빠른 만료 ' + esc(soon.expiry) + ' (' + esc(soon.member) + ')' : '') + '</span></div>' + ib('doc', 'var(--sky)') + '</div>';
+  let h = '<div class="tabhead th-pass"><div><small>' + esc(t.title) + '</small><b>가족 여권</b><span>' + have.length + ' / ' + mem.length + '명 등록' + (soon ? ' · 가장 빠른 만료 ' + esc(soon.expiry) + ' (' + esc(soon.member) + ')' : '') + '</span></div><img class="th-art" src="img/pass-cover.webp" alt=""></div>';
   h += '<div class="muted small" style="margin:0 2px 12px">여권 정보는 가족 공용 기록에 넣지 않고 4gospel 드라이브 「하하가족여행/여권」에만 보관돼요. 번호·생년월일은 눌러야 보여요.</div><div class="stack">';
   mem.forEach(n => {
     const p = PASSPORTS.find(x => x.member === n);
@@ -1559,6 +1562,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.9', d: '2026-11-25', title: '교토 표지와 새 아이콘', items: [
+    ['sun', 'var(--sun)', '교토 표지', '단풍과 도리이, 기요미즈데라가 담긴 교토 표지가 생겼어요. 교토 여행을 만들면 저절로 떠요.'],
+    ['route', 'var(--c-관광)', '걷기·시장·성·주차', '산책·시장·오사카성·주차 일정에도 그림이 붙고, 여권 화면엔 여권 표지, 밤에는 달이 인사해요.']] },
   { v: '2.8', d: '2026-11-25', title: '그림이 가득해졌어요', items: [
     ['plane', 'var(--c-이동)', '일정 그림 아이콘', '비행기·전철·버스·택시·호텔·라멘·카페·도리이·전망대·쇼핑·티켓 그림이 일정과 티켓 지갑에 붙어요.'],
     ['food', 'var(--coral)', '맛집·기분 스티커', '다코야키·오코노미야키·구시카쓰 그림이 추천 카드에, 기분 스티커가 일기에 들어갔어요.'],
