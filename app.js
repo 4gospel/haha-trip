@@ -1378,6 +1378,51 @@ function budgetOf(t) {
   const D = (B + C) * pct / 100;
   return { A, B, C, D, total: A + B + C + D, bk, daily, pct, n, days };
 }
+/* 각자 낼 몫 — 총액(함께 쓴 돈) · 사람마다 낼 몫 · 이미 낸 돈(결제 + 들어온 돈) · 남은 돈 */
+const payinsOf = t => (t.payins || []).filter(p => p && !p.del);
+function duesCalc(t, sp, mem) {
+  const owner = mem.includes(t.walletBy) ? t.walletBy : mem[0], dues = t.dues || {};
+  const fam = sp.filter(s => s.share !== '개인'), total = fam.reduce((q, s) => q + toWon(t, s.amount, s.cur), 0);
+  const paid = {}, got = {}; mem.forEach(m => { paid[m] = 0; got[m] = 0; }); let unknown = 0;
+  fam.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.payer in paid) paid[s.payer] += w; else unknown += w; });
+  payinsOf(t).forEach(p => { if (p.who in got && p.who !== owner) got[p.who] += Number(p.amt) || 0; });
+  const gotAll = Object.values(got).reduce((a, b) => a + b, 0);
+  const rows = mem.map(m => {
+    const isO = m === owner, set = !isO && dues[m] != null && dues[m] !== '';
+    const due = isO ? 0 : (Number(dues[m]) || 0), done = isO ? paid[m] - gotAll : paid[m] + got[m];
+    return { m, isO, set, due, paid: paid[m], got: isO ? gotAll : got[m], done };
+  });
+  const o = rows.find(r => r.isO); if (o) o.due = Math.max(0, total - rows.filter(r => !r.isO).reduce((q, r) => q + r.due, 0));
+  rows.forEach(r => r.left = r.due - r.done);
+  return { owner, total, rows, unknown };
+}
+function duesCard(t, sp, mem) {
+  const D = duesCalc(t, sp, mem), pin = payinsOf(t).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const leftTxt = r => !r.isO && !r.set ? '<span class="muted">' + (r.done ? '몫 미정' : '—') + '</span>' : Math.abs(r.left) < 100 ? '<span style="color:var(--ok)">다 냈어요 ✓</span>' : r.left > 0 ? '<span style="color:var(--warn)">' + (r.isO ? '남은 몫 ' : '더 낼 돈 ') + manWon(r.left) + '</span>' : '<span style="color:var(--ok)">' + (r.isO ? '더 낸 돈 ' : '돌려받을 돈 ') + manWon(-r.left) + '</span>';
+  let h = '<div class="card dues"><div class="between"><span class="muted">함께 쓴 돈 총액</span><button class="linkbtn" data-act="dues-edit">몫 정하기</button></div><div class="big-num num">' + manWon(D.total) + '</div>' +
+    '<div class="dues-rows">' + D.rows.map(r => '<div class="dues-row">' + av(r.m, 34) + '<div class="dr-b"><div class="between"><b>' + esc(r.m) + (r.isO ? ' <span class="pill" style="font-size:11px">가족 지갑</span>' : '') + '</b><b class="num">' + leftTxt(r) + '</b></div>' +
+      '<div class="dr-n num"><span>낼 몫 <b>' + (r.isO ? manWon(r.due) + ' <small>(나머지)</small>' : r.set ? manWon(r.due) : '<button class="linkbtn" data-act="dues-edit">정하기</button>') + '</b></span><span>결제 <b>' + manWon(r.paid) + '</b></span><span>' + (r.isO ? '받은 돈' : '들어온 돈') + ' <b>' + manWon(r.got) + '</b></span></div></div></div>').join('') + '</div>' +
+    (D.unknown ? '<div class="warnline">낸 사람 미정 ' + manWon(D.unknown) + ' — 위 「누가 냈나」에서 낸 사람을 정해 주세요</div>' : '') +
+    '<div class="muted small" style="margin-top:6px">낼 몫은 똑같이 나누지 않아요. 몫을 정해 넣으면 이미 결제한 돈과 들어온 돈을 빼고 남은 돈이 보여요. ' + esc(D.owner) + '의 몫은 총액에서 다른 사람 몫을 뺀 나머지예요. 「개인」으로 적은 돈은 빠져요.</div></div>';
+  h += '<div class="card" style="margin-top:10px"><div class="between"><b>' + ic('wallet') + ' 들어온 돈</b><button class="btn small" data-act="payin-new">＋ 들어온 돈 적기</button></div>' +
+    (pin.length ? pin.map(p => '<button class="row" data-act="payin-edit" data-v="' + esc(p.id) + '">' + av(p.who, 28) + '<span class="body"><div class="t">' + esc(p.who) + ' <span class="num">' + manWon(Number(p.amt) || 0) + '</span></div><div class="m">' + esc((p.date ? md(p.date) + ' · ' : '') + (p.memo || D.owner + '에게')) + '</div></span></button>').join('') : '<div class="muted small" style="margin-top:6px">자녀가 몫을 나눠 내면 여기에 적어요. 예: 하늘이가 숙소를 결제했다면, 몫을 정한 뒤 남은 돈만 더 내면 돼요.</div>') + '</div>';
+  return h;
+}
+function duesEdit(t) {
+  const mem = t.members || [], owner = mem.includes(t.walletBy) ? t.walletBy : mem[0], dues = t.dues || {};
+  const others = mem.filter(m => m !== owner), rec = { walletBy: owner };
+  others.forEach(m => rec['d_' + m] = dues[m] != null ? dues[m] : '');
+  form('각자 낼 몫 정하기', [{ k: 'walletBy', label: '가족 지갑 (나머지를 맡는 사람)', type: 'opts', options: mem }].concat(others.map(m => ({ k: 'd_' + m, label: m + '이(가) 낼 몫 (원)', type: 'number', ph: '비우면 0원', half: 1 }))),
+    rec, vals => { const nd = {}; mem.filter(m => m !== vals.walletBy).forEach(m => { const v = Number(vals['d_' + m]) || 0; if (v > 0) nd[m] = v; }); put('trips', Object.assign({}, t, { walletBy: vals.walletBy, dues: nd })); closeSheet(); toast('몫을 정했어요'); }, null);
+}
+function payinEdit(t, id) {
+  const mem = t.members || [], owner = mem.includes(t.walletBy) ? t.walletBy : mem[0], list = payinsOf(t), cur = list.find(p => p.id === id);
+  const rec = cur ? Object.assign({}, cur) : { who: mem.find(m => m !== owner) || mem[0], date: today(), amt: '' };
+  const save = arr => put('trips', Object.assign({}, t, { payins: arr }));
+  form(cur ? '들어온 돈 고치기' : '들어온 돈 적기', [{ k: 'who', label: '누가 냈나', type: 'opts', options: mem.filter(m => m !== owner) }, { k: 'amt', label: '금액 (원)', type: 'number', huge: 1, ph: '예: 148,000' }, { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'memo', label: '메모', ph: '예: 숙소 몫 남은 돈', half: 1 }],
+    rec, vals => { const v = { id: cur ? cur.id : 'pi' + Date.now().toString(36), who: vals.who, amt: Number(vals.amt) || 0, date: vals.date || today(), memo: vals.memo || '', ts: Date.now(), by: ME || '' }; if (!v.amt) return toast('금액을 넣어 주세요'); save(list.filter(p => p.id !== v.id).concat([v])); closeSheet(); toast('들어온 돈을 적었어요'); },
+    cur ? () => { save(list.filter(p => p.id !== cur.id)); closeSheet(); toast('지웠어요'); } : null);
+}
 function moneyTab(t) {
   const mem = t.members || [];
   const split = t.splitMode === 'split';
@@ -1406,21 +1451,10 @@ function moneyTab(t) {
   const byPay = {}; sp.forEach(s => { const k = s.pay || '정하지 않음'; byPay[k] = (byPay[k] || 0) + toWon(t, s.amount, s.cur); });
   if (sp.length) h += '<div class="paychips">' + Object.entries(byPay).sort((a, b) => b[1] - a[1]).map(([k, v]) => '<span class="pill">' + (PAY_IC[k] || '•') + ' ' + esc(k) + ' <b class="num">' + manWon(v) + '</b></span>').join('') + '</div>';
   h += '</div>';
-  // 정산
-  h += '<div class="sec"><img class="settle-art" src="img/settle-family.webp" alt=""><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">나눠 내기</button></div>';
-  if (!split) h += '<div class="card muted">가족 공동 지갑으로 써요. 위 「누가 냈나」에서 각자 낸 돈만 봐요. 나눠 내려면 「나눠 내기」를 눌러요.</div>';
-  else {
-    const owe = {}; mem.forEach(m => owe[m] = 0);
-    sp.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.share === '개인') { if (s.payer in owe) owe[s.payer] += w; return; } const who = (s.split && s.split.length ? s.split : mem).filter(m => m in owe); who.forEach(m => owe[m] += w / (who.length || 1)); });
-    const bal = {}; mem.forEach(m => bal[m] = paid[m] - owe[m]);
-    h += '<div class="card"><table class="settle-t"><thead><tr><th></th><th class="r">낸 돈</th><th class="r">내 몫</th><th class="r">차액</th></tr></thead><tbody>' +
-      mem.map(m => '<tr><td>' + av(m, 26) + ' ' + esc(m) + '</td><td class="r num">' + manWon(paid[m]) + '</td><td class="r num">' + manWon(owe[m]) + '</td><td class="r num" style="color:' + (bal[m] >= 0 ? 'var(--ok)' : 'var(--warn)') + '">' + (bal[m] >= 0 ? '+' : '−') + manWon(Math.abs(bal[m])) + '</td></tr>').join('') + '</tbody></table>';
-    const pos = Object.entries(bal).filter(x => x[1] > 1).sort((a, b) => b[1] - a[1]).map(x => [x[0], x[1]]), neg = Object.entries(bal).filter(x => x[1] < -1).sort((a, b) => a[1] - b[1]).map(x => [x[0], -x[1]]);
-    const moves = []; let i = 0, j = 0;
-    while (i < neg.length && j < pos.length) { const m = Math.min(neg[i][1], pos[j][1]); if (m >= 100) moves.push([neg[i][0], pos[j][0], m]); neg[i][1] -= m; pos[j][1] -= m; if (neg[i][1] < 1) i++; if (pos[j][1] < 1) j++; }
-    h += '<div class="hr"></div>' + (moves.length ? moves.map(([a, b, m]) => '<div class="settle">' + av(a, 28) + '<b>' + esc(a) + '</b> → ' + av(b, 28) + '<b>' + esc(b) + '</b><span class="amt num">' + comma(Math.round(m / 10) * 10) + '원</span></div>').join('') : '<div class="muted">주고받을 돈이 없어요 👍</div>') +
-      (unknown ? '<div class="warnline">낸 사람 미정 ' + manWon(unknown) + '은 정산에서 빠졌어요</div>' : '') + '<div class="muted small" style="margin-top:6px">「개인」으로 적은 돈은 그 사람 몫으로만 셈해요</div></div>';
-  }
+  // 정산 — 1/n이 아니라 「각자 낼 몫」: 몫은 팀장님이 정하고, 지갑 주인(기본 임요한)의 몫은 나머지 · 들어온 돈(자녀가 나중에 낸 돈)은 따로 적음
+  h += '<div class="sec"><img class="settle-art" src="img/settle-family.webp" alt=""><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">각자 낼 몫</button></div>';
+  if (!split) h += '<div class="card muted">가족 공동 지갑으로 써요. 위 「누가 냈나」에서 누가 결제했는지만 봐요. 자녀가 나중에 낼 돈을 정하려면 「각자 낼 몫」을 눌러요.</div>';
+  else h += duesCard(t, sp, mem);
   h += '</div>';
   // 갈래별
   const cats = {}; sp.forEach(s => cats[s.cat || '기타'] = (cats[s.cat || '기타'] || 0) + toWon(t, s.amount, s.cur));
@@ -2234,6 +2268,7 @@ document.addEventListener('click', e => {
     'news-ok': () => { LS.set('newsSeen', NEWS[0].v); closeSheet(); },
     news: () => newsOpen(true),
     'budget-edit': () => budgetEdit(t),
+    'dues-edit': () => duesEdit(t), 'payin-new': () => payinEdit(t, ''), 'payin-edit': () => payinEdit(t, v),
     'filter-unknown': () => { UI.spendFilter = 'unknown'; render(); },
     'filter-clear': () => { UI.spendFilter = ''; render(); },
     'cover-pick': () => pickPhoto('', async f => { try { const c = await shrink(f, 1000, .72); SHEET.photo = { cover: c }; el.textContent = '✓ 표지 사진 골랐어요 (저장을 누르세요)'; } catch (er) { toast('사진을 열지 못했어요'); } }),
@@ -2376,6 +2411,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '5.1', d: '2026-11-26', title: '정산은 각자 낼 몫으로', items: [
+    ['money', 'var(--mint)', '1/n이 아니에요', '경비 → 정산의 「각자 낼 몫」에서 아빠가 자녀마다 낼 몫을 정해 넣어요. 이미 결제한 돈(예: 하늘이가 낸 숙소)과 나중에 들어온 돈을 빼고 남은 돈만 보여요.'],
+    ['wallet', 'var(--coral)', '들어온 돈 적기', '자녀가 나눠 낸 돈은 「＋ 들어온 돈 적기」로 남겨요. 가족 지갑(아빠)의 몫은 총액에서 다른 사람 몫을 뺀 나머지로 저절로 셈해요.']] },
   { v: '5.0', d: '2026-11-26', title: '그날 사진으로 바로', items: [
     ['talk', 'var(--sky)', '꼭 쓰는 말 듣기', '수첩의 「꼭 쓰는 말」마다 소리 단추가 생겼어요. 누르면 일본어 여성 음성으로 또박또박 들려줘요. 휴대폰 소리를 켜 두세요.'],
     ['camera', 'var(--coral)', '구글 포토 링크', '지난 여행을 열면 「그때 우리는」 아래에 날짜마다 「구글 포토」 단추가 있어요. 누르면 그날 찍은 사진이 구글 포토에서 바로 열려요.'],
