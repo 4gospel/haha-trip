@@ -477,7 +477,7 @@ function heroCard(t, mode) {
 }
 function tripRow(t) {
   return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num">' +
-    esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + esc(t.place || '') + '</span></span><span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span></button>';
+    esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + esc(t.place || '') + '</span></span>' + (t.end < today() ? stampHtml('다녀옴', 'mini') : '<span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span>') + '</button>';
 }
 function placeRow(p) {
   const t = D.trips[p.trip];
@@ -624,7 +624,7 @@ function passCard(t, b, warn) {
 }
 function carCard(t, top) {
   const pb = parkBooking(t), pk = lastPark(t);
-  if (!pk) return '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('car', 'var(--c-주차)') + '<span><b>내 차 어디?</b><span>' + (pb ? esc(pb.place || pb.title) + ' · ' : '') + '주차한 뒤 기둥을 찍어 두세요</span></span></button>';
+  if (!pk) return '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking"><img class="alert-art" src="img/my-car.webp" alt=""><span><b>내 차 어디?</b><span>' + (pb ? esc(pb.place || pb.title) + ' · ' : '') + '주차한 뒤 기둥을 찍어 두세요</span></span></button>';
   return '<button class="car" style="width:100%;text-align:left;display:block" data-act="tab" data-v="car">' + (safeImg(pk.thumb) ? '<img src="' + pk.thumb + '" alt="주차 위치 사진">' : '') +
     '<div class="cin"><div class="muted">' + (top ? '🚗 집에 가는 날 — 내 차는 여기' : '🚗 내 차 어디?') + '</div><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(pk.memo || '') + (pb ? ' · 출차 ' + esc(String(pb.end || '')) : '') + '</div></div></button>';
 }
@@ -654,10 +654,11 @@ function planTab(t) {
   if (mode === 'want') return h + wantView(t);
   h += '<div class="days">' + days.map((d, k) => {
     const di = items.filter(i => i.date === d), all = di.length && di.every(i => i.done);
-    return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (wxd[d] && wxd[d].max != null ? '<span class="dwx">' + wxi(wxd[d].code, 22) + wxd[d].max + '°</span>' : '') + (all ? '<span class="stamp">다녀옴</span>' : '') + '</button>';
+    return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (wxd[d] && wxd[d].max != null ? '<span class="dwx">' + wxi(wxd[d].code, 22) + wxd[d].max + '°</span>' : '') + (all ? stampHtml('다녀옴', 'mini') : '') + '</button>';
   }).join('') + '</div>';
   let list = items.filter(i => i.date === sel).sort(byTime);
   const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0);
+  const dayAll = items.filter(i => i.date === sel); if (dayAll.length && dayAll.every(i => i.done)) h += '<div class="daydone">' + stampHtml(md(sel) + ' 다녀옴', 'big') + '<span>이날 일정을 모두 다녀왔어요!</span></div>';
   h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + ib('plan', 'var(--sky)', 1) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
   let past = '';
   if (sel === today() && !UI.showPast) {
@@ -777,7 +778,7 @@ function moneyTab(t) {
     (list.length ? list.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + (safeImg(s.thumb) ? '<img class="th" src="' + s.thumb + '" alt="">' : ib(s.cat === '이동' ? 'plane' : s.cat === '숙소' ? 'bed' : s.cat === '식사' ? 'bowl' : s.cat === '쇼핑' ? 'bag' : s.cat === '간식' ? 'cup' : 'receipt', cc(s.cat), 1)) +
       '<span class="body"><div class="t">' + esc(s.title) + '</div><div class="m">' + esc(md(s.date)) + ' · ' + (s.payer ? esc(s.payer) : '<span style="color:var(--warn)">낸 사람 미정</span>') + (s.pay ? ' · ' + (PAY_IC[s.pay] || '') + esc(s.pay) : '') + (s.share === '개인' ? ' · 개인' : '') + '</div></span>' +
       '<span class="amt num">' + comma(s.amount) + unit(s.cur || t.cur) + ((s.cur || t.cur) !== 'KRW' ? '<small>≈ ' + manWon(toWon(t, s.amount, s.cur)) + '</small>' : '') + '</span></button>').join('')
-      : '<div class="empty"><div class="art">🧾</div><b>아직 쓴 돈이 없어요</b>영수증을 찍으면 금액이 저절로 적혀요.</div>') + '</div></div>';
+      : '<div class="empty">' + art('empty-receipt') + '<b>아직 쓴 돈이 없어요</b>영수증을 찍으면 금액이 저절로 적혀요.</div>') + '</div></div>';
   if (t.cur !== 'KRW') {
     const fx = (INFO[t.id] || {}).fx;
     h += '<div class="muted" style="margin-top:12px">계산 환율: 100' + unit(t.cur) + ' = ' + comma(t.rate) + '원' + (fx ? ' · 오늘 ' + comma(fx.rate) + '원' : '') + '</div>';
@@ -815,18 +816,18 @@ function memoryTab(t) {
     h += '<div class="diary-head" style="--pc:' + (shared ? 'var(--coral)' : AVC[famIdx(who) % AVC.length]) + '"><div><b>' + (shared ? '우리 가족 함께 쓰는 일기' : esc(who) + '의 여행 다이어리') + '</b><span>' + (shared ? '누구나 쓰고 고칠 수 있어요' : mine ? '나만의 다이어리 · 가족이 읽을 수 있어요' : '읽기만 할 수 있어요 · ' + esc(who) + ' 님만 고쳐요') + '</span></div>' +
       (shared || mine ? '<button class="btn pri" data-act="note-new">' + ic('pen') + '쓰기</button>' : '') + '</div>';
     h += nt.length ? '<div class="stack">' + nt.map(n => '<button class="note" style="--pc:' + AVC[famIdx(n.by) % AVC.length] + '" data-act="note-edit" data-v="' + esc(n.id) + '"><div class="h">' + av(n.by, 28) + esc(n.by || '') + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + esc(n.mood) : '') + (n.q ? '<span class="q">Q. ' + esc(n.q) + '</span>' : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</button>').join('') + '</div>'
-      : '<div class="card empty"><div class="art">📔</div><b>' + (shared || mine ? '오늘 어땠나요?' : '아직 쓴 일기가 없어요') + '</b>' + (shared || mine ? '한 줄이라도 남기면 나중에 가족 여행 책이 돼요.' : '') + '</div>';
+      : '<div class="card empty">' + art('empty-diary') + '<b>' + (shared || mine ? '오늘 어땠나요?' : '아직 쓴 일기가 없어요') + '</b>' + (shared || mine ? '한 줄이라도 남기면 나중에 가족 여행 책이 돼요.' : '') + '</div>';
   } else if (k === 'place') {
     const pl = live('places', t.id).sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
     h += '<div class="sec-h"><h3>가 본 곳</h3><button class="linkbtn" data-act="place-new">＋ 평가하기</button></div>';
-    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : '<div class="card empty"><div class="art">⭐</div><b>가 본 곳을 평가해요</b>별점과 한마디가 처음 화면 「우리가 좋았던 곳」에 모여요.</div>';
+    h += pl.length ? '<div class="card">' + pl.map(placeRow).join('') + '</div>' : '<div class="card empty">' + art('notebook') + '<b>가 본 곳을 평가해요</b>별점과 한마디가 처음 화면 「우리가 좋았던 곳」에 모여요.</div>';
   } else {
     const ph = [];
     [['spends', '영수증', 'spend-edit'], ['bookings', '예약', 'booking-edit'], ['parks', '주차', 'park-edit'], ['notes', '일기', 'note-edit'], ['places', '가 본 곳', 'place-edit']].forEach(([c, lb, act]) =>
       live(c, t.id).forEach(r => { if (safeImg(r.thumb)) ph.push({ r, lb, act }); }));
     ph.sort((a, b) => b.r.ts - a.r.ts);
     h += ph.length ? '<div class="photos">' + ph.map(x => '<button data-act="' + x.act + '" data-v="' + esc(x.r.id) + '"><img src="' + x.r.thumb + '" alt=""><small>' + x.lb + '</small></button>').join('') + '</div><div class="muted" style="margin-top:10px">원본은 4gospel 드라이브 「하하가족여행/사진」에 있어요.</div>'
-      : '<div class="card empty"><div class="art">📷</div><b>사진이 아직 없어요</b>영수증·티켓·주차·일기 사진이 여기 모여요.</div>';
+      : '<div class="card empty">' + art('empty-photo') + '<b>사진이 아직 없어요</b>영수증·티켓·주차·일기 사진이 여기 모여요.</div>';
   }
   return h;
 }
@@ -867,7 +868,7 @@ function carPage(t) {
       '<div class="acts">' + (pk.lat ? '<a class="btn navy" href="' + esc('https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + pk.lat + ',' + pk.lng) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서 길찾기</a>' : '') +
       '<button class="btn" data-act="photo" data-v="parking">' + ic('camera') + '사진 더 찍기</button><button class="btn" data-act="park-edit" data-v="' + esc(pk.id) + '">' + ic('pen') + '고치기</button>' +
       (safeUrl(pk.photoUrl) ? '<a class="btn" href="' + esc(pk.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '원본 사진</a>' : '') + '</div></div></div>';
-  } else h += '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('camera', 'var(--c-주차)') + '<span><b>주차 위치 사진 찍기</b><span>기둥 번호·구역 표지판이 보이게 찍어 주세요</span></span></button>';
+  } else h += '<div class="card empty">' + art('my-car') + '<b>주차한 뒤 기둥을 찍어 두세요</b>층·구역 글자를 읽어 여기 크게 보여 줘요</div><button class="btn pri big wide" style="margin-top:12px" data-act="photo" data-v="parking">' + ic('camera') + '주차 위치 사진 찍기</button>';
   if (pb) h += '<div class="sec"><div class="sec-h"><h3>주차 예약</h3></div>' + passCard(t, pb, bookingWarnings(t)[pb.id]) + '<div class="card" style="margin-top:10px"><div class="facts">' +
     [['주차장', pb.place || pb.title], ['입차', (pb.date || '') + ' ' + (pb.time || '') + (Number(pb.grace) ? ' (' + parkWindow(pb).inFrom + '~' + parkWindow(pb).inTo + ' 가능)' : '')], ['출차', (pb.end || '') + (Number(pb.grace) ? ' (' + parkWindow(pb).outFrom + '~' + parkWindow(pb).outTo + ' 가능)' : '')], ['차량번호', pb.car], ['예약번호', pb.code], ['보증금', pb.deposit ? comma(pb.deposit) + '원' : ''], ['전화', pb.phone]]
       .filter(x => x[1]).map(x => '<div><span>' + x[0] + '</span><b>' + esc(x[1]) + '</b></div>').join('') + '</div></div></div>';
@@ -943,7 +944,7 @@ function bookTab(t) {
   const SECS = [['sos', '🆘', '비상 연락'], ['docs', '🛂', '여권·서류'], ['wx', '🌤️', '날씨와 옷차림'], ['talk', '🗣️', '꼭 쓰는 말'], ['caution', '⚠️', '현지 주의할 점'], ['culture', '🎌', '알아 둘 문화'], ['money', '💱', '돈·환율'], ['basic', '🔌', '기본 정보'], ['spots', '⭐', '가 볼 곳 미리 공부'], ['tips', '💡', '여행 팁']];
   const readN = SECS.filter(([k]) => bookRead(t, k)).length;
   const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3>' + e + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
-  let h = '<div class="card book-cover"><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
+  let h = '<div class="card book-cover"><img class="bk-art" src="img/notebook.webp" alt=""><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
     '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
   // 비상
   const hb = live('bookings', t.id).find(b => b.kind === '숙소');
@@ -1309,6 +1310,8 @@ function guessCat(s) {
   return /항공|air|jr|역|철도|버스|택시|난카이|지하철|교통|metro|駅|電鉄|タクシー/i.test(s) ? '이동' : /호텔|숙소|hotel|inn/i.test(s) ? '숙소' : /ローソン|セブン|ファミリーマート|ファミマ|로손|세븐일레븐|패밀리마트|편의점/i.test(s) ? '간식' : /마트|돈키|ドン・キホーテ|쇼핑|드럭|ドラッグ|store|mart/i.test(s) ? '쇼핑' :
     /카페|coffee|커피|아이스|디저트|빵|베이커리/i.test(s) ? '간식' : /입장|티켓|ticket|usj|박물관|전망/i.test(s) ? '관광' : '식사';
 }
+const art = (n, alt) => '<img class="art-img" src="img/' + n + '.webp" alt="' + esc(alt || '') + '">';
+const stampHtml = (txt, cls) => '<span class="stampx ' + (cls || '') + '"><img src="img/stamp-done.webp" alt=""><b>' + esc(txt || '다녀옴') + '</b></span>';
 const curTrip = () => { const r = route(); return r.view === 'trip' ? D.trips[r.trip] : null; };
 
 /* 빠른 추가 (＋) */
@@ -1545,6 +1548,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '2.6', d: '2026-11-25', title: '「다녀옴」 도장을 찍어요', items: [
+    ['check', 'var(--warn)', '다녀옴 도장', '하루 일정을 모두 체크하면 그날에 여권 도장이 쾅! 지난 여행에도 도장이 찍혀요.'],
+    ['car', 'var(--c-주차)', '새 그림', '내 차·여행 수첩·일기·사진·영수증 그림을 더했어요.']] },
   { v: '2.5', d: '2026-11-25', title: '오사카 표지가 생겼어요', items: [
     ['sun', 'var(--sun)', '시간 따라 바뀌는 표지', '아침·저녁은 노을빛, 낮은 파란 하늘, 밤은 별빛 오사카 그림이 표지에 떠요.'],
     ['prep', 'var(--mint)', '준비물 그림', '여권·지갑·충전기·스웨터·운동화·약·우산 같은 그림으로 준비물을 한눈에 봐요.']] },
