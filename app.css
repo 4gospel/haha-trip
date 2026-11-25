@@ -671,3 +671,19 @@ h3.ih .ib.sm svg{width:17px;height:17px}
 .lt-photos img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:2px}
 .lt-photos small{display:block;font-family:'Gaegu',var(--font,inherit);font-size:14px;color:#55483f;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:360px){.pc-strip img{width:44px;height:44px}.lt-photos{gap:7px}}
+
+/* 좁은 화면(폴드 접은 화면): 줄 칸이 화면 밖으로 밀리지 않게 */
+.stack>*,.sheet-card>*,.sheet-card .stack>*{min-width:0}
+.trip-row{max-width:100%}
+.trip-row .tt>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-row .stampx.mini,.trip-row .pill{flex:none}
+
+/* 여권 카드: 좁은 화면에서 날짜·이름표가 겹치지 않게 */
+.pp-row{column-gap:12px}
+.pp-row>div{min-width:0}
+.pp-row .pp-v{white-space:normal;font-size:clamp(13px,3.7vw,15px);line-height:1.25;letter-spacing:.01em}
+.pp-f small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-foot .btn{flex:none}
+@media (max-width:400px){.pp-foot{gap:6px}.pp-foot .btn{padding-left:12px;padding-right:12px}}
+
+.trip-row .th img.cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}

@@ -562,8 +562,8 @@ function heroCard(t, mode) {
     (mini ? '' : '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div>') + '</div></' + tag.split(' ')[0] + '>';
 }
 function tripRow(t) {
-  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + kindOf(t) + '">' + ({ out: '해외', in: '국내', cp: '부부' })[kindOf(t)] + '</i>' +
-    esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + esc(t.place || '') + '</span></span>' + (t.end < today() ? stampHtml('다녀옴', 'mini') : '<span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span>') + '</button>';
+  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + coverImg(t) + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + kindOf(t) + '">' + ({ out: '해외', in: '국내', cp: '부부' })[kindOf(t)] + '</i>' +
+    esc(md(t.start)) + (t.end !== t.start ? ' – ' + esc(md(t.end)) : '') + ' · ' + esc(t.place || '') + '</span></span>' + (t.end < today() ? stampHtml('다녀옴', 'mini') : '<span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span>') + '</button>';
 }
 function placeRow(p) {
   const t = D.trips[p.trip];
@@ -1131,8 +1131,8 @@ function passportPage(t) {
       '<div><small>성 / Surname</small><b class="pp-v">' + esc(p.surname || '—') + '</b></div>' +
       '<div><small>이름 / Given names</small><b class="pp-v">' + esc(p.given || '—') + '</b></div>' +
       '<div><small>한글 성명</small><b class="pp-v">' + esc(p.nameKo || n) + '</b></div>' +
-      '<div class="pp-row"><div><small>생년월일 / Date of birth</small><b class="pp-v">' + esc(open ? ppDate(p.birth) : (p.birth ? '•• ••/••• ' + p.birth.slice(0, 4) : '—')) + '</b></div><div><small>성별 / Sex</small><b class="pp-v">' + esc(p.sex || '—') + '</b></div></div>' +
-      '<div class="pp-row"><div><small>발급일 / Date of issue</small><b class="pp-v">' + esc(ppDate(p.issue) || '—') + '</b></div><div><small>기간만료일 / Date of expiry</small><b class="pp-v pp-exp ' + st + '">' + esc(ppDate(p.expiry) || '—') + '</b></div></div>' +
+      '<div class="pp-row"><div><small>생년월일 / Birth</small><b class="pp-v">' + esc(open ? ppDate(p.birth) : (p.birth ? '•• ••/••• ' + p.birth.slice(0, 4) : '—')) + '</b></div><div><small>성별 / Sex</small><b class="pp-v">' + esc(p.sex || '—') + '</b></div></div>' +
+      '<div class="pp-row"><div><small>발급일 / Issue</small><b class="pp-v">' + esc(ppDate(p.issue) || '—') + '</b></div><div><small>만료일 / Expiry</small><b class="pp-v pp-exp ' + st + '">' + esc(ppDate(p.expiry) || '—') + '</b></div></div>' +
       '</div></div><div class="pp-mrz mono">' + esc(mrz1) + '<br>' + esc((open ? (p.number || '') : mask(p.number)).padEnd(9, '<') + '<KOR' + '<'.repeat(31)) + '</div>' +
       '<div class="pp-foot"><span class="pill ' + (st === 'ok' ? '' : 'hot') + '">' + (left == null ? '만료일을 넣어 주세요' : st === 'bad' ? '⚠️ 여행 전에 만료돼요' : st === 'warn' ? '⚠️ 여행 뒤 6개월 안에 만료' : '✓ 만료까지 ' + leftText(today(), p.expiry)) + '</span>' +
       '<span class="flex">' + (safeUrl(p.photoUrl) ? '<a class="btn" href="' + esc(p.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '사진</a>' : '') + '<button class="btn" data-act="pass-edit2" data-v="' + esc(p.id) + '">' + ic('pen') + '고치기</button></span></div></div>';
@@ -1351,8 +1351,11 @@ function editTrip(t) {
 
 /* ---------- 사진으로 넣기 ---------- */
 function pickPhoto(kind, onPicked) {
-  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
-  inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) (onPicked || (x => readFlow(kind, x)))(f); };
+  // image/* 만 쓰면 안드로이드가 구글 포토 고르기 창만 띄움 → PDF를 함께 적어 갤러리·카메라·내 파일까지 고르는 창이 뜨게
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*,application/pdf';
+  inp.onchange = () => { const f = inp.files && inp.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type || '') && !/\.(jpe?g|png|webp|heic|heif|gif)$/i.test(f.name || '')) return toast('사진 파일(JPG·PNG)을 골라 주세요. PDF는 아직 못 읽어요.');
+    (onPicked || (x => readFlow(kind, x)))(f); };
   inp.click();
 }
 async function shrink(file, max, q) {
@@ -1644,6 +1647,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.5', d: '2026-11-25', title: '접은 폴드에서도 반듯하게', items: [
+    ['phone', 'var(--sky)', '좁은 화면 점검', '여행 고르기의 도장, 여권 카드의 날짜가 접은 폴드 화면에서도 잘리거나 겹치지 않아요. 모든 화면을 344px 폭으로 점검했어요.'],
+    ['camera', 'var(--coral)', '갤러리에서 고르기', '여권·영수증 사진을 넣을 때 구글 포토만이 아니라 갤러리·카메라·내 파일에서도 고를 수 있어요.']] },
   { v: '3.4', d: '2026-11-25', title: '읽는 법이 늘 보여요', items: [
     ['book', 'var(--sky)', '꼭 쓰는 말', '일본어 아래에 한글로 읽는 법이 늘 보여요. 카드를 누르면 뜻이 나와요.'],
     ['sync', 'var(--mint)', '늘 새 화면으로', '새 판이 올라오면 휴대폰이 옛 화면을 지우고 저절로 새로 열어요. 날씨·옷차림 그림도 새 그림으로 보여요.']] },
