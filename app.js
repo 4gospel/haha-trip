@@ -500,9 +500,15 @@ function route() {
   if (p[0] === 'trip' && p[1]) return { view: 'trip', trip: decodeURIComponent(p[1]), tab: p[2] || 'today' };
   return { view: 'home' };
 }
-const go = h => { if (location.hash !== h) location.hash = h; else render(); };
+let GO_LATER = null, SHEET_H = false, POP_SKIP = false;
+const go = h => { if (POP_SKIP) { GO_LATER = h; return; } if (location.hash !== h) location.hash = h; else render(); }; // 창을 닫는 뒤로가기가 끝난 뒤에 옮김
 const tripUrl = (id, tab) => '#/trip/' + encodeURIComponent(id) + '/' + (tab || 'today');
-window.addEventListener('hashchange', () => { closeSheet(); render(); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', () => { closeSheet(true); render(); window.scrollTo(0, 0); });
+window.addEventListener('popstate', () => {
+  if (POP_SKIP) { POP_SKIP = false; if (GO_LATER) { const g = GO_LATER; GO_LATER = null; go(g); return; } if (!$('#sheet').hidden && !SHEET_H) { history.pushState({ sheet: 1 }, ''); SHEET_H = true; } return; }
+  if (SHEET_H || !$('#sheet').hidden) { SHEET_H = false; closeSheet(true); return; }
+  const w = $('.tmap-wrap.full'); if (w) { w.classList.remove('full'); document.body.classList.remove('map-open'); setTimeout(() => MAP && MAP.invalidateSize(), 80); }
+});
 
 /* ---------- 그리기 ---------- */
 function render() {
@@ -809,12 +815,12 @@ function todayTab(t) {
   // 추억
   const memN = live('notes', t.id).length + live('places', t.id).length + planPlaces(t.id).length;
   h += '<div class="sec"><button class="alert" style="--cc:var(--pink)" data-act="tab" data-v="memory">' + ib('memory', 'var(--pink)') + '<span><b>추억 ' + memN + '</b><span>여행 일기 · 가 본 곳 별점 · 사진</span></span></button></div>';
-  // 기록
-  h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('doc', 'var(--lav)', 1) + '기록</h3></div><div class="card"><div class="menu-list">' +
-    (safeUrl(t.docUrl) ? '<a href="' + esc(t.docUrl) + '" target="_blank" rel="noopener">' + ib('doc', 'var(--sky)', 1) + '<span>구글 드라이브 여행 기록<small>고칠 때마다 저절로 정리돼요' + (t.docAt ? ' · ' + new Date(t.docAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') + '</small></span></a>'
-      : '<button data-act="export-doc" data-v="' + esc(t.id) + '">' + ib('doc', 'var(--sky)', 1) + '<span>구글 드라이브 여행 기록<small>고칠 때마다 저절로 정리돼요 · 지금 만들기</small></span></button>') +
-    '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>사진·원본 폴더<small>4gospel 드라이브 「하하가족여행」</small></span></button>' +
-    '<button data-act="export-notion" data-v="' + esc(t.id) + '">' + ib('notion', 'var(--ink)', 1) + '<span>노션 「하하가족여행」으로 보내기<small>' + (t.notionAt ? '마지막 ' + new Date(t.notionAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '설정에서 노션을 이으면 써요') + '</small></span></button></div></div></div>';
+  // 기록 — 늘 보이는 곳이라 작은 단추 한 줄로
+  h += '<div class="sec rec-line"><span class="rec-h">' + ic('doc') + '기록</span>' +
+    (safeUrl(t.docUrl) ? '<a class="rec-chip" href="' + esc(t.docUrl) + '" target="_blank" rel="noopener" title="고칠 때마다 저절로 정리돼요' + (t.docAt ? ' · ' + new Date(t.docAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '') + '">' + ic('doc') + '드라이브 기록</a>'
+      : '<button class="rec-chip" data-act="export-doc" data-v="' + esc(t.id) + '">' + ic('doc') + '드라이브 기록 만들기</button>') +
+    '<button class="rec-chip" data-act="drive-open" title="4gospel 드라이브 「하하가족여행」">' + ic('folder') + '사진 폴더</button>' +
+    '<button class="rec-chip" data-act="export-notion" data-v="' + esc(t.id) + '" title="' + (t.notionAt ? '마지막 ' + new Date(t.notionAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '설정에서 노션을 이으면 써요') + '">' + ic('notion') + '노션</button></div>';
   return h;
 }
 
@@ -934,6 +940,173 @@ async function trPhoto(t, mode) {
       S.photo = { res, thumb, mode }; render();
     } catch (e) { S.photo = null; render(); toast(e.code === 'offline' ? '인터넷이 끊겨 사진을 옮기지 못했어요' : '사진을 옮기지 못했어요: ' + e.message); }
   });
+}
+
+/* ---------- 사진으로 여행 정리 — 사진·영수증·일정표를 올리면 날짜·곳·일정·경비·이야기로 (AI 열쇠가 있으면 AI가, 없으면 날짜·위치로) ---------- */
+async function exifOf(file) {
+  try {
+    const buf = await file.slice(0, 256 * 1024).arrayBuffer(), v = new DataView(buf);
+    if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return {};
+    let o = 2;
+    while (o + 10 < v.byteLength) {
+      const m = v.getUint16(o), len = v.getUint16(o + 2);
+      if (m === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) return tiffOf(v, o + 10);
+      if ((m & 0xFF00) !== 0xFF00 || m === 0xFFDA) break;
+      o += 2 + len;
+    }
+  } catch (e) { /* 못 읽으면 빈 값 */ }
+  return {};
+}
+function tiffOf(v, t) {
+  const le = v.getUint16(t) === 0x4949, u16 = o => v.getUint16(o, le), u32 = o => v.getUint32(o, le);
+  const ifd = o => { const r = {}; if (o + 2 > v.byteLength) return r; const n = u16(o); for (let k = 0; k < n && o + 14 + k * 12 <= v.byteLength; k++) { const e = o + 2 + k * 12; r[u16(e)] = { cnt: u32(e + 4), at: e + 8 }; } return r; };
+  const str = en => { const off = en.cnt > 4 ? t + u32(en.at) : en.at; let x = ''; for (let k = 0; k < en.cnt - 1 && off + k < v.byteLength; k++) x += String.fromCharCode(v.getUint8(off + k)); return x; };
+  const rat = (en, k) => { const off = t + u32(en.at) + k * 8; const d = u32(off + 4); return d ? u32(off) / d : 0; };
+  const out = {}, i0 = ifd(t + u32(t + 4));
+  let dt = i0[0x0132] ? str(i0[0x0132]) : '';
+  if (i0[0x8769]) { const ex = ifd(t + u32(i0[0x8769].at)); if (ex[0x9003]) dt = str(ex[0x9003]); }
+  const m = dt.match(/(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/);
+  if (m && m[1] > '1990') { out.date = m[1] + '-' + m[2] + '-' + m[3]; out.time = m[4] + ':' + m[5]; }
+  if (i0[0x8825]) {
+    const g = ifd(t + u32(i0[0x8825].at));
+    if (g[2] && g[4]) {
+      const dms = en => rat(en, 0) + rat(en, 1) / 60 + rat(en, 2) / 3600;
+      let la = dms(g[2]), lo = dms(g[4]);
+      if (g[1] && String.fromCharCode(v.getUint8(g[1].at)) === 'S') la = -la;
+      if (g[3] && String.fromCharCode(v.getUint8(g[3].at)) === 'W') lo = -lo;
+      if (la || lo) { out.lat = +la.toFixed(5); out.lng = +lo.toFixed(5); }
+    }
+  }
+  return out;
+}
+const SEASON = m => ['겨울', '겨울', '봄', '봄', '봄', '여름', '여름', '여름', '가을', '가을', '가을', '겨울'][m - 1];
+const RATE_GUESS = { KRW: 100, JPY: 900, TWD: 4400, USD: 140000, EUR: 155000, GBP: 180000, CHF: 160000, CZK: 6200, VND: 5.5, THB: 4000, CNY: 19500, HKD: 18000, SGD: 105000, PHP: 2400, AUD: 92000 };
+function pickMany(onPicked) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = 'image/*,application/pdf';
+  inp.onchange = () => { const fs = [...(inp.files || [])].filter(f => /^image\//.test(f.type || '') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name || '')); if (fs.length) onPicked(fs); else toast('사진 파일을 골라 주세요'); };
+  inp.click();
+}
+let SCAN = null;
+async function scanFlow(t) {
+  const st = await call('aiState').catch(() => ({ on: '' }));
+  openSheet('<h2>' + (t ? '사진으로 이 여행 채우기' : '다녀온 여행 사진으로 정리') + '</h2>' +
+    '<p class="muted">여행 사진·영수증·티켓·일정표 캡처를 한꺼번에 골라 주세요(60장까지). ' + (st.on ? (st.on === 'claude' ? '클로드' : '제미나이') + ' AI가 한 장씩 보고 날짜·곳·일정·경비·이야기를 정리해요.' : '사진에 담긴 날짜와 위치로 일정을 묶어요. 설정 → AI 도우미에서 열쇠를 넣으면 영수증·일정표까지 읽고 이야기도 써 줘요.') + ' 저장하기 전에 모두 확인할 수 있어요.</p>' +
+    '<label class="fl"><span>한 줄 귀띔 (안 써도 돼요)</span><input class="in" id="scanhint" placeholder="예: 하은이 졸업 기념 제주 여행, 렌터카로 다님"></label>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="scango">' + ic('camera') + '사진 고르기</button></div>', el => {
+    el.querySelector('#scango').onclick = () => { const hint = el.querySelector('#scanhint').value.trim(); pickMany(fs => scanRun(t, fs.slice(0, 60), hint, st.on)); };
+  });
+}
+async function scanRun(t, files, hint, ai) {
+  const say = m => { const e = $('#scanmsg'); if (e) e.textContent = m; };
+  openSheet('<h2>정리하는 중</h2><div class="scan-wait"><div class="spin"></div><p id="scanmsg">사진 ' + files.length + '장을 읽는 중…</p></div><p class="muted small">사진이 많으면 1~2분 걸려요. 이 창을 닫지 말아 주세요.</p>');
+  try {
+    const imgs = [];
+    for (let k = 0; k < files.length; k++) {
+      say('사진 읽는 중 ' + (k + 1) + '/' + files.length);
+      const f = files[k], ex = await exifOf(f);
+      if (!ex.date && f.lastModified) { const d = new Date(f.lastModified); ex.date = ymd(d); ex.time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); ex.guess = 1; }
+      const thumb = await shrink(f, 480, .72), ai1 = ai ? await shrink(f, 1024, .72) : '';
+      imgs.push(Object.assign({ i: k, file: f, thumb, b64: ai1 ? ai1.split(',')[1] : '' }, ex));
+    }
+    const res = [];
+    const step = ai ? 6 : 30;
+    for (let k = 0; k < imgs.length; k += step) {
+      say((ai ? 'AI가 사진을 살펴보는 중 ' : '찍은 곳 찾는 중 ') + Math.min(k + step, imgs.length) + '/' + imgs.length);
+      const part = imgs.slice(k, k + step).map(m => ({ i: m.i, b64: m.b64, mime: 'image/jpeg', date: m.date || '', time: m.time || '', lat: m.lat, lng: m.lng }));
+      const r = await call('tripScan', part, { hint });
+      (r.images || []).forEach(x => res.push(x));
+    }
+    imgs.forEach(m => { if (!res.some(x => x.i === m.i)) res.push({ i: m.i, kind: 'photo', date: m.date || '', time: m.time || '', score: 2, caption: '' }); });
+    res.forEach(x => { const m = imgs[x.i]; if (m) { if (!x.date && m.date) x.date = m.date; if (!x.time && m.time) x.time = m.time; } });
+    const members = t ? t.members : D.meta.family.map(f => f.name);
+    let draft = null;
+    if (ai) {
+      say('여행 기록을 정리하는 중…');
+      try { draft = await call('tripCompose', { images: res.map(x => Object.assign({}, x)), members, hint, trip: t ? { title: t.title, start: t.start, end: t.end, place: t.place } : null }); }
+      catch (e) { toast('AI 정리가 안 돼서 날짜·곳으로 묶었어요: ' + e.message); }
+    }
+    if (!draft || !draft.items) draft = localCompose(res, t);
+    if (t) Object.assign(draft, { title: t.title, place: t.place, start: t.start, end: t.end, country: t.country, cur: t.cur });
+    SCAN = { t, imgs, res, draft, members: members.slice(), pick: new Set((draft.photos || []).map(p => p.i).filter(i => imgs[i])), hint };
+    if (!SCAN.pick.size) res.filter(x => x.kind === 'photo').sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, 3).forEach(x => SCAN.pick.add(x.i));
+    scanReview();
+  } catch (e) { closeSheet(); toast(e.code === 'offline' ? '인터넷이 끊겨 정리하지 못했어요' : '정리하지 못했어요: ' + e.message); }
+}
+function localCompose(res, t) {
+  const ph = res.filter(x => x.date).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const cnt = a => { const c = {}; a.filter(Boolean).forEach(x => c[x] = (c[x] || 0) + 1); return Object.keys(c).sort((x, y) => c[y] - c[x]); };
+  const cc = cnt(ph.map(x => x.country))[0] || 'KR', short = r => String(r || '').replace(/특별자치도|특별자치시|특별시|광역시|도$/, '');
+  const cities = cnt(ph.map(x => cc === 'KR' && x.region ? short(x.region) : x.city));
+  const items = [], groups = [];
+  ph.forEach(x => { const key = x.date + '|' + (x.place || x.area || x.city || ''); const g = groups[groups.length - 1]; if (g && g.key === key) g.n.push(x); else groups.push({ key, n: [x] }); });
+  groups.forEach(g => { const x = g.n[0], where = [x.city, x.area].filter(Boolean).join(' '); items.push({ date: x.date, time: x.time || '', title: x.place || (where ? where + ' 둘러보기' : '사진 ' + g.n.length + '장'), cat: x.kind === 'receipt' ? '식사' : '관광', place: x.place ? x.place + (x.city ? ' ' + x.city : '') : where, memo: '사진 ' + g.n.length + '장' }); });
+  const start = ph.length ? ph[0].date : ymd(new Date()), end = ph.length ? ph[ph.length - 1].date : start, mo = +start.slice(5, 7);
+  const c = COUNTRY[cc] || {}, place = (cc !== 'KR' && c.n ? c.n + ' ' : '') + cities.slice(0, 2).join(' · ');
+  const days = [...new Set(ph.map(x => x.date))], best = [];
+  days.forEach(d => { const top = res.filter(x => x.date === d && x.kind === 'photo').sort((a, b) => (b.score || 0) - (a.score || 0))[0]; if (top && best.length < 3) best.push({ i: top.i, caption: top.caption || top.place || top.city || '' }); });
+  return {
+    via: 'local', title: start.slice(0, 4) + ' ' + SEASON(mo) + ' ' + (cities[0] || c.n || '') + ' 가족여행', place: place || c.n || '', country: cc, cur: c.cur || 'KRW', start, end, story: '',
+    items, spends: res.filter(x => x.kind === 'receipt' && x.receipt && x.receipt.total).map(x => ({ date: x.receipt.date || x.date, title: x.receipt.merchant || '영수증', amount: x.receipt.total, cur: x.receipt.cur || c.cur || 'KRW', cat: x.receipt.cat || '기타' })),
+    bookings: [], places: [...new Set(ph.map(x => x.place).filter(Boolean))].map(n => ({ name: n, cat: '명소', memo: '' })), photos: best
+  };
+}
+function scanReview() {
+  const S = SCAN, d = S.draft, chk = (k, i, on) => '<input type="checkbox" class="scan-ck" data-k="' + k + '" data-i="' + i + '"' + (on === false ? '' : ' checked') + '>';
+  S.on = S.on || {};
+  const fam = D.meta.family.map(f => f.name);
+  const list = (k, arr, row) => arr.length ? '<div class="scan-sec"><b>' + { items: '일정', places: '가 본 곳', spends: '경비', bookings: '예약·티켓' }[k] + ' <span class="muted">' + arr.length + '</span></b>' + arr.map((x, i) => '<label class="scan-row">' + chk(k, i) + '<span>' + row(x) + '</span></label>').join('') + '</div>' : '';
+  const via = { claude: '클로드 AI가 정리했어요', gemini: '제미나이 AI가 정리했어요', local: 'AI 없이 사진 날짜·위치로 묶었어요 (설정 → AI 도우미에서 열쇠를 넣으면 영수증·일정표도 읽어요)' }[d.via] || '';
+  openSheet('<h2>' + (S.t ? '이 여행에 더할 것' : '이렇게 정리했어요') + '</h2><p class="muted small">' + esc(via) + ' · 고칠 곳은 고치고, 빼고 싶은 건 체크를 풀어 주세요.</p>' +
+    '<div class="scan-ph">' + S.imgs.map(m => '<button class="' + (S.pick.has(m.i) ? 'on' : '') + '" data-pi="' + m.i + '" title="' + esc(((S.res.find(x => x.i === m.i) || {}).caption) || '') + '"><img src="' + m.thumb + '" alt=""></button>').join('') + '</div><div class="muted small">대표 사진 ' + S.pick.size + '장 — 눌러서 고르거나 풀어요 (4장까지)</div>' +
+    (S.t ? '' : '<label class="fl"><span>여행 이름</span><input class="in" id="sc-title" value="' + esc(d.title || '') + '"></label><label class="fl"><span>어디</span><input class="in" id="sc-place" value="' + esc(d.place || '') + '"></label>' +
+      '<div class="grid2"><label class="fl"><span>시작</span><input class="in" type="date" id="sc-start" value="' + esc(d.start || '') + '"></label><label class="fl"><span>끝</span><input class="in" type="date" id="sc-end" value="' + esc(d.end || '') + '"></label></div>' +
+      '<div class="fl"><span>함께 간 사람</span><div class="chips">' + fam.map(n => '<label class="chipbtn scan-mem ' + (S.members.includes(n) ? 'on' : '') + '"><input type="checkbox" hidden data-mem="' + esc(n) + '"' + (S.members.includes(n) ? ' checked' : '') + '>' + esc(n) + '</label>').join('') + '</div></div>') +
+    '<label class="fl"><span>그때 이야기</span><textarea class="in" id="sc-story" rows="3" placeholder="가족이 나중에 읽을 짧은 이야기">' + esc(d.story || '') + '</textarea></label>' +
+    list('items', d.items || [], x => '<b class="num">' + esc(x.date ? md(x.date) : '') + (x.time ? ' ' + esc(x.time) : '') + '</b> ' + esc(x.title) + (x.place ? ' <small class="muted">' + esc(x.place) + '</small>' : '')) +
+    list('places', d.places || [], x => esc(x.name) + ' <small class="muted">' + esc(x.cat || '') + (x.memo ? ' · ' + esc(x.memo) : '') + '</small>') +
+    list('spends', d.spends || [], x => esc(x.title) + ' <b class="num">' + comma(x.amount || 0) + ' ' + esc(x.cur || '') + '</b> <small class="muted">' + esc(x.date ? md(x.date) : '') + '</small>') +
+    list('bookings', d.bookings || [], x => esc(x.title) + ' <small class="muted">' + esc(x.kind || '') + (x.date ? ' · ' + esc(md(x.date)) : '') + '</small>') +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">그만두기</button><button class="btn pri" id="sc-save">' + ic('check') + '저장</button></div>', el => {
+    el.querySelectorAll('[data-pi]').forEach(b => b.onclick = () => { const i = +b.dataset.pi; if (S.pick.has(i)) S.pick.delete(i); else { if (S.pick.size >= 4) return toast('대표 사진은 4장까지예요'); S.pick.add(i); } b.classList.toggle('on', S.pick.has(i)); el.querySelector('.scan-ph + .muted').textContent = '대표 사진 ' + S.pick.size + '장 — 눌러서 고르거나 풀어요 (4장까지)'; });
+    el.querySelectorAll('.scan-mem input').forEach(c => c.onchange = () => c.parentElement.classList.toggle('on', c.checked));
+    el.querySelector('#sc-save').onclick = () => scanSave(el);
+  });
+}
+async function coverOf(thumbUrl) {
+  const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = thumbUrl; });
+  const W = 640, H = 360, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const k = Math.max(W / img.naturalWidth, H / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+  cv.getContext('2d').drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  return cv.toDataURL('image/webp', .6);
+}
+async function scanSave(el) {
+  const S = SCAN, d = S.draft, keep = k => (d[k] || []).filter((x, i) => { const c = el.querySelector('.scan-ck[data-k="' + k + '"][data-i="' + i + '"]'); return !c || c.checked; });
+  let t = S.t;
+  const story = el.querySelector('#sc-story').value.trim();
+  if (!t) {
+    const members = [...el.querySelectorAll('[data-mem]')].filter(c => c.checked).map(c => c.dataset.mem);
+    const start = el.querySelector('#sc-start').value, end = el.querySelector('#sc-end').value || start, title = el.querySelector('#sc-title').value.trim();
+    if (!title) return toast('여행 이름을 적어 주세요');
+    if (!start || end < start) return toast('날짜를 확인해 주세요');
+    if (members.length < 1) return toast('함께 간 사람을 골라 주세요');
+    const cc = COUNTRY[d.country] ? d.country : (d.country || 'KR'), cur = d.cur || (COUNTRY[cc] || {}).cur || 'KRW';
+    const best = [...S.pick][0] != null ? S.imgs[[...S.pick][0]] : null;
+    t = put('trips', { id: uid('t'), title, place: el.querySelector('#sc-place').value.trim(), start, end, members, country: cc, cur, rate: (LS.get('fx.' + cur, {}) || {}).rate || RATE_GUESS[cur] || 100,
+      kind: members.length === 2 && members.every(m => COUPLE.includes(m)) ? 'couple' : '', story, memo: '사진 ' + S.imgs.length + '장으로 정리 (' + ({ claude: '클로드', gemini: '제미나이', local: '날짜·위치' }[d.via] || '') + ')', cover: best ? await coverOf(best.thumb) : '' }, true);
+  } else if (story && !t.story) put('trips', Object.assign({}, t, { story }), true);
+  const past = t.end < today();
+  keep('items').forEach(x => put('items', { id: uid('i'), trip: t.id, date: x.date || t.start, time: x.time || '', title: x.title, cat: CATS.includes(x.cat) ? x.cat : '관광', place: x.place || '', memo: x.memo || '', cost: 0, done: past || (x.date || '') <= today() }, true));
+  keep('places').forEach(x => put('places', { id: uid('p'), trip: t.id, name: x.name, cat: PCATS.includes(x.cat) ? x.cat : '명소', memo: x.memo || '', rating: 0, map: x.name }, true));
+  keep('spends').forEach(x => put('spends', { id: uid('s'), trip: t.id, date: x.date || t.start, title: x.title, amount: +x.amount || 0, cur: x.cur || t.cur || 'KRW', cat: CATS.includes(x.cat) ? x.cat : guessCat(x.title || ''), payer: '', pay: '', share: '함께' }, true));
+  keep('bookings').forEach(x => put('bookings', { id: uid('b'), trip: t.id, kind: x.kind || '기타', title: x.title, date: x.date || '', time: x.time || '', provider: x.provider || '', code: x.code || '', price: +x.price || 0, cur: x.cur || t.cur || 'KRW', place: x.place || '' }, true));
+  const caps = {}; (d.photos || []).forEach(p => caps[p.i] = p.caption);
+  for (const i of S.pick) {
+    const m = S.imgs[i], r = S.res.find(x => x.i === i) || {}, cap = caps[i] || r.caption || r.place || '여행 사진';
+    const note = put('notes', { id: uid('n'), trip: t.id, date: r.date || m.date || t.start, text: '📷 ' + cap, owner: '', mood: '', thumb: m.thumb }, true);
+    shrink(m.file, 1600, .82).then(full => call('photo', full.split(',')[1], 'image/jpeg', t.title + ' ' + cap, '사진')).then(u => { const cur = D.notes[note.id]; if (cur && u && u.url) put('notes', Object.assign({}, cur, { photoUrl: u.url }), true); }).catch(() => {});
+  }
+  SCAN = null; closeSheet(); toast(S.t ? '이 여행에 더했어요' : '여행을 만들었어요');
+  if (S.t) render(); else go(tripUrl(t.id));
 }
 
 /* 일정 하나 보기 — 누르면 고치기 대신 정보·지도·길찾기 */
@@ -1162,6 +1335,7 @@ function memoryTab(t) {
       : '<div class="card empty">' + art('empty-diary') + '<b>' + (shared || mine ? '오늘 어땠나요?' : '아직 쓴 일기가 없어요') + '</b>' + (shared || mine ? '한 줄이라도 남기면 나중에 가족 여행 책이 돼요.' : '') + '</div>';
   } else if (k === 'place') {
     const all = visitedOf(t.id), c = pcatOk(all, UI.pcatT || '전체'), list = all.filter(e => c === '전체' || e.cat === c);
+    h += '<button class="scan-add" data-act="trip-scan-add">' + ic('camera') + '사진·영수증으로 이 여행 채우기</button>';
     if (all.length) h += mapHtml(t.id);
     h += '<div class="sec-h"><h3>가 본 곳</h3><button class="linkbtn" data-act="place-new">＋ 평가하기</button></div>';
     if (!all.length) h += '<div class="card empty">' + art('notebook') + '<b>가 본 곳을 평가해요</b>일정에서 「다녀옴」을 누른 곳도 여기에 저절로 모여요.</div>';
@@ -1431,12 +1605,16 @@ function passFlow(member) {
 
 /* ---------- 아래 창 ---------- */
 let SHEET = null;
+/* 창(시트)을 열면 기록 한 칸 — 휴대폰 뒤로가기·쓸어넘기기는 창만 닫고 그 화면에 머묾 */
 function openSheet(html, onMount) {
+  if (!SHEET_H && !POP_SKIP) { history.pushState({ sheet: 1 }, ''); SHEET_H = true; }
   $('#sheet-body').innerHTML = html; $('#sheet').hidden = false;
   document.body.style.overflow = 'hidden'; document.body.classList.add('sheet-open');
   if (onMount) onMount($('#sheet-body'));
 }
-function closeSheet() { $('#sheet').hidden = true; $('#sheet-body').innerHTML = ''; SHEET = null; document.body.style.overflow = ''; document.body.classList.remove('sheet-open'); }
+function closeSheet(fromNav) {
+  if (SHEET_H) { SHEET_H = false; if (!fromNav) { POP_SKIP = true; history.back(); } }
+  $('#sheet').hidden = true; $('#sheet-body').innerHTML = ''; SHEET = null; document.body.style.overflow = ''; document.body.classList.remove('sheet-open'); }
 
 /** 칸 목록으로 고치기 창 (read = 사진에서 읽은 칸) */
 function form(title, fields, rec, onSave, onDelete, opts) {
@@ -1729,7 +1907,10 @@ document.addEventListener('click', e => {
     geo: () => { if (!navigator.geolocation) return toast('이 기기에서는 위치를 못 써요'); el.textContent = '위치 찾는 중…'; navigator.geolocation.getCurrentPosition(p => { SHEET.geo = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) }; el.textContent = '✓ 위치 저장됨'; }, () => { el.textContent = '위치를 못 찾았어요 (사진·글자로 충분해요)'; }, { enableHighAccuracy: true, timeout: 12000 }); },
     'sheet-close': () => closeSheet(),
     'sheet-del': () => { if (!SHEET || !SHEET.onDelete) return; if (!SHEET.armed) { SHEET.armed = true; el.lastChild.textContent = '한 번 더 누르면 지워요'; return; } SHEET.onDelete(); },
-    'trip-new': () => editTrip(null),
+    'trip-new': () => openSheet('<h2>새 여행</h2><div class="newpick"><button data-act="trip-plan">' + ib('plan', 'var(--sky)') + '<span><b>여행 계획 세우기</b><small>갈 곳·날짜를 정하고 일정을 짜요</small></span></button><button data-act="trip-scan">' + ib('camera', 'var(--coral)') + '<span><b>다녀온 여행, 사진으로 정리</b><small>사진·영수증·일정표를 올리면 날짜·곳·일정·경비·이야기로 정리해요</small></span></button></div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'),
+    'trip-plan': () => editTrip(null),
+    'trip-scan': () => scanFlow(null),
+    'trip-scan-add': () => scanFlow(t),
     'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
     'item-view': () => itemView(t, D.items[v]),
     'tr-open': () => { closeSheet(); go(tripUrl(t.id, 'talk')); },
@@ -1777,7 +1958,7 @@ document.addEventListener('click', e => {
       openSheet('<h2>우리가 가 본 곳</h2>' + pcatChips(all, c, 'pcat-s') + body + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
     },
     'map-k': () => { UI.mapK = v; const el = $('#tmap'); if (el) { el.dataset.k = v; document.querySelectorAll('[data-act="map-k"]').forEach(b => b.classList.toggle('on', b.dataset.v === v)); mountMap(true); } },
-    'map-full': () => { const w = $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); document.body.classList.toggle('map-open', on); setTimeout(() => MAP && MAP.invalidateSize(), 80); },
+    'map-full': () => { const w = $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); if (on) history.pushState({ map: 1 }, ''); else if (history.state && history.state.map) history.back(); document.body.classList.toggle('map-open', on); setTimeout(() => MAP && MAP.invalidateSize(), 80); },
     'map-trip': () => { document.body.classList.remove('map-open'); MAP && MAP.closePopup(); A['open-trip'](); },
     'pcat': () => { UI.pcat = v; LS.set('pcat', v); render(); },
     'pcat-s': () => { UI.pcat = v; LS.set('pcat', v); render(); A['all-places'](); },
@@ -1892,7 +2073,7 @@ function settings() {
     '<button data-act="pass-edit">' + ib('key', 'var(--sun)', 1) + '<span>가족 암호 바꾸기<small>바꾸면 다른 가족도 새 암호를 넣어야 해요</small></span></button>' +
     '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>구글 드라이브 폴더<small>4gospel 「하하가족여행」 — 원본·사진·기록 문서·백업 (저절로 저장)</small></span></button>' +
     '<button data-act="notion-edit">' + ib('notion', 'var(--ink)', 1) + '<span>노션 연결<small>「하하가족여행」 정리함으로 보내기</small></span></button>' +
-    '<button data-act="ai-edit">' + ib('ai', 'var(--lav)', 1) + '<span>사진 글자 더 잘 읽기 (선택)<small>제미나이 열쇠를 넣으면 영수증·티켓을 더 정확히 읽어요</small></span></button>' +
+    '<button data-act="ai-edit">' + ib('ai', 'var(--lav)', 1) + '<span>AI 도우미<small>클로드·제미나이 열쇠 — 사진으로 여행 정리·영수증 읽기·사진 번역</small></span></button>' +
     '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
     '<button data-act="install">' + ib('phone', 'var(--sky)', 1) + '<span>홈 화면에 앱처럼 두기</span></button>' +
     '<button data-act="copy-link">' + ib('link', 'var(--mint)', 1) + '<span>앱 주소 복사<small>가족에게 보내 주세요 (암호는 따로)</small></span></button>' +
@@ -1929,17 +2110,34 @@ async function notionEdit() {
     });
 }
 async function aiEdit() {
-  let st = { gemini: false }; try { st = await call('aiState'); } catch (e) {}
-  openSheet('<h2>사진 글자 더 잘 읽기</h2><p class="muted">지금도 구글 드라이브의 글자 읽기로 영수증·예약 화면을 읽어요. 제미나이 열쇠(aistudio.google.com, 4gospel 계정)를 넣으면 가게 이름·갈래까지 더 정확히 읽어요. 열쇠는 서버에만 보관돼요.</p>' +
-    '<label class="fl"><span>제미나이 열쇠 ' + (st.gemini ? '(들어 있음)' : '(없음)') + '</span><input class="in" id="gk" type="password" placeholder="AIza…" autocomplete="off"></label>' +
-    '<div class="sheet-acts">' + (st.gemini ? '<button class="btn danger" id="gkdel">열쇠 빼기</button>' : '') + '<button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="gkgo">저장</button></div>', el => {
-      el.querySelector('#gkgo').onclick = async () => { try { await call('setGemini', el.querySelector('#gk').value.trim()); closeSheet(); toast('저장했어요'); } catch (er) { toast(er.message); } };
-      const d = el.querySelector('#gkdel'); if (d) d.onclick = async () => { await call('setGemini', '-'); closeSheet(); toast('열쇠를 뺐어요'); };
+  let st = { gemini: false, claude: false }; try { st = await call('aiState'); } catch (e) {}
+  openSheet('<h2>AI 도우미</h2><p class="muted">AI 열쇠를 넣으면 사진으로 여행 정리, 영수증·예약 화면 읽기, 메뉴판 사진 번역을 AI가 해요. 클로드 열쇠가 있으면 클로드를 먼저 쓰고, 안 되면 제미나이를 써요. 열쇠는 4gospel 구글 서버에만 보관되고 앱·기기에는 남지 않아요.</p>' +
+    '<label class="fl"><span>클로드 열쇠 ' + (st.claude ? '(들어 있음 ✓)' : '(없음)') + ' — platform.claude.com → API Keys</span><input class="in" id="ck" type="password" placeholder="sk-ant-…" autocomplete="off"></label>' +
+    '<label class="fl"><span>제미나이 열쇠 ' + (st.gemini ? '(들어 있음 ✓)' : '(없음)') + ' — aistudio.google.com (4gospel)</span><input class="in" id="gk" type="password" placeholder="AIza…" autocomplete="off"></label>' +
+    '<div class="muted small" id="aitest-msg" style="margin:4px 2px 10px">' + (st.claude || st.gemini ? '지금 쓰는 AI: ' + (st.claude ? '클로드' : '제미나이') : '열쇠가 없어도 사진 날짜·위치와 구글 글자 읽기로 정리는 돼요.') + '</div>' +
+    '<div class="sheet-acts">' + (st.claude ? '<button class="btn danger" id="ckdel">클로드 빼기</button>' : '') + (st.gemini ? '<button class="btn danger" id="gkdel">제미나이 빼기</button>' : '') +
+    (st.claude || st.gemini ? '<button class="btn" id="aitest">연결 시험</button>' : '') + '<button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="aigo">저장</button></div>', el => {
+      el.querySelector('#aigo').onclick = async () => {
+        const c = el.querySelector('#ck').value.trim(), g = el.querySelector('#gk').value.trim();
+        if (!c && !g) return toast('넣을 열쇠가 없어요');
+        try { if (c) await call('setClaude', c); if (g) await call('setGemini', g); toast('저장했어요 — 연결 시험을 해 볼게요'); aiEdit().then(() => { const b = $('#aitest'); if (b) b.click(); }); } catch (er) { toast(er.message); }
+      };
+      const cd = el.querySelector('#ckdel'); if (cd) cd.onclick = async () => { await call('setClaude', '-'); toast('클로드 열쇠를 뺐어요'); aiEdit(); };
+      const gd = el.querySelector('#gkdel'); if (gd) gd.onclick = async () => { await call('setGemini', '-'); toast('제미나이 열쇠를 뺐어요'); aiEdit(); };
+      const tb = el.querySelector('#aitest'); if (tb) tb.onclick = async () => {
+        const m = el.querySelector('#aitest-msg'); m.textContent = '시험하는 중…';
+        try { const r = await call('aiTest'); m.textContent = r.ok ? '✓ ' + (r.via === 'claude' ? '클로드' : '제미나이') + ' 연결됨 — 「' + (r.hi || '') + '」' : '연결이 안 돼요: ' + (r.msg || ''); }
+        catch (er) { m.textContent = '연결이 안 돼요: ' + er.message; }
+      };
     });
 }
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.3', d: '2026-11-25', title: '사진만 올리면 여행 기록이 돼요', items: [
+    ['camera', 'var(--coral)', '사진으로 여행 정리', '「＋ 새 여행 만들기」 → 「다녀온 여행, 사진으로 정리」에서 사진·영수증·일정표를 한꺼번에 고르면 찍은 날짜·곳으로 일정·가 본 곳·대표 사진을 정리해 줘요. 저장 전에 모두 확인해요. 지난 여행의 「추억 → 가 본 곳」에서도 더할 수 있어요.'],
+    ['ai', 'var(--lav)', 'AI 도우미', '설정 → AI 도우미에 클로드(또는 제미나이) 열쇠를 넣으면 영수증 금액·티켓·일정표까지 읽고 그때 이야기도 써 줘요. 영수증 읽기·메뉴판 번역도 AI가 해요.'],
+    ['back', 'var(--sky)', '뒤로가기', '일정 같은 창을 열고 뒤로가기(쓸어넘기기)를 하면 창만 닫히고 그 화면에 머물러요. 여행 화면의 「기록」은 작은 단추 한 줄로 줄였어요.']] },
   { v: '4.2', d: '2026-11-25', title: '우리 가족 여행 지도', items: [
     ['globe', 'var(--sky)', '진짜 다녀온 곳에 핀', '처음 화면에 세계·국내 지도가 생겼어요. 가 본 곳과 다녀온 일정마다 핀이 꽂혀요(해외 파랑·국내 초록·부부 분홍). 핀을 누르면 그 여행을 열거나 구글 지도로 볼 수 있어요.'],
     ['star', 'var(--sun)', '가 본 곳은 갈래별로', '명소·맛집·카페·쇼핑·숙소로 골라 보고, 긴 목록은 「더 보기」로 접혀요.'],

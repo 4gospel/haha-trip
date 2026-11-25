@@ -809,3 +809,29 @@ body.map-open .nav,body.map-open .fab{display:none}
 .row.vrow .stars{color:var(--sun,#e0a100);font-size:13px;letter-spacing:1px}
 .row.vrow .vmemo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row.vrow .vtrip{font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 기록 — 작은 단추 한 줄 */
+.rec-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.rec-h{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--soft);margin-right:2px}
+.rec-h svg,.rec-chip svg{width:15px;height:15px}
+.rec-chip{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:4px 11px;border-radius:99px;background:var(--fill);color:var(--ink);font-size:13px;font-weight:600;text-decoration:none}
+/* 사진으로 여행 정리 */
+.newpick{display:grid;gap:10px;margin:6px 0 4px}
+.newpick button{display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:16px;background:var(--fill);box-shadow:var(--sh)}
+.newpick b{display:block;font-size:16px}.newpick small{display:block;color:var(--soft);font-size:13px;margin-top:2px;line-height:1.4}
+.scan-wait{display:flex;align-items:center;gap:14px;padding:18px 4px}
+.scan-wait p{margin:0;font-weight:700}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--fill);border-top-color:var(--coral);animation:spin 0.9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scan-ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:4px;margin:8px 0 4px;max-height:220px;overflow:auto}
+.scan-ph button{position:relative;padding:0;border-radius:8px;overflow:hidden;aspect-ratio:1;opacity:.55;outline:3px solid transparent;outline-offset:-3px}
+.scan-ph button.on{opacity:1;outline-color:var(--coral)}
+.scan-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.scan-sec{margin:14px 0 4px}
+.scan-sec>b{display:block;margin-bottom:4px}
+.scan-row{display:flex;gap:10px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid var(--fill);font-size:14px;line-height:1.4}
+.scan-row input{margin-top:3px;width:18px;height:18px;flex:none;accent-color:var(--coral)}
+.scan-mem{cursor:pointer}
+.scan-add{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:40px;margin:0 0 12px;border-radius:12px;background:var(--fill);font-size:14px;font-weight:700;color:var(--ink)}
+.scan-add svg{width:16px;height:16px}
+#sheet .grid2>*{min-width:0}
+#sheet input[type=date].in{min-width:0;width:100%}
