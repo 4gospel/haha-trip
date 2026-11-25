@@ -454,7 +454,7 @@ function pastCard(t) {
   return '<button class="pcard" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="pc-img">' + scene(t, { noPlane: 1 }) + coverImg(t) +
     '<span class="pc-year num"><b class="pc-yy">' + t.start.slice(0, 4) + ' · </b>' + (n > 0 ? n + '년 전' : '올해') + '</span>' + stampHtml('다녀옴', 'mini') + '</span>' +
     '<span class="pc-b"><b>' + esc(t.title) + '</b><span class="num">' + esc(t.start.slice(0, 4) + '. ' + md(t.start) + (t.end !== t.start ? ' – ' + md(t.end) : '')) + ' · ' + (ds.length > 1 ? (ds.length - 1) + '박 ' + ds.length + '일' : '당일') + '</span>' +
-    (line ? '<span class="pc-line">' + esc(line) + '</span>' : '') +
+    (line ? '<span class="pc-line">' + esc(line) + '</span>' : '') + photoStrip(t, 4) +
     '<span class="pc-meta">' + (couple(t) ? '💑 ' : '') + (c ? c.f + ' ' : '') + esc(t.place || '') + (its.length ? ' · 일정 ' + its.length : '') + (mem ? ' · 추억 ' + mem : '') + '</span></span></button>';
 }
 function pastHtml(past) {
@@ -471,12 +471,18 @@ function pastHtml(past) {
   list.forEach(t => { const yy = t.start.slice(0, 4); if (yy !== y) { y = yy; h += '<div class="ptl-y"><b class="num">' + yy + '</b><span>' + list.filter(x => x.start.slice(0, 4) === yy).length + '번</span></div>'; } h += pastCard(t); });
   return h + '</div></div>';
 }
+/** 여행 사진 줄 — 일기·가 본 곳에 붙은 사진 */
+const tripPhotos = t => live('notes', t.id).filter(n => safeImg(n.thumb) && !n.owner).sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.ts - b.ts);
+function photoStrip(t, max) {
+  const ph = tripPhotos(t); if (!ph.length) return '';
+  return '<span class="pc-strip">' + ph.slice(0, max).map(n => '<img src="' + n.thumb + '" alt="" loading="lazy">').join('') + (ph.length > max ? '<i class="num">+' + (ph.length - max) + '</i>' : '') + '</span>';
+}
 /** 지난 여행 화면: 그때 이야기 */
 function storyCard(t) {
   const s = String(t.story || '').trim(), nu = safeUrl(t.notion);
   if (!s && !nu && !safeUrl(t.album)) return '';
   return '<div class="sec"><div class="letter"><div class="lt-h">' + kindImg(kindOf(t), 'h-art') + '<b>그때 우리는</b><span class="lt-year num">' + esc(t.start.slice(0, 4)) + '</span></div>' +
-    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + '<div class="chips">' + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + (safeUrl(t.album) ? '<a class="chipbtn" href="' + esc(t.album) + '" target="_blank" rel="noopener">' + ic('camera') + '사진 앨범</a>' : '') + '</div>' + '</div></div>';
+    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + (tripPhotos(t).length ? '<div class="lt-photos">' + tripPhotos(t).slice(0, 6).map((n, i) => '<button data-act="note-edit" data-v="' + esc(n.id) + '" style="--r:' + ((i % 3) - 1) * 3 + 'deg"><img src="' + n.thumb + '" alt="" loading="lazy"><small>' + esc(String(n.text || '').replace(/^📷\s*/, '').split(/\n/)[0].slice(0, 18)) + '</small></button>').join('') + '</div>' : '') + '<div class="chips">' + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + (safeUrl(t.album) ? '<a class="chipbtn" href="' + esc(t.album) + '" target="_blank" rel="noopener">' + ic('camera') + '사진 앨범</a>' : '') + '</div>' + '</div></div>';
 }
 
 /* ---------- 길 ---------- */
@@ -1638,6 +1644,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.3', d: '2026-11-25', title: '추억 사진이 붙었어요', items: [
+    ['camera', 'var(--coral)', '여행마다 사진 세 장', '구글 포토에서 고른 사진이 지난 여행 카드와 「그때 우리는」 편지에 폴라로이드처럼 붙어요. 누르면 크게 보여요.'],
+    ['memory', 'var(--sky)', '표지도 우리 사진으로', '2017 제주 · 2022 제주 · 2025 대만 표지가 그때 찍은 사진으로 바뀌었어요. 원본은 드라이브 「사진」에 있어요.']] },
   { v: '3.2', d: '2026-11-25', title: '두 사람의 여행, 부부여행', items: [
     ['memory', 'var(--pink)', '부부여행 칸', '아빠·엄마 두 사람만 다녀온 여행은 「부부여행」으로 따로 모여요. 여행 만들 때 함께 간 사람을 둘로 고르면 저절로 들어가요.'],
     ['camera', 'var(--sky)', '2025 새해 대만', '구글 포토 앨범과 사진 위치로 예류·스펀·단수이 일정을 되살렸어요. 「사진 앨범」 단추로 사진 572장을 바로 볼 수 있어요.']] },
