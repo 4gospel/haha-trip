@@ -855,3 +855,6 @@ body.map-open .nav,body.map-open .fab{display:none}
 .seg.wsort{margin:0 0 12px}
 .wgroup{margin:0 0 14px}
 .wgroup-h{display:flex;align-items:center;gap:8px;margin:2px 4px 8px;font-size:15px}
+.wgroup.pinned .wgroup-h b::before{content:'📌 ';font-size:12px}
+.wrest-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 4px 10px;padding-top:14px;border-top:1px dashed var(--line,rgba(127,127,127,.3))}
+.wrest-h .seg.wsort{margin:0}
