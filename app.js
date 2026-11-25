@@ -977,9 +977,27 @@ const TR_LANG = { JP: ['ja', '일본어', 'ja-JP'], TW: ['zh-TW', '중국어(대
 const KO = ['ko', '한국어', 'ko-KR'];
 const trLang = t => TR_LANG[t && t.country] || TR_LANG.JP;
 const TR_PHOTO = [['menu', '🍜', '메뉴판', '요리 설명·알레르기'], ['label', '🧴', '성분·약·라벨', '화장품·과자·약 설명'], ['sign', '🚉', '안내판·표지', '역·가게 안내'], ['receipt', '🧾', '영수증·기타', '무엇을 샀는지']];
+/* 읽어 주기 — 휴대폰에 있는 음성 가운데 자연스러운 여성 음성을 먼저(이름에 Natural·Neural·Google·Kyoko·Nanami 등) */
+const VOICE_GOOD = /Natural|Neural|Online|Premium|Enhanced|Google|Kyoko|Nanami|Aoi|Mayu|Haruka|O-ren|Yuna|Sora|SunHi|Ava|Samantha|Female|여성|女性/i, VOICE_MALE = /Otoya|Ichiro|Keita|Daichi|Naoki|Hattori|Eddy|Reed|Rocko|Grandpa|Male|남성|男性/i;
+function bestVoice(lang) {
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [], l2 = lang.slice(0, 2).toLowerCase();
+  const mine = vs.filter(v => (v.lang || '').replace('_', '-').toLowerCase().startsWith(l2));
+  const score = v => (VOICE_GOOD.test(v.name) ? 4 : 0) + (/Natural|Neural|Online|Premium|Enhanced/i.test(v.name) ? 3 : 0) - (VOICE_MALE.test(v.name) ? 5 : 0) + ((v.lang || '').replace('_', '-').toLowerCase() === lang.toLowerCase() ? 1 : 0) + (v.localService ? 0 : 1);
+  return mine.sort((a, b) => score(b) - score(a))[0] || null;
+}
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => {};
+/* 꼭 쓰는 말(일본어)은 미리 녹음한 여성 음성 파일 — audio/ja/<글자 지문>.m4a, 없으면 읽어 주기 */
+const sayKey = s => { let x = 5381; for (const ch of s) x = (((x << 5) + x) + ch.codePointAt(0)) >>> 0; return x.toString(16); };
+let SAY_AUDIO = null;
+function sayPhrase(text, lang) {
+  if (!/^ja/i.test(lang)) return speak(text, lang);
+  try { if (SAY_AUDIO) SAY_AUDIO.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+  const a = new Audio('audio/ja/' + sayKey(text) + '.m4a'); SAY_AUDIO = a;
+  a.play().catch(() => speak(text, lang));
+}
 function speak(text, lang) {
   if (!window.speechSynthesis) return toast('이 휴대폰은 읽어 주기를 지원하지 않아요');
-  const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = .9; speechSynthesis.cancel(); speechSynthesis.speak(u);
+  const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = .92; u.pitch = 1.05; const v = bestVoice(lang); if (v) u.voice = v; speechSynthesis.cancel(); speechSynthesis.speak(u);
 }
 function listen(lang, cb) {
   const R = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2135,7 +2153,7 @@ document.addEventListener('click', e => {
     'tr-mic': () => { const S = trState(), L = trLang(t); listen(S.dir === 'ko' ? KO[2] : L[2], txt => { const el = $('#tr-in'); if (el) el.value = txt; S.text = txt; A['tr-go'](); }); },
     'tr-say': () => { const S = trState(), L = trLang(t); speak(S.out, S.dir === 'ko' ? L[2] : KO[2]); },
     'tr-sayq': () => speak(v, 'ja-JP'),
-    'ph-say': () => { speak(v, el.dataset.l || 'ja-JP'); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1600); },
+    'ph-say': () => { sayPhrase(v, el.dataset.l || 'ja-JP'); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1600); },
     'tr-show': () => { const S = trState(), L = trLang(t); openSheet('<div class="tr-show" lang="' + (S.dir === 'ko' ? L[0] : 'ko') + '">' + esc(S.out) + '</div><div class="muted" style="text-align:center;margin:8px 0">' + esc(S.text) + '</div><div class="sheet-acts"><button class="btn" data-act="tr-say">' + ic('speaker') + '듣기</button><button class="btn pri" data-act="sheet-close">닫기</button></div>'); },
     'tr-copy': () => { try { navigator.clipboard.writeText(trState().out); toast('복사했어요'); } catch (e) { toast('복사하지 못했어요'); } },
     'tr-save': () => { const S = trState(), L = trLang(t); const sv = LS.get('trSaved', []).filter(x => x.t !== S.out); sv.unshift({ f: S.text, t: S.out, b: S.dir === 'ko' ? L[0] : 'ko' }); LS.set('trSaved', sv.slice(0, 30)); toast('내가 모은 문장에 넣었어요'); render(); },
@@ -2359,7 +2377,7 @@ async function aiEdit() {
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
   { v: '5.0', d: '2026-11-26', title: '그날 사진으로 바로', items: [
-    ['talk', 'var(--sky)', '꼭 쓰는 말 듣기', '수첩의 「꼭 쓰는 말」마다 소리 단추가 생겼어요. 누르면 일본어 말소리로 들려줘요. 휴대폰 소리를 켜 두세요.'],
+    ['talk', 'var(--sky)', '꼭 쓰는 말 듣기', '수첩의 「꼭 쓰는 말」마다 소리 단추가 생겼어요. 누르면 일본어 여성 음성으로 또박또박 들려줘요. 휴대폰 소리를 켜 두세요.'],
     ['camera', 'var(--coral)', '구글 포토 링크', '지난 여행을 열면 「그때 우리는」 아래에 날짜마다 「구글 포토」 단추가 있어요. 누르면 그날 찍은 사진이 구글 포토에서 바로 열려요.'],
     ['plan', 'var(--sky)', '날짜 칸이 한 줄에', '접은 폴드처럼 좁은 화면에서도 여행 날짜 칸이 잘리지 않고 한 줄에 다 보여요.'],
     ['memory', 'var(--coral)', '찾은 추억', '2019 태안(새롬교회 교역자 가족), 2018 「시벨리우스의 관록」 연주회를 더했어요.']] },
