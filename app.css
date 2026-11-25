@@ -934,3 +934,6 @@ body.map-open .nav,body.map-open .fab{display:none}
   .flow-today>.grid2,.flow-money>.grid2{display:grid}
   .flow-book>.book-cover{max-width:none}
 }
+/* 문화 체험 갈래 */
+.kindtag.cu{background:color-mix(in srgb,#9b5bd4 20%,transparent);color:color-mix(in srgb,#9b5bd4 75%,var(--ink))}
+@media (max-width:460px){.kindseg.four{flex-wrap:wrap}.kindseg.four button{flex:1 1 45%}}

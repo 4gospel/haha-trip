@@ -431,9 +431,9 @@ const KR_RE = /제주|서귀포|서울|부산|인제|곡성|강릉|속초|양양
 const abroad = t => t.country ? t.country !== 'KR' : !KR_RE.test((t.place || '') + ' ' + (t.title || ''));
 /* 부부여행 — 임요한·장보정 두 사람만 간 여행 (가족 넷은 가족 여행) */
 const COUPLE = ['임요한', '장보정'];
-const couple = t => t.kind === 'couple' || (t.kind !== 'family' && (t.members || []).length === 2 && COUPLE.every(n => (t.members || []).includes(n)));
-const kindOf = t => couple(t) ? 'cp' : abroad(t) ? 'out' : 'in';
-const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'], cp: ['부부여행', 'kind-couple', 'photo'] };
+const couple = t => t.kind === 'couple' || (t.kind !== 'family' && t.kind !== 'culture' && (t.members || []).length === 2 && COUPLE.every(n => (t.members || []).includes(n)));
+const kindOf = t => t.kind === 'culture' ? 'cu' : couple(t) ? 'cp' : abroad(t) ? 'out' : 'in';
+const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'], cp: ['부부여행', 'kind-couple', 'photo'], cu: ['문화 체험', 'kind-culture', 'museum'] };
 const kindImg = (k, cls) => '<img class="' + (cls || 'kind-art') + '" src="img/' + KIND[k][1] + '.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-' + KIND[k][2] + '.webp\'">';
 const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong'], [/타이베이|대만|타이완|taipei/i, 'taipei'], [/파리|paris/i, 'paris'], [/프라하|prague/i, 'prague'], [/스위스|체르마트|알프스/i, 'swiss'], [/남프랑스|니스|마르세유|아비뇽/i, 'provence']];
 function coverImg(t) {
@@ -464,16 +464,16 @@ function pastCard(t) {
     '<span class="pc-year num"><b class="pc-yy">' + t.start.slice(0, 4) + ' · </b>' + (n > 0 ? n + '년 전' : '올해') + '</span>' + stampHtml('다녀옴', 'mini') + '</span>' +
     '<span class="pc-b"><b>' + esc(t.title) + '</b><span class="num">' + esc(t.start.slice(0, 4) + '. ' + md(t.start) + (t.end !== t.start ? ' – ' + md(t.end) : '')) + ' · ' + (ds.length > 1 ? (ds.length - 1) + '박 ' + ds.length + '일' : '당일') + '</span>' +
     (line ? '<span class="pc-line">' + esc(line) + '</span>' : '') + photoStrip(t, 4) +
-    '<span class="pc-meta">' + (couple(t) ? '💑 ' : '') + (c ? c.f + ' ' : '') + esc(t.place || '') + (its.length ? ' · 일정 ' + its.length : '') + (mem ? ' · 추억 ' + mem : '') + '</span></span></button>';
+    '<span class="pc-meta">' + (kindOf(t) === 'cu' ? '🎨 ' : couple(t) ? '💑 ' : '') + (c ? c.f + ' ' : '') + esc(t.place || '') + (its.length ? ' · 일정 ' + its.length : '') + (mem ? ' · 추억 ' + mem : '') + '</span></span></button>';
 }
 function pastHtml(past) {
   if (!past.length) return '';
-  const G = { out: past.filter(t => kindOf(t) === 'out'), in: past.filter(t => kindOf(t) === 'in'), cp: past.filter(t => kindOf(t) === 'cp') };
+  const G = { out: past.filter(t => kindOf(t) === 'out'), in: past.filter(t => kindOf(t) === 'in'), cp: past.filter(t => kindOf(t) === 'cp'), cu: past.filter(t => kindOf(t) === 'cu') };
   let k = UI.pastKind || LS.get('pastKind', '');
   if (!KIND[k]) k = G.out.length ? 'out' : 'in';
   const list = G[k];
   let h = '<div class="sec past"><div class="sec-h"><h3 class="ih">' + kindImg(k, 'h-art') + '지난 여행</h3><span class="muted small">' + past.length + '번의 추억</span></div>' +
-    '<div class="seg kindseg" role="tablist" aria-label="국내여행 해외여행">' + ['out', 'in', 'cp'].map(v => '<button role="tab" aria-selected="' + (k === v) + '" class="' + (k === v ? 'on' : '') + '" data-act="past-kind" data-v="' + v + '">' + kindImg(v) + KIND[v][0] + ' <em class="num">' + G[v].length + '</em></button>').join('') + '</div>';
+    '<div class="seg kindseg' + (G.cu.length ? ' four' : '') + '" role="tablist" aria-label="지난 여행 갈래">' + ['out', 'in', 'cp', 'cu'].filter(v => v !== 'cu' || G.cu.length).map(v => '<button role="tab" aria-selected="' + (k === v) + '" class="' + (k === v ? 'on' : '') + '" data-act="past-kind" data-v="' + v + '">' + kindImg(v) + KIND[v][0] + ' <em class="num">' + G[v].length + '</em></button>').join('') + '</div>';
   if (!list.length) return h + '<div class="card empty"><div class="art">' + kindImg(k, 'empty-art') + '</div><b>아직 다녀온 ' + KIND[k][0] + '이 없어요</b>다녀오면 여기에 해마다 쌓여요.</div></div>';
   h += '<div class="ptl">';
   let y = '';
@@ -563,7 +563,7 @@ function homeView() {
   const places = live('places'), plan = allPlan(), vis = live('trips').flatMap(x => visitedOf(x.id));
   h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div>';
   if (!past.length && !allDays && !places.length) h += '<div class="card empty"><div class="art">🧳✨</div><b>첫 여행을 기다리는 중</b>다녀오면 여기에 우리 가족의 여행이 쌓여요.</div>';
-  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(t => kindOf(t) === 'out').length + ' · 국내 ' + trips.filter(t => kindOf(t) === 'in').length + ' · 부부 ' + trips.filter(couple).length + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
+  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(t => kindOf(t) === 'out').length + ' · 국내 ' + trips.filter(t => kindOf(t) === 'in').length + ' · 부부 ' + trips.filter(t => kindOf(t) === 'cp').length + (trips.some(t => kindOf(t) === 'cu') ? ' · 문화 ' + trips.filter(t => kindOf(t) === 'cu').length : '') + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
     '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>가 본 곳</small><b class="num">' + (places.length + plan.length) + '곳</b><em>별점 ' + places.filter(p => p.rating > 0).length + '곳</em></div></div>';
   h += '</div>';
   if (vis.length) {
@@ -584,7 +584,7 @@ function heroCard(t, mode) {
     (mini ? '' : '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div>') + '</div></' + tag.split(' ')[0] + '>';
 }
 function tripRow(t) {
-  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + coverImg(t) + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + kindOf(t) + '">' + ({ out: '해외', in: '국내', cp: '부부' })[kindOf(t)] + '</i>' +
+  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + coverImg(t) + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + kindOf(t) + '">' + ({ out: '해외', in: '국내', cp: '부부', cu: '문화' })[kindOf(t)] + '</i>' +
     esc(md(t.start)) + (t.end !== t.start ? ' – ' + esc(md(t.end)) : '') + ' · ' + esc(t.place || '') + '</span></span>' + (t.end < today() ? stampHtml('다녀옴', 'mini') : '<span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span>') + '</button>';
 }
 function placeRow(p) {
@@ -631,7 +631,7 @@ function rowsMore(list) {
 }
 
 /* 여행 지도 — 진짜 다녀온 곳(가 본 곳 + 다녀온 일정)을 핀으로. 좌표는 서버 구글 지오코더로 한 번 찾아 기록에 남김 */
-const PIN_C = { out: '#2f80ed', in: '#1f9d61', cp: '#e0508f' };
+const PIN_C = { out: '#2f80ed', in: '#1f9d61', cp: '#e0508f', cu: '#9b5bd4' };
 const geoQ = (t, x) => { const q = String(x || '').trim(), c = cityOf(t); return q && c && !q.includes(c) && !/[A-Za-z]/.test(q) ? q + ' ' + c : q; };
 function mapPins(tid) {
   const pins = [];
@@ -675,7 +675,7 @@ function mapHtml(tid) {
   return '<div class="sec tmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + (tid ? '이 여행 지도' : '우리 가족 여행 지도') + '</h3>' +
     (tid ? '' : '<div class="seg mini"><button class="' + (mk === 'world' ? 'on' : '') + '" data-act="map-k" data-v="world">세계</button><button class="' + (mk === 'kr' ? 'on' : '') + '" data-act="map-k" data-v="kr">국내</button></div>') + '</div>' +
     '<div class="tmap-wrap"><div id="tmap" class="tmap" data-trip="' + esc(tid || '') + '" data-k="' + mk + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
-    '<div class="tmap-leg"><span><i style="--pc:' + PIN_C.out + '"></i>해외</span><span><i style="--pc:' + PIN_C.in + '"></i>국내</span><span><i style="--pc:' + PIN_C.cp + '"></i>부부</span><b class="num">' + got.length + '곳</b></div></div>';
+    '<div class="tmap-leg"><span><i style="--pc:' + PIN_C.out + '"></i>해외</span><span><i style="--pc:' + PIN_C.in + '"></i>국내</span><span><i style="--pc:' + PIN_C.cp + '"></i>부부</span><span><i style="--pc:' + PIN_C.cu + '"></i>문화</span><b class="num">' + got.length + '곳</b></div></div>';
 }
 let MAP = null;
 async function mountMap(again) {
@@ -1776,7 +1776,7 @@ const F = {
     { k: 'cur', label: '현지 돈', type: 'opts', options: Object.keys(CUR), names: CUR, more: 1 },
     { k: 'rate', label: '경비 계산 환율 (현지 돈 100 = 몇 원)', type: 'number', ph: '예: 엔화 950', more: 1 },
     { k: 'memo', label: '메모', type: 'textarea', ph: '숙소·교통·꼭 기억할 것', more: 1 },
-    { k: 'kind', label: '어떤 여행', type: 'opts', options: ['', 'family', 'couple'], names: { '': '저절로 (함께 간 사람으로)', family: '👨‍👩‍👧‍👦 가족 여행', couple: '💑 부부여행' }, more: 1 },
+    { k: 'kind', label: '어떤 여행', type: 'opts', options: ['', 'family', 'couple', 'culture'], names: { '': '저절로 (함께 간 사람으로)', family: '👨‍👩‍👧‍👦 가족 여행', couple: '💑 부부여행', culture: '🎨 문화 체험 (전시·공연·나들이)' }, more: 1 },
     { k: 'album', label: '구글 포토 앨범 주소 (https://…)', type: 'url', more: 1 },
     { k: 'story', label: '그때 우리는 (다녀온 뒤 이야기)', type: 'textarea', ph: '가장 기억에 남는 순간', more: 1 },
     { k: 'notion', label: '노션 페이지 주소 (https://…)', type: 'url', more: 1 }],
@@ -2248,6 +2248,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '4.7', d: '2026-11-25', title: '문화 체험 칸', items: [
+    ['ticket', '#9b5bd4', '문화 체험', '전시·공연·박물관 같은 당일 나들이는 「지난 여행」의 새 칸 「문화 체험」에 따로 모여요. 여행을 만들 때 「어떤 여행」에서 고를 수 있어요.'],
+    ['memory', 'var(--coral)', '찾은 추억', '2006 여름 양평(중미산 천문대)과 2008 「황금의 제국 페르시아」 전시를 구글 포토에서 찾아 넣었어요.']] },
   { v: '4.6', d: '2026-11-25', title: 'PC에서 한눈에', items: [
     ['globe', 'var(--sky)', 'PC 화면', '넓은 화면에서는 왼쪽에 메뉴가 늘 있고(오늘·일정·경비·수첩·준비물·티켓 지갑·추억·번역기…), 카드가 세 단으로 빈틈없이 채워져 한눈에 많이 보여요.'],
     ['check', 'var(--mint)', '준비물 보드', 'PC에서는 할 일 · 함께 챙길 짐 · 네 식구 가방이 나란히 칸으로 보여요. 칸마다 「＋」로 바로 더해요.']] },
