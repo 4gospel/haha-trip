@@ -192,7 +192,7 @@ function flightInfo(b) {
   if (!m || !code(m[1]) || !code(m[2])) return null;
   return { from: code(m[1]), to: code(m[2]), fromN: m[1], toN: m[2], fn, air };
 }
-const BK = { 항공: ['plane', 'var(--c-이동)'], 숙소: ['bed', 'var(--c-숙소)'], 티켓: ['ticket', 'var(--c-관광)'], 교통: ['train', 'var(--c-이동)'], 주차: ['park', 'var(--c-주차)'], 서류: ['doc', 'var(--c-기타)'], 기타: ['ticket', 'var(--c-기타)'] };
+const BK = { 항공: ['plane', 'var(--c-이동)'], 숙소: ['bed', 'var(--c-숙소)'], 티켓: ['ticket', 'var(--c-관광)'], 교통: ['train', 'var(--c-이동)'], 주차: ['park', 'var(--c-주차)'], 보험: ['sos', 'var(--pink)'], 서류: ['doc', 'var(--c-기타)'], 기타: ['ticket', 'var(--c-기타)'] };
 const RC_IC = { 명소: 'recs', 맛집: 'food', 쇼핑: 'bag', 팁: 'bulb', 숙소: 'bed' };
 
 /* ---------- 알림 띠·되돌리기·색종이 ---------- */
@@ -1247,7 +1247,7 @@ const F = {
     { k: 'memo', label: '메모', type: 'textarea', ph: '가는 길·예약번호' },
     { k: 'tip', label: '💡 여행 팁 (여기서 알아 둘 것)', type: 'textarea', ph: '예: 아침 일찍 가면 한적해요', more: 1 }],
   booking: t => [
-    { k: 'kind', label: '갈래', type: 'opts', options: ['항공', '숙소', '티켓', '교통', '주차', '서류', '기타'] },
+    { k: 'kind', label: '갈래', type: 'opts', options: ['항공', '숙소', '티켓', '교통', '주차', '보험', '서류', '기타'] },
     { k: 'title', label: '이름', ph: '예: 인천공항 제1터미널 예약주차장(P5)' },
     { k: 'date', label: '날짜 (입차·체크인)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
     { k: 'end', label: '끝 (도착·출차·체크아웃)', ph: '예: 09:50 또는 2027-01-01 13:30' },
@@ -1394,7 +1394,7 @@ function openFromRead(kind, t, f, ph, read) {
   if (kind === 'receipt') {
     const cur = f.cur && CUR[f.cur] ? f.cur : t.cur;
     const cat = CATS.includes(f.cat) ? f.cat : guessCat(f.title || '');
-    editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { photo: ph, read, focus: 'amount' });
+    editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice(), memo: f.insurer ? '여행자보험 · ' + f.insurer : '' }, { photo: ph, read, focus: 'amount' });
   } else if (kind === 'booking') {
     const r = {}; ['kind', 'title', 'date', 'time', 'end', 'code', 'provider', 'place', 'car', 'deposit', 'phone', 'seat', 'price', 'cur', 'memo'].forEach(k => { if (f[k] != null && f[k] !== '') r[k] = f[k]; });
     if (!BK[r.kind]) r.kind = '티켓';
@@ -1405,7 +1405,7 @@ function openFromRead(kind, t, f, ph, read) {
   }
 }
 function guessCat(s) {
-  return /항공|air|jr|역|철도|버스|택시|난카이|지하철|교통|metro|駅|電鉄|タクシー/i.test(s) ? '이동' : /호텔|숙소|hotel|inn/i.test(s) ? '숙소' : /ローソン|セブン|ファミリーマート|ファミマ|로손|세븐일레븐|패밀리마트|편의점/i.test(s) ? '간식' : /마트|돈키|ドン・キホーテ|쇼핑|드럭|ドラッグ|store|mart/i.test(s) ? '쇼핑' :
+  return /보험|insurance/i.test(s) ? '기타' : /항공|air|jr|역|철도|버스|택시|난카이|지하철|교통|metro|駅|電鉄|タクシー/i.test(s) ? '이동' : /호텔|숙소|hotel|inn/i.test(s) ? '숙소' : /ローソン|セブン|ファミリーマート|ファミマ|로손|세븐일레븐|패밀리마트|편의점/i.test(s) ? '간식' : /마트|돈키|ドン・キホーテ|쇼핑|드럭|ドラッグ|store|mart/i.test(s) ? '쇼핑' :
     /카페|coffee|커피|아이스|디저트|빵|베이커리/i.test(s) ? '간식' : /입장|티켓|ticket|usj|박물관|전망/i.test(s) ? '관광' : '식사';
 }
 const art = (n, alt) => '<img class="art-img" src="img/' + n + '.webp" alt="' + esc(alt || '') + '">';
@@ -1647,6 +1647,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.7', d: '2026-11-25', title: '보험도, 여권도 더 잘 읽어요', items: [
+    ['sos', 'var(--pink)', '여행자보험', '보험 가입 화면이나 결제 문자를 찍으면 「캐롯손해보험 여행자보험」처럼 보험사 이름까지 읽어요. 티켓 지갑에 「보험」 칸도 생겼어요.'],
+    ['doc', 'var(--sky)', '여권 판독', '새 여권(번호 가운데 영문 글자)과 0이 O로 읽히는 경우도 바로잡아, 이름·번호·성별·날짜를 모두 읽어요.']] },
   { v: '3.6', d: '2026-11-25', title: '여권 사진 자리 바로잡기', items: [
     ['users', 'var(--lav)', '가족 얼굴 다시 그림', '여권 카드와 가족 얼굴 그림이 가운데에 반듯하게 들어가요. 이마와 턱이 잘리지 않아요.']] },
   { v: '3.5', d: '2026-11-25', title: '접은 폴드에서도 반듯하게', items: [
