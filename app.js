@@ -138,8 +138,8 @@ function itemIcon(i) {
   const KW = [[/리버\s*크루즈|유람선|크루즈|페리|배\s*타|보트/i, 'cruise', '이동'], [/온천|스파\s*월드|스파월드|목욕탕|대욕장|족욕/, 'onsen', '관광'], [/신칸센|하루카|특급/, 'shinkansen', '이동'],
     [/관람차|덴포잔|헵\s*파이브/, 'ferris', '관광'], [/가이유칸|수족관/, 'aquarium', '관광'], [/나라\s*공원|사슴|도다이지/, 'deer', '관광'], [/이자카야|술집|야키토리|선술집/, 'izakaya', '식사'],
     [/편의점|돈키호테|드럭|마트|로손|세븐일레븐|패밀리마트/, 'store', '쇼핑'], [/사진|포토|인생샷/, 'photo', '관광'], [/카운트다운|불꽃/, 'fireworks', '관광'], [/쉬기|쉬는|휴식|낮잠|자유\s*시간/, 'rest', '숙소'],
-    [/병원|약국|진료/, 'hospital', '기타'], [/예배|교회|주일/, 'church', '기타'], [/해변|해수욕|비치|바닷가/, 'beach', '관광'], [/등산|트레킹|하이킹|산행/, 'hiking', '관광'], [/스키|스노보드|눈썰매/, 'ski', '관광'],
-    [/렌터카|렌트카|드라이브/, 'rentcar', '이동'], [/자전거|바이크/, 'bike', '이동'], [/박물관|미술관|전시/, 'museum', '관광'], [/공연|뮤지컬|콘서트/, 'show', '관광']];
+    [/병원|약국|진료/, 'hospital', '기타'], [/예배|교회|주일/, 'church', '기타'], [/해변|해수욕|비치|바닷가/, 'beach', '관광'], [/등산|트레킹|하이킹|산행|한라산|어리목|윗세오름|일출봉|오름/, 'hiking', '관광'], [/스키|스노보드|눈썰매/, 'ski', '관광'],
+    [/렌터카|렌트카|드라이브/, 'rentcar', '이동'], [/자전거|바이크/, 'bike', '이동'], [/박물관|미술관|뮤지엄|뮤지움|문학관|전시/, 'museum', '관광'], [/공연|뮤지컬|콘서트|노래방/, 'show', '관광'], [/카트|레일바이크/, 'rentcar', '관광'], [/아쿠아/, 'aquarium', '관광'], [/숲|폭포|새연교|해안|올레/, 'walk', '관광']];
   for (const [re, n, c] of KW) if (re.test(x)) return [n, cc(c)];
   if (/도착/.test(x) && /공항|간사이|인천|airport/i.test(x) && !/셔틀|체크인/.test(x)) return ['land', 'var(--c-이동)'];
   if (/체크인/.test(x) && /공항/.test(x)) return ['plane', 'var(--c-이동)'];
@@ -417,6 +417,63 @@ async function loadInfo(t) {
   render();
 }
 const countryOf = t => COUNTRY[t.country] || COUNTRY[((INFO[t.id] || {}).geo || {}).cc] || null;
+/* 국내여행 · 해외여행 — 나라가 한국이면 국내 (나라를 안 적었으면 지명으로 짐작) */
+const KR_RE = /제주|서귀포|서울|부산|인제|곡성|강릉|속초|양양|경주|전주|여수|순천|군산|대구|광주|대전|인천|강원|전남|전북|경남|경북|충남|충북|가평|남해|통영|거제|포항|안동|단양|태안|보령|울릉|섬진강/;
+const abroad = t => t.country ? t.country !== 'KR' : !KR_RE.test((t.place || '') + ' ' + (t.title || ''));
+const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'] };
+const kindImg = (k, cls) => '<img class="' + (cls || 'kind-art') + '" src="img/' + KIND[k][1] + '.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-' + KIND[k][2] + '.webp\'">';
+const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong']];
+function coverImg(t) {
+  if (safeImg(t.cover)) return '<img class="cover" src="' + t.cover + '" alt="">';
+  const hit = CITY_IMG.find(([re]) => re.test((t.place || '') + ' ' + (t.title || '')));
+  if (!hit) return '';
+  const k = hit[1];
+  return '<img class="cover" src="img/cover-' + k + '-' + partOfDay() + '.webp" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src=\'img/cover-' + k + '.webp\'}else this.remove()">';
+}
+/** 몇 년 전 오늘 — 지난 여행 가운데 오늘과 같은 달·날 */
+function agoCard(cur) {
+  const t0 = today(), dk = t0.slice(5);
+  const hits = live('trips').filter(t => (!cur || t.id !== cur.id) && t.end < t0)
+    .map(t => [t, daysOf(t).find(d => d.slice(5) === dk && d.slice(0, 4) < t0.slice(0, 4))]).filter(x => x[1])
+    .sort((a, b) => b[1].localeCompare(a[1]));
+  if (!hits.length) return '';
+  const [t, d] = hits[0], n = +t0.slice(0, 4) - +d.slice(0, 4);
+  const its = live('items', t.id).filter(i => i.date === d && (/관광|쇼핑|간식/.test(i.cat || '') || /—/.test(i.title || ''))).sort(byTime).map(i => String(i.title).split(/\s*[·(/]\s*/)[0]).filter(Boolean).slice(0, 4);
+  return '<div class="sec"><button class="ago" data-act="open-trip" data-v="' + esc(t.id) + '"><img class="ago-art" src="img/memory-ago.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-photo.webp\'">' +
+    '<span class="ago-b"><small><b class="num">' + n + '년 전</b> 오늘, 우리는</small><b>' + esc(t.title) + '</b><span>' + esc(its.length ? its.join(' · ') : t.place || '') + '</span></span>' + (hits.length > 1 ? '<span class="pill">+' + (hits.length - 1) + '</span>' : '') + '</button></div>';
+}
+/** 지난 여행 카드 (연표) */
+function pastCard(t) {
+  const ds = daysOf(t), c = countryOf(t), n = +today().slice(0, 4) - +t.start.slice(0, 4);
+  const its = live('items', t.id), mem = live('notes', t.id).length + live('places', t.id).length;
+  const line = String(t.story || '').split(/\n/)[0] || String(t.memo || '').split(/\n/)[0];
+  return '<button class="pcard" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="pc-img">' + scene(t, { noPlane: 1 }) + coverImg(t) +
+    '<span class="pc-year num"><b class="pc-yy">' + t.start.slice(0, 4) + ' · </b>' + (n > 0 ? n + '년 전' : '올해') + '</span>' + stampHtml('다녀옴', 'mini') + '</span>' +
+    '<span class="pc-b"><b>' + esc(t.title) + '</b><span class="num">' + esc(t.start.slice(0, 4) + '. ' + md(t.start) + (t.end !== t.start ? ' – ' + md(t.end) : '')) + ' · ' + (ds.length > 1 ? (ds.length - 1) + '박 ' + ds.length + '일' : '당일') + '</span>' +
+    (line ? '<span class="pc-line">' + esc(line) + '</span>' : '') +
+    '<span class="pc-meta">' + (c ? c.f + ' ' : '') + esc(t.place || '') + (its.length ? ' · 일정 ' + its.length : '') + (mem ? ' · 추억 ' + mem : '') + '</span></span></button>';
+}
+function pastHtml(past) {
+  if (!past.length) return '';
+  const out = past.filter(abroad), inn = past.filter(t => !abroad(t));
+  let k = UI.pastKind || LS.get('pastKind', '');
+  if (!KIND[k]) k = out.length ? 'out' : 'in';
+  const list = k === 'out' ? out : inn;
+  let h = '<div class="sec past"><div class="sec-h"><h3 class="ih">' + kindImg(k, 'h-art') + '지난 여행</h3><span class="muted small">' + past.length + '번의 추억</span></div>' +
+    '<div class="seg kindseg" role="tablist" aria-label="국내여행 해외여행">' + ['out', 'in'].map(v => '<button role="tab" aria-selected="' + (k === v) + '" class="' + (k === v ? 'on' : '') + '" data-act="past-kind" data-v="' + v + '">' + kindImg(v) + KIND[v][0] + ' <em class="num">' + (v === 'out' ? out : inn).length + '</em></button>').join('') + '</div>';
+  if (!list.length) return h + '<div class="card empty"><div class="art">' + kindImg(k, 'empty-art') + '</div><b>아직 다녀온 ' + KIND[k][0] + '이 없어요</b>다녀오면 여기에 해마다 쌓여요.</div></div>';
+  h += '<div class="ptl">';
+  let y = '';
+  list.forEach(t => { const yy = t.start.slice(0, 4); if (yy !== y) { y = yy; h += '<div class="ptl-y"><b class="num">' + yy + '</b><span>' + list.filter(x => x.start.slice(0, 4) === yy).length + '번</span></div>'; } h += pastCard(t); });
+  return h + '</div></div>';
+}
+/** 지난 여행 화면: 그때 이야기 */
+function storyCard(t) {
+  const s = String(t.story || '').trim(), nu = safeUrl(t.notion);
+  if (!s && !nu) return '';
+  return '<div class="sec"><div class="letter"><div class="lt-h">' + kindImg(abroad(t) ? 'out' : 'in', 'h-art') + '<b>그때 우리는</b><span class="lt-year num">' + esc(t.start.slice(0, 4)) + '</span></div>' +
+    s.split(/\n+/).map(x => '<p>' + esc(x) + '</p>').join('') + (nu ? '<a class="chipbtn" href="' + esc(nu) + '" target="_blank" rel="noopener">' + ic('notion') + '노션에서 보기</a>' : '') + '</div></div>';
+}
 
 /* ---------- 길 ---------- */
 function route() {
@@ -467,33 +524,35 @@ function homeView() {
   const up = trips.filter(t => t.end >= t0), past = trips.filter(t => t.end < t0).reverse();
   let h = '<div class="wrap nonav"><div class="topbar"><h1>하하가족여행</h1><span id="sync" class="sync"></span><button class="iconbtn" data-act="settings" aria-label="설정">' + ic('gear') + '</button></div>';
   h += '<div class="greet">' + nightArt() + greeting() + '</div>';
+  h += agoCard();
   if (up[0]) h += heroCard(up[0], 'open');
-  h += '<div class="sec"><div class="sec-h"><h3>우리 여행</h3></div><div class="stack">' + [...up.slice(up[0] ? 1 : 0), ...past].map(tripRow).join('') +
+  h += '<div class="sec"><div class="sec-h"><h3>' + (up.length > 1 ? '다가오는 여행' : '우리 여행') + '</h3></div><div class="stack">' + up.slice(up[0] ? 1 : 0).map(tripRow).join('') +
     '<button class="newtrip" data-act="trip-new">' + ic('plus') + '새 여행 만들기</button></div></div>';
+  h += pastHtml(past);
   const allDays = trips.reduce((s, t) => s + (t.start <= t0 ? Math.max(0, Math.min(dayDiff(t.start, t.end), dayDiff(t.start, t0)) + 1) : 0), 0);
   let spent = 0; live('spends').forEach(s => { const t = D.trips[s.trip]; if (t) spent += toWon(t, s.amount, s.cur); });
   const places = live('places').sort((a, b) => (b.rating || 0) - (a.rating || 0) || b.ts - a.ts);
   h += '<div class="sec"><div class="sec-h"><h3>우리 가족 여행 기록</h3></div>';
   if (!past.length && !allDays && !places.length) h += '<div class="card empty"><div class="art">🧳✨</div><b>첫 여행을 기다리는 중</b>다녀오면 여기에 우리 가족의 여행이 쌓여요.</div>';
-  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
-    '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>평가한 곳</small><b class="num">' + places.length + '곳</b></div></div>';
+  else h += '<div class="grid2"><div class="stat"><small>함께 간 여행</small><b class="num">' + trips.length + '번</b><em>해외 ' + trips.filter(abroad).length + ' · 국내 ' + trips.filter(t => !abroad(t)).length + '</em></div><div class="stat"><small>여행한 날</small><b class="num">' + allDays + '일</b></div>' +
+    '<div class="stat"><small>쓴 돈 (기록한 것)</small><b class="num">' + manWon(spent) + '</b></div><div class="stat"><small>가 본 곳</small><b class="num">' + places.length + '곳</b><em>별점 ' + places.filter(p => p.rating > 0).length + '곳</em></div></div>';
   h += '</div>';
-  if (places.length) h += '<div class="sec"><div class="sec-h"><h3>우리가 좋았던 곳</h3><button class="linkbtn" data-act="all-places">모두 보기</button></div><div class="card">' + places.slice(0, 5).map(placeRow).join('') + '</div></div>';
+  const liked = places.filter(p => p.rating > 0);
+  if (places.length) h += '<div class="sec"><div class="sec-h"><h3>' + (liked.length ? '우리가 좋았던 곳' : '우리가 가 본 곳') + '</h3><button class="linkbtn" data-act="all-places">모두 보기</button></div><div class="card">' + (liked.length ? liked : places).slice(0, 5).map(placeRow).join('') + '</div></div>';
   return h + '</div>';
 }
 function heroCard(t, mode) {
   const ds = daysOf(t), mini = mode === 'mini';
   const tag = mode === 'open' ? 'button data-act="open-trip" data-v="' + esc(t.id) + '"' : 'div';
   const c = countryOf(t);
-  const cityKey = /오사카|osaka/i.test(t.place + t.title) ? 'osaka' : /교토|kyoto/i.test(t.place) ? 'kyoto' : /도쿄|tokyo/i.test(t.place) ? 'tokyo' : /후쿠오카/.test(t.place) ? 'fukuoka' : /제주/.test(t.place) ? 'jeju' : '';
-  const cover = safeImg(t.cover) ? '<img class="cover" src="' + t.cover + '" alt="">' : cityKey ? '<img class="cover" src="img/cover-' + cityKey + '-' + partOfDay() + '.webp" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src=\'img/cover-' + cityKey + '.webp\'}else this.remove()">' : '';
+  const cover = coverImg(t);
   return '<' + tag + ' class="hero' + (mini ? ' mini' : '') + '">' + scene(t) + cover + '<div class="hin">' +
     '<div class="eyebrow">' + (c ? c.f + ' ' : '') + esc(t.place || '여행') + '</div><span class="dday num">' + ddayText(t) + '</span>' +
     '<h2>' + esc(t.title) + '</h2><div class="sub num">' + esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + Math.max(0, ds.length - 1) + '박 ' + ds.length + '일</div>' +
     (mini ? '' : '<div class="people">' + (t.members || []).map(m => '<span class="chip-w">' + esc(m) + '</span>').join('') + '</div>') + '</div></' + tag.split(' ')[0] + '>';
 }
 function tripRow(t) {
-  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num">' +
+  return '<button class="trip-row" data-act="open-trip" data-v="' + esc(t.id) + '"><span class="th">' + scene(t, { noPlane: 1 }).replace('class="scene"', '') + '</span><span class="tt"><b>' + esc(t.title) + '</b><span class="num"><i class="kindtag ' + (abroad(t) ? 'out' : 'in') + '">' + (abroad(t) ? '해외' : '국내') + '</i>' +
     esc(md(t.start)) + ' – ' + esc(md(t.end)) + ' · ' + esc(t.place || '') + '</span></span>' + (t.end < today() ? stampHtml('다녀옴', 'mini') : '<span class="pill ' + (dayDiff(today(), t.start) > 0 ? 'hot' : '') + '">' + ddayText(t) + '</span>') + '</button>';
 }
 function placeRow(p) {
@@ -560,6 +619,8 @@ function todayTab(t) {
   const c = countryOf(t);
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
+  if (ph === 'after') h += storyCard(t);
+  h += agoCard(t);
   const warns = bookingWarnings(t);
   const pb = parkBooking(t), pk = lastPark(t);
   // 귀국 날·다녀온 뒤: 내 차 먼저
@@ -1158,11 +1219,13 @@ const F = {
     { k: 'title', label: '여행 이름', ph: '예: 오사카 가족여행' },
     { k: 'place', label: '어디로 (도시)', ph: '예: 오사카 · 교토' },
     { k: 'start', label: '가는 날', type: 'date', half: 1 }, { k: 'end', label: '오는 날', type: 'date', half: 1 },
-    { k: 'country', label: '나라', type: 'opts', options: Object.keys(COUNTRY), names: Object.fromEntries(Object.entries(COUNTRY).map(([k, v]) => [k, v.f + ' ' + v.n])) },
+    { k: 'country', label: '나라 (🇰🇷 한국이면 국내여행)', type: 'opts', options: ['KR', ...Object.keys(COUNTRY).filter(k => k !== 'KR')], names: Object.fromEntries(Object.entries(COUNTRY).map(([k, v]) => [k, v.f + ' ' + v.n])) },
     { k: 'members', label: '함께 가는 사람', type: 'multi', options: D.meta.family.map(f => f.name) },
     { k: 'cur', label: '현지 돈', type: 'opts', options: Object.keys(CUR), names: CUR, more: 1 },
     { k: 'rate', label: '경비 계산 환율 (현지 돈 100 = 몇 원)', type: 'number', ph: '예: 엔화 845', more: 1 },
-    { k: 'memo', label: '메모', type: 'textarea', ph: '숙소·교통·꼭 기억할 것', more: 1 }],
+    { k: 'memo', label: '메모', type: 'textarea', ph: '숙소·교통·꼭 기억할 것', more: 1 },
+    { k: 'story', label: '그때 우리는 (다녀온 뒤 이야기)', type: 'textarea', ph: '가장 기억에 남는 순간', more: 1 },
+    { k: 'notion', label: '노션 페이지 주소 (https://…)', type: 'url', more: 1 }],
   item: t => [
     { k: 'title', label: '할 일', ph: '예: 후시미 이나리 신사' },
     { k: 'date', label: '날짜 (비우면 날짜 미정)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
@@ -1406,6 +1469,7 @@ document.addEventListener('click', e => {
     'note-new': () => editRec('note', t, { date: (today() >= t.start && today() <= t.end) ? today() : t.start, owner: UI.diaryWho === ME ? ME : '' }),
     'note-edit': () => { const n = D.notes[v]; if (n.owner && n.owner !== ME) return openSheet('<div class="note" style="box-shadow:none;padding:0"><div class="h">' + av(n.by, 32) + esc(n.by) + ' · ' + esc(md(n.date)) + (n.mood ? ' · ' + moodImg(n.mood, 22) : '') + '</div><p>' + esc(n.text) + '</p>' + (safeImg(n.thumb) ? '<img src="' + n.thumb + '" alt="">' : '') + '</div><div class="muted small" style="margin-top:10px">' + esc(n.owner) + ' 님의 다이어리예요. 읽기만 할 수 있어요.</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>'); editRec('note', t, n); },
     'diary-who': () => { UI.diaryWho = v; render(); },
+    'past-kind': () => { UI.pastKind = v; LS.set('pastKind', v); render(); },
     'place-new': () => editRec('place', t, { cat: '맛집', rating: 5 }),
     'place-edit': () => { const p = D.places[v]; editRec('place', D.trips[p.trip], p); },
     'park-new': () => { closeSheet(); pickPhoto('parking'); },
@@ -1568,6 +1632,11 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.1', d: '2026-11-25', title: '지난 여행이 연표로 모였어요', items: [
+    ['globe', 'var(--sky)', '해외여행 | 국내여행', '처음 화면 「지난 여행」에서 해외여행과 국내여행을 나눠 보고, 해마다 쌓인 여행을 연표로 봐요.'],
+    ['memory', 'var(--coral)', '노션에 있던 추억 4가지', '2017 봄 제주 · 2017 인제 · 2019 곡성 · 2022 겨울 제주 — 노션 「여행_다녀온곳」 기록을 일정·예약·가 본 곳으로 옮겼어요.'],
+    ['camera', 'var(--sun)', '○년 전 오늘', '지난 여행과 같은 날이 오면 「4년 전 오늘, 우리는」 카드가 떠요. 12월 29일엔 2022년 제주가 찾아와요.'],
+    ['notion', 'var(--ink)', '그때 우리는', '다녀온 여행을 열면 그때 이야기가 편지처럼 보이고, 노션 페이지로 바로 갈 수 있어요.']] },
   { v: '3.0', d: '2026-11-25', title: '어떤 일정이든 그림이 붙어요', items: [
     ['plan', 'var(--c-관광)', '새 일정 그림 20가지', '유람선·온천·신칸센·관람차·수족관·나라 사슴·이자카야·편의점·사진·불꽃·휴식·약국, 그리고 교회·해변·등산·스키·렌터카·자전거·박물관·공연까지.'],
     ['pen', 'var(--coral)', '쓰기만 하면 저절로', '일정 제목에 「온천」「유람선」「편의점」 같은 말을 쓰면 맞는 그림이 붙어요.']] },
