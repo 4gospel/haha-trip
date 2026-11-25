@@ -135,6 +135,12 @@ const ib = (n, color, sm) => '<span class="ib' + (sm ? ' sm' : '') + '" style="-
 function itemIcon(i) {
   const x = (i.title || '') + ' ' + (i.place || '');
   if (/주차|입차|출차/.test(x)) return ['park', 'var(--c-주차)'];
+  const KW = [[/리버\s*크루즈|유람선|크루즈|페리|배\s*타|보트/i, 'cruise', '이동'], [/온천|스파\s*월드|스파월드|목욕탕|대욕장|족욕/, 'onsen', '관광'], [/신칸센|하루카|특급/, 'shinkansen', '이동'],
+    [/관람차|덴포잔|헵\s*파이브/, 'ferris', '관광'], [/가이유칸|수족관/, 'aquarium', '관광'], [/나라\s*공원|사슴|도다이지/, 'deer', '관광'], [/이자카야|술집|야키토리|선술집/, 'izakaya', '식사'],
+    [/편의점|돈키호테|드럭|마트|로손|세븐일레븐|패밀리마트/, 'store', '쇼핑'], [/사진|포토|인생샷/, 'photo', '관광'], [/카운트다운|불꽃/, 'fireworks', '관광'], [/쉬기|쉬는|휴식|낮잠|자유\s*시간/, 'rest', '숙소'],
+    [/병원|약국|진료/, 'hospital', '기타'], [/예배|교회|주일/, 'church', '기타'], [/해변|해수욕|비치|바닷가/, 'beach', '관광'], [/등산|트레킹|하이킹|산행/, 'hiking', '관광'], [/스키|스노보드|눈썰매/, 'ski', '관광'],
+    [/렌터카|렌트카|드라이브/, 'rentcar', '이동'], [/자전거|바이크/, 'bike', '이동'], [/박물관|미술관|전시/, 'museum', '관광'], [/공연|뮤지컬|콘서트/, 'show', '관광']];
+  for (const [re, n, c] of KW) if (re.test(x)) return [n, cc(c)];
   if (/도착/.test(x) && /공항|간사이|인천|airport/i.test(x) && !/셔틀|체크인/.test(x)) return ['land', 'var(--c-이동)'];
   if (/체크인/.test(x) && /공항/.test(x)) return ['plane', 'var(--c-이동)'];
   if (/출발|항공|7C\d|비행|탑승|airport|공항/i.test(x) && !/급행|셔틀|난카이|버스|→ ?덴가/.test(x)) return ['plane', 'var(--c-이동)'];
@@ -169,12 +175,12 @@ function prepIcon(c) {
 }
 /** 제미나이 그림이 있으면 그것, 없으면 선 아이콘 */
 const pic = (arr, sz) => '<span class="pic" style="--cc:' + arr[1] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + ic(arr[0]) + '<img src="img/prep-' + arr[2] + '.webp" alt="" onerror="this.remove()"></span>';
-const IT_IMG = { castle: 'castle', walk: 'walk', basket: 'market', park: 'park', plane: 'plane', land: 'land', train: 'train', bus: 'bus', taxi: 'taxi', bed: 'hotel', bowl: 'food', cup: 'cafe', torii: 'temple', tower: 'tower', bag: 'shop', ticket: 'ticket' };
+const IT_IMG = { cruise: 'cruise', onsen: 'onsen', shinkansen: 'shinkansen', ferris: 'ferris', aquarium: 'aquarium', deer: 'deer', izakaya: 'izakaya', store: 'store', photo: 'photo', fireworks: 'fireworks', rest: 'rest', hospital: 'hospital', church: 'church', beach: 'beach', hiking: 'hiking', ski: 'ski', rentcar: 'rentcar', bike: 'bike', museum: 'museum', show: 'show', castle: 'castle', walk: 'walk', basket: 'market', park: 'park', plane: 'plane', land: 'land', train: 'train', bus: 'bus', taxi: 'taxi', bed: 'hotel', bowl: 'food', cup: 'cafe', torii: 'temple', tower: 'tower', bag: 'shop', ticket: 'ticket' };
 const itPic = (icn, col, sm) => IT_IMG[icn] ? '<span class="ib itp' + (sm ? ' sm' : '') + '" style="--cc:' + col + '"><img src="img/it-' + IT_IMG[icn] + '.webp" alt=""></span>' : ib(icn, col, sm);
 const MOOD = { happy: '😊', love: '🥰', laugh: '😆', tired: '😴', hot: '🥵', yum: '🤤' };
 const moodKey = m => MOOD[m] ? m : Object.keys(MOOD).find(k => MOOD[k] === m) || '';
 const moodImg = (m, sz) => { const k = moodKey(m); return k ? '<img class="mood" src="img/mood-' + k + '.webp" alt="" width="' + (sz || 24) + '" height="' + (sz || 24) + '">' : esc(m || ''); };
-function foodArt(r) { const x = (r.name || '') + ' ' + (r.desc || ''); return /다코야키|타코야키/.test(x) ? 'food-takoyaki' : /오코노미야키|미즈노/.test(x) ? 'food-okonomiyaki' : /구시카쓰|쿠시카츠/.test(x) ? 'food-kushikatsu' : /라멘|이치란|소바|우동/.test(x) ? 'it-food' : /치즈케이크|551|찐빵|카페|디저트/.test(x) ? 'it-cafe' : /유니버설|USJ/i.test(x) ? 'usj-day' : /신사|이나리|기요미즈|데라/.test(x) ? 'it-temple' : /전망|쓰텐카쿠|하루카스|스카이/.test(x) ? 'it-tower' : r.kind === '쇼핑' ? 'souvenir' : ''; }
+function foodArt(r) { const x = (r.name || '') + ' ' + (r.desc || ''); return /나라\s*공원|사슴/.test(x) ? 'it-deer' : /오사카성/.test(x) ? 'it-castle' : /시장/.test(x) ? 'it-market' : /수족관|가이유칸/.test(x) ? 'it-aquarium' : /관람차/.test(x) ? 'it-ferris' : /온천|스파/.test(x) ? 'it-onsen' : /글리코|도톤보리/.test(x) ? 'it-photo' : /다코야키|타코야키/.test(x) ? 'food-takoyaki' : /오코노미야키|미즈노/.test(x) ? 'food-okonomiyaki' : /구시카쓰|쿠시카츠/.test(x) ? 'food-kushikatsu' : /라멘|이치란|소바|우동/.test(x) ? 'it-food' : /치즈케이크|551|찐빵|카페|디저트/.test(x) ? 'it-cafe' : /유니버설|USJ/i.test(x) ? 'usj-day' : /신사|이나리|기요미즈|데라/.test(x) ? 'it-temple' : /전망|쓰텐카쿠|하루카스|스카이/.test(x) ? 'it-tower' : r.kind === '쇼핑' ? 'souvenir' : ''; }
 const IATA = { 인천: 'ICN', 김포: 'GMP', 간사이: 'KIX', 오사카: 'KIX', 이타미: 'ITM', 나리타: 'NRT', 하네다: 'HND', 도쿄: 'NRT', 후쿠오카: 'FUK', 나고야: 'NGO', 삿포로: 'CTS', 오키나와: 'OKA', 나하: 'OKA', 제주: 'CJU', 김해: 'PUS', 부산: 'PUS', 청주: 'CJJ', 대구: 'TAE',
   타이베이: 'TPE', 방콕: 'BKK', 다낭: 'DAD', 세부: 'CEB', 괌: 'GUM', 홍콩: 'HKG', 싱가포르: 'SIN', 마쓰야마: 'MYJ', 다카마쓰: 'TAK', 기타큐슈: 'KKJ', 고마쓰: 'KMQ', 요나고: 'YGJ', 가고시마: 'KOJ', 오이타: 'OIT', 상하이: 'PVG', 하노이: 'HAN', 호찌민: 'SGN', 마닐라: 'MNL', 파리: 'CDG', 런던: 'LHR' };
 function flightInfo(b) {
@@ -1562,6 +1568,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '3.0', d: '2026-11-25', title: '어떤 일정이든 그림이 붙어요', items: [
+    ['plan', 'var(--c-관광)', '새 일정 그림 20가지', '유람선·온천·신칸센·관람차·수족관·나라 사슴·이자카야·편의점·사진·불꽃·휴식·약국, 그리고 교회·해변·등산·스키·렌터카·자전거·박물관·공연까지.'],
+    ['pen', 'var(--coral)', '쓰기만 하면 저절로', '일정 제목에 「온천」「유람선」「편의점」 같은 말을 쓰면 맞는 그림이 붙어요.']] },
   { v: '2.9', d: '2026-11-25', title: '교토 표지와 새 아이콘', items: [
     ['sun', 'var(--sun)', '교토 표지', '단풍과 도리이, 기요미즈데라가 담긴 교토 표지가 생겼어요. 교토 여행을 만들면 저절로 떠요.'],
     ['route', 'var(--c-관광)', '걷기·시장·성·주차', '산책·시장·오사카성·주차 일정에도 그림이 붙고, 여권 화면엔 여권 표지, 밤에는 달이 인사해요.']] },
