@@ -138,7 +138,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .tl-card .tm{font-size:15px;font-weight:800;color:var(--soft);min-width:44px;padding-top:10px}
 .tl-card .body{flex:1;min-width:0;text-align:left;padding-top:2px}
 .tl-card .t{font-weight:700;font-size:16px;line-height:1.35}
-.tl-card .m{font-size:14px;color:var(--soft);margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.tl-card .m{font-size:14px;color:var(--soft);margin-top:3px;white-space:pre-wrap;overflow-wrap:break-word}
 .tl-card .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
 .tag{font-size:13px;font-weight:700;padding:3px 9px;border-radius:99px;background:color-mix(in srgb,var(--cc,var(--c-기타)) 14%,transparent);color:var(--cc,var(--c-기타))}
 .warnline{font-size:14px;color:var(--warn);font-weight:600;margin-top:4px}
@@ -436,7 +436,7 @@ details.more .f{margin-top:6px}
 .conv>*{min-width:0}
 .conv input.in{width:100%;min-width:0}
 .card,.stat,.alert,.pass,.rec,.note{min-width:0}
-.facts b{min-width:0;overflow-wrap:anywhere}
+.facts b{min-width:0;overflow-wrap:break-word}
 @media (min-width:700px){
   .flow>.sec:has(.wallet),.flow>.sec:has(.tl),.flow>.sec:has(.car),.flow>.sec:has(.outfits),.flow>.sec:has(.photos){grid-column:1/-1}
   .flow-book>.sec:has(.outfits){grid-column:1/-1}
@@ -847,7 +847,7 @@ body.map-open .nav,body.map-open .fab{display:none}
 .memo-card{display:flex;flex-direction:column;justify-content:space-between;gap:8px;text-align:left;min-height:96px;padding:12px 12px 10px;border-radius:6px 16px 16px 16px;background:#fff6c8;color:#3a3420;box-shadow:0 2px 8px rgba(0,0,0,.12);transform:rotate(-.4deg)}
 .memo-card:nth-child(2n){background:#e3f4ff;transform:rotate(.5deg)}
 .memo-card:nth-child(3n){background:#ffe6ee}
-.memo-card p{margin:0;white-space:pre-wrap;font-size:15px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;overflow-wrap:anywhere}
+.memo-card p{margin:0;white-space:pre-wrap;font-size:15px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;overflow-wrap:break-word}
 .memo-card small{font-size:11px;opacity:.65}
 .memo-empty{display:flex;flex-direction:column;gap:8px;align-items:flex-start;padding:16px;border-radius:16px;background:var(--fill);font-size:14px;color:var(--soft);line-height:1.5}
 .memo-empty b{color:var(--ink);font-size:15px}
@@ -1270,7 +1270,7 @@ body.tk-on{overflow:hidden}
 .tp-route b{font-size:34px;font-weight:900;letter-spacing:.02em;line-height:1.05}.tp-route small{font-size:12.5px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tp-path{flex:none;font-size:22px;position:relative;padding:0 26px}.tp-path::before,.tp-path::after{content:"";position:absolute;top:50%;width:20px;border-top:2px dotted rgba(255,255,255,.7)}.tp-path::before{left:0}.tp-path::after{right:0}
 .tp-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(96px,100%),1fr));gap:8px 12px;margin-top:10px}
-.tp-fields div{display:flex;flex-direction:column;min-width:0}.tp-fields small{font-size:11.5px;opacity:.8;letter-spacing:.02em}.tp-fields b{font-size:15.5px;line-height:1.3;word-break:keep-all;overflow-wrap:anywhere}.tp-fields i{font-style:normal;font-size:12px;opacity:.8;font-weight:600}
+.tp-fields div{display:flex;flex-direction:column;min-width:0}.tp-fields small{font-size:11.5px;opacity:.8;letter-spacing:.02em}.tp-fields b{font-size:15.5px;line-height:1.3;word-break:keep-all;overflow-wrap:break-word}.tp-fields i{font-style:normal;font-size:12px;opacity:.8;font-weight:600}
 .tp-tear{position:relative;height:22px;background:#fff}
 .tp-tear::before{content:"";position:absolute;left:18px;right:18px;top:50%;border-top:2px dashed #d6d6d6}
 .tp-tear::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 0 50%,var(--tk-bg,#fff) 11px,transparent 12px),radial-gradient(circle at 100% 50%,var(--tk-bg,#fff) 11px,transparent 12px)}
@@ -1485,8 +1485,9 @@ html.solid .tkv .tkv-stage{background:#fff!important;-webkit-backdrop-filter:non
 .bud3 b em{font-style:normal;font-size:.5em;font-weight:800;margin-left:3px;letter-spacing:0}
 .pr-avs{display:flex;flex:none;gap:4px}.payrow.couple .pr-avs .av{width:30px!important;height:30px!important}
 /* 한글 줄바꿈 — 낱말 가운데서 끊지 않음(「여 / 행」처럼 한 글자만 내려가지 않게, 팀장님 2026-11-26). 띄어쓰기 없는 긴 글(주소·링크)은 넘칠 때만 끊음 · 제목은 줄 길이를 고르게 */
-html{word-break:keep-all;overflow-wrap:anywhere}
-h1,h2,h3,h4,.t,.tp-name b,.lb b,.sec-h b,.card b,.hero b{text-wrap:balance}
+html{word-break:keep-all;overflow-wrap:break-word;text-wrap:pretty} /* 낱말 안에서 자르지 않고(긴 낱말만 넘칠 때), 마지막 줄에 한 글자만 남지 않게 */
+input,textarea{text-wrap:wrap}
+h1,h2,h3,h4,.t,.tp-name b,.lb b,.sec-h b,.card b,.hero b,.alert b,.taxi-name,.taxi-addr,.iv-head b,.wl-link b,.tk-h b{text-wrap:balance}
 p,.muted,.m,small,li{text-wrap:pretty}
 .in,textarea,input,.num,code{word-break:normal}
 
@@ -1531,3 +1532,29 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .late-fx{padding:4px 0;font-size:15px}
 .go-moved{font-style:normal;color:var(--warn-ink,#C62A2F);font-weight:600}
 .late-all{display:flex;gap:8px;align-items:center;margin-top:10px;min-height:44px;font-size:15px}.late-all input{width:22px;height:22px}
+.tl-card.skip{opacity:.5}
+.tl-card.skip .t{text-decoration:line-through}
+.skip-tag{--cc:#8a8f98}
+.iv-chg{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.iv-chg .btn{min-height:44px}
+/* 완료 도장 — 꾹 누르기(2026-11-27) */
+.tl-card{position:relative}
+.tl-card .chk{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation;position:relative;overflow:hidden}
+.tl-card .chk::after{content:'';position:absolute;inset:0;border-radius:inherit;background:conic-gradient(var(--coral,#E8562A) var(--p,0%),transparent 0);opacity:.35;transform:scale(0);transition:transform .1s}
+.tl-card .chk.holding::after{transform:scale(1);animation:holdfill .7s linear forwards}
+@property --p{syntax:'<percentage>';inherits:false;initial-value:0%}
+@keyframes holdfill{from{--p:0%}to{--p:100%}}
+.tl-card .chk.nudge{animation:nudge .4s}
+@keyframes nudge{20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}
+.tl-stamp{position:absolute;right:10px;top:8px;z-index:2;pointer-events:none;opacity:.92}
+.tl-stamp.just .stampx{animation:stampin .45s cubic-bezier(.2,1.6,.4,1)}
+.stampx.usj{width:54px;height:54px;color:#1F5FD1;transform:rotate(-12deg)}
+.stampx.usj svg{width:100%;height:100%;filter:drop-shadow(0 1px 0 rgba(255,255,255,.6))}
+.tl-card.b-night .stampx.usj{color:#8FB4FF}
+.stampx.haha{width:54px;height:54px;color:#C4343C;transform:rotate(-10deg)}.stampx.haha svg{width:100%;height:100%}.tl-card.b-night .stampx.haha{color:#FF9AA0}
+:lang(ja),.taxi-ja,.taxi-addr,[lang="ja"]{word-break:normal;line-break:strict}
+/* 줄바꿈 다듬기(2026-11-27) — 이름 칸은 짧게 한 줄로, 머리 줄 단추는 낱말 안에서 꺾지 않기 */
+.facts span{flex:0 1 auto;min-width:min(7.5em,40%);text-wrap:balance}
+.sec-h{flex-wrap:wrap;row-gap:4px}
+.sec-h .linkbtn,.sec-h .flex .linkbtn{white-space:nowrap}
+.daycost span{white-space:nowrap}

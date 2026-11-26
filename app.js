@@ -575,8 +575,21 @@ window.addEventListener('popstate', () => {
 });
 
 /* ---------- 그리기 ---------- */
+/** 한 글자(짧은 낱말)만 다음 줄로 떨어지지 않게(팀장님 2026-11-27 「모든 화면에서」) — 글 끝의 마지막 띄어쓰기를 붙는 띄어쓰기(NBSP)로.
+ *  text-wrap:pretty를 못 쓰는 휴대폰을 위한 보탬. 끝 낱말이 3글자 이하일 때만, 입력 칸·코드는 건드리지 않음 */
+const ORPHAN_SEL = 'h1,h2,h3,h4,p,li,.t,.m,.muted,.goline,.tip b,.iv-rows b,.iv-rows span,.alert b,.alert span,.card b,.card span,.facts span,.facts b,.tag,.sc-t small,.nowline span,.taxi-how li,.dmap-leg button,small,.rec p,.iv-rec div';
+function fixOrphans(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll(ORPHAN_SEL).forEach(el => {
+    if (el.closest('input,textarea,[contenteditable],.num,code,pre') || ((el.closest('div,p,li,button,a,section,h1,h2,h3,h4') || el).clientWidth || 999) < 140) return; // 아주 좁은 칸(책 표지 등)은 붙이면 낱말 중간이 꺾여서 그대로
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let last = null, n; while ((n = w.nextNode())) if (n.nodeValue.trim()) last = n;
+    if (!last) return;
+    const v = last.nodeValue, m = v.match(/^([\s\S]*\S) (\S{1,3}[\s.,!?…)」』'"]*)$/);
+    if (m && m[1].length >= 6) last.nodeValue = m[1] + '\u00A0' + m[2];
+  });
+}
 function render() {
-  try { render_(); } catch (e) {
+  try { render_(); fixOrphans($('#app')); } catch (e) {
     console.error(e);
     const app = $('#app'); if (app) app.innerHTML = '<div class="wrap"><div class="card" style="margin-top:40px"><b>화면을 그리다 문제가 생겼어요</b><div class="muted" style="margin:6px 0 12px">기록은 안전해요. 아래를 눌러 다시 열어 주세요.</div><button class="btn pri" onclick="location.hash=\'#/\';location.reload()">처음 화면으로 다시 열기</button></div></div>';
   }
@@ -778,7 +791,7 @@ async function mountMap(again) {
 
 /* 하루 동선 지도 (팀장님 2026-11-27 「지도 포함 → 동선 마킹」): 그날 일정 좌표를 시간 순서대로 번호 핀 + 선. 일정에 zone(예: USJ)이 있으면 「USJ 안 | 하루 전체」 */
 function dayMapPts(t, d) {
-  const all = live('items', t.id).filter(i => i.date === d && i.lat != null && i.lng != null).sort(byTime);
+  const all = live('items', t.id).filter(i => i.date === d && !i.skip && i.lat != null && i.lng != null).sort(byTime);
   const zones = [...new Set(all.map(i => i.zone).filter(Boolean))];
   const z = UI.dmz === 'all' ? 'all' : zones.includes(UI.dmz) ? UI.dmz : zones[0] || 'all';
   return { pts: z === 'all' ? all : all.filter(i => i.zone === z), zones, z };
@@ -790,6 +803,15 @@ function dayMapHtml(t, d) {
     '<div class="tmap-wrap"><div id="dmap" class="tmap dmap" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
     '<div class="dmap-leg">' + pts.map((i, k) => '<button data-act="item-view" data-v="' + esc(i.id) + '"' + (i.done ? ' class="done"' : '') + '><b class="num">' + (k + 1) + '</b><span class="num">' + esc(i.time || '') + '</span>' + (dmEmo(i) ? '<i class="dm-emo">' + dmEmo(i) + '</i>' : '') + esc(dmLab(i)) + '</button>').join('') + '</div></div>';
 }
+/* 일정 동그라미 꾹 누르기(0.7초) → 도장 */
+let HOLD = null;
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest && e.target.closest('.tl-card .chk[data-act="item-done"]'); if (!b) return;
+  b.classList.add('holding');
+  HOLD = { b, tm: setTimeout(() => { b.classList.remove('holding'); LAST_HOLD = Date.now(); b.dataset.held = '1'; b.click(); HOLD = null; }, 700) };
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(n => document.addEventListener(n, e => { if (HOLD && (n !== 'pointerleave' || e.target === HOLD.b)) { clearTimeout(HOLD.tm); HOLD.b.classList.remove('holding'); HOLD = null; } }, true));
+document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.tl-card .chk')) e.preventDefault(); });
 /** 동선에서 탈것 그림(팀장님 2026-11-27 「대중교통 항목엔 이모티콘」) */
 function dmEmo(i) {
   const g = i.go || {}, tx = (i.title || '') + ' ' + (i.memo || '');
@@ -868,7 +890,7 @@ let WIDE_NOW = null;
 matchMedia('(min-width:1100px)').addEventListener('change', () => { if (PASS && ME) render(); });
 const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || (a.ts - b.ts);
 /** 일정 1인 비용 = 그 일정 값 + 「여기까지 가는 길」 차비(교통 일정은 값이 곧 차비라 더하지 않음) — 2026-11-26 차비가 예산에서 빠지던 것 */
-const itemCost = i => (Number(i.cost) || 0) + (i.cat !== '이동' && i.go && Number(i.go.fare) > 0 ? Number(i.go.fare) : 0);
+const itemCost = i => i.skip ? 0 : (Number(i.cost) || 0) + (i.cat !== '이동' && i.go && Number(i.go.fare) > 0 ? Number(i.go.fare) : 0);
 function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, itemCost(i))); return s; }
 function spentWon(t, day) { let s = 0; const pre = preSpend(t); live('spends', t.id).forEach(x => { if (!day || (x.date === day && !pre(x))) s += toWon(t, x.amount, x.cur); }); return s; }
 /** 미리 낸 돈(출발 전·보험·여권·예약 값과 같은 결제) — 「오늘 쓴 돈」에서는 뺌(시뮬레이션 2026-11-27) */
@@ -937,7 +959,7 @@ function todayTab(t) {
   }
   // 여행 중: 지금·다음 일정
   if (ph !== 'before' && ph !== 'after') {
-    const list = live('items', t.id).filter(i => i.date === t0).sort(byTime);
+    const list = live('items', t.id).filter(i => i.date === t0 && !i.skip).sort(byTime);
     const now = hm(); const next = list.filter(i => !i.done && (i.time || '99') >= now.slice(0, 5));
     const cur = list.filter(i => !i.done && i.time && i.time < now.slice(0, 5)).slice(-1)[0]; // 이미 시작했고 아직 다녀오지 않은 것 = 지금(UX 전문가)
     const show = (cur ? [cur] : []).concat(next.length ? next : list.filter(i => !i.done && i !== cur)).slice(0, 3);
@@ -1016,7 +1038,7 @@ const GO_IC = { walk: '🚶', transit: '🚃', taxi: '🚕', bus: '🚌' };
 /** 가는 길 한 줄 — 순서를 바꾸면 저절로 따라감(팀장님 2026-11-27 「순서를 바꾸면 동선과 내용도 바뀌나?」)
  *  · 파크 안(zone)처럼 걸어서 가는 곳: 바로 앞 일정 좌표에서 걸음 분을 그때그때 셈
  *  · 전철·택시처럼 적어 둔 길: 앞 일정이 바뀌었으면 「길찾기로 다시 보기」 알림 */
-const prevItem = i => { const l = live('items', i.trip).filter(x => x.date === i.date).sort(byTime), k = l.findIndex(x => x.id === i.id); return k > 0 ? l[k - 1] : null; };
+const prevItem = i => { const l = live('items', i.trip).filter(x => x.date === i.date && (!x.skip || x.id === i.id)).sort(byTime), k = l.findIndex(x => x.id === i.id); return k > 0 ? l[k - 1] : null; };
 const walkMin = (a, b) => { const R = 6371e3, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r, h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2, m = 2 * R * Math.asin(Math.sqrt(h)) * 1.3; return { m, min: Math.max(1, Math.round(m / 70)) }; };
 const goLine = i => {
   const p = i.date ? prevItem(i) : null, g = i.go || {};
@@ -1026,6 +1048,9 @@ const goLine = i => {
   }
   if (!g.s) return '';
   const moved = !!(p && g.after && p.id !== g.after); // go.after = 이 길을 적을 때 바로 앞 일정 — 순서가 바뀌면 알림
+  const dm = s2 => { const m = String(s2 || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+  const late = g.t === 'transit' && dm(g.dep) != null && dm(i.time) != null && Math.abs(dm(i.time) - dm(g.dep)) > 10; // 일정 시각이 적어 둔 열차와 10분 넘게 다르면
+  if (late && !moved) return '<div class="goline">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + ' <em class="go-moved">· 시간이 바뀌었어요 — 「길찾기」로 다음 열차를 봐요</em></div>';
   return '<div class="goline">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + (moved ? ' <em class="go-moved">· 앞 일정이 바뀌었어요 — 「길찾기」로 다시 봐요</em>' : '') + '</div>';
 };
 function goUrl(i) {
@@ -1084,9 +1109,9 @@ function tlList(t, list, nowFirst) {
 }
 function tlItem(t, i, now) {
   const [icn, col] = itemIcon(i), sv = sunVars(t, i);
-  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
+  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
     '<button class="body" data-act="item-view" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
-    '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
+    '<div class="meta">' + (i.skip ? '<span class="tag skip-tag">⏭ 이번엔 건너뜀</span>' : '') + '<span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.go && i.go.t === 'taxi' ? '<span class="go taxi-go" role="button" data-act="taxi" data-v="' + esc(i.id) + '">🚕 기사님께 보여 주기</span>' : '') +
     (i.place ? (u => '<a class="go' + (/^(nmap|intent):/.test(u) ? ' nvapp' : '') + '" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + ' data-stop="1">' + ic('route') + '길찾기</a>')(goTo(t, i.place, i)) : '') + '</div></button>' +
     '<button class="chk ' + (i.done ? 'on' : '') + '" data-act="item-done" data-v="' + esc(i.id) + '" aria-label="다녀옴 표시">' + (i.done ? ic('check') : '') + '</button></div>';
@@ -1411,6 +1436,11 @@ function itemView(t, i) {
   }
   if (rel.length) h += '<div class="iv-sec"><b>' + ic('star') + '함께 알아 둘 곳</b>' + rel.map(r => '<div class="iv-rec"><b>' + esc(r.name) + '</b>' + (r.area ? ' <span class="muted">' + esc(r.area) + '</span>' : '') + '<div>' + esc(r.desc || '') + '</div>' + (r.hours ? '<div class="muted small">🕘 ' + esc(r.hours) + '</div>' : '') + (r.price ? '<div class="muted small">💴 ' + esc(r.price) + '</div>' : '') + '</div>').join('') + '</div>';
   if (bk.length) h += '<div class="iv-sec"><b>' + ic('ticket') + '이 일정의 예약</b>' + bk.map(b => '<button class="iv-rec" data-act="booking-edit" data-v="' + esc(b.id) + '"><b>' + esc(b.title) + '</b>' + (b.code ? ' <span class="num muted">' + esc(b.code) + '</span>' : '') + '</button>').join('') + '</div>';
+  // 늦어지거나 바뀌었을 때 그 자리에서(팀장님 2026-11-27 「다른 일정도 늦어지거나 삭제·변경에 대처」)
+  if (i.date) h += '<div class="iv-sec iv-change"><b>' + ic('route') + '바뀌었나요?</b><div class="iv-chg">' +
+    (i.time ? [-15, 15, 30, 60].map(n => '<button class="btn" data-act="item-shift" data-v="' + esc(i.id) + '" data-n="' + n + '">' + (n > 0 ? '+' : '−') + Math.abs(n) + '분</button>').join('') : '') +
+    '<button class="btn" data-act="item-skip" data-v="' + esc(i.id) + '">' + (i.skip ? '↩︎ 다시 넣기' : '⏭ 이번엔 건너뛰기') + '</button></div>' +
+    '<div class="muted small">' + (isFixed(i) ? '시간이 정해진 일정이에요(정각·공연·배·비행기) — 「늦어졌어요」로는 안 밀려요. ' : '') + '건너뛴 일정은 지우지 않고 회색으로 남아 동선·예산·「지금 · 다음」에서만 빠져요. 날짜를 옮기거나 지우려면 「고치기」.</div></div>';
   h += '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn" data-act="item-done" data-v="' + esc(i.id) + '">' + ic('check') + (i.done ? '다녀옴 풀기' : '다녀옴') + '</button><button class="btn pri" data-act="item-edit" data-v="' + esc(i.id) + '">' + ic('pen') + '고치기</button></div>';
   openSheet(h);
 }
@@ -1437,7 +1467,7 @@ function planTab(t) {
   const sum = list.reduce((s, i) => s + itemCost(i), 0);
   const dayAll = items.filter(i => i.date === sel); if (dayAll.length && dayAll.every(i => i.done)) h += '<div class="daydone">' + stampHtml(md(sel) + ' 다녀옴', 'big') + '<span>이날 일정을 모두 다녀왔어요!</span></div>';
   const kyotoDay = items.some(i => i.date === sel && /교토|후시미|기요미즈|기온|니시키|야사카|Kyoto|Fushimi|Kiyomizu|Gion|Nishiki|Yasaka/i.test((i.title || '') + ' ' + (i.place || '')));
-  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + (items.some(i => i.date === sel && /USJ|유니버설/i.test(i.title || '')) ? '<img class="h-art" src="img/usj-day.webp" alt="">' : kyotoDay ? '<img class="h-art" src="img/kyoto-thumb.webp" alt="">' : /-(12-31|01-01)$/.test(sel) ? '<img class="h-art" src="img/newyear.webp" alt="">' : ib('plan', 'var(--sky)', 1)) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + (kyotoDay ? ' <span class="pill" style="font-size:12px">교토 가는 날</span>' : '') + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
+  h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + (items.some(i => i.date === sel && /USJ|유니버설/i.test(i.title || '')) ? '<img class="h-art" src="img/usj-day.webp" alt="">' : kyotoDay ? '<img class="h-art" src="img/kyoto-thumb.webp" alt="">' : /-(12-31|01-01)$/.test(sel) ? '<img class="h-art" src="img/newyear.webp" alt="">' : ib('plan', 'var(--sky)', 1)) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + (kyotoDay ? ' <span class="pill" style="font-size:12px">교토 가는 날</span>' : '') + '</h3><span class="flex" style="gap:10px">' + (sel === today() ? '<button class="linkbtn" data-act="late">⏱ 늦어졌어요</button>' : '') + '<button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></span></div>';
   let past = '';
   if (sel === today() && !UI.showPast) {
     const p = list.filter(i => i.done || (i.time && i.time < hm().slice(0, 5) && list.some(j => j.time > i.time && !j.done)));
@@ -2609,7 +2639,7 @@ let SHEET = null;
 /* 창(시트)을 열면 기록 한 칸 — 휴대폰 뒤로가기·쓸어넘기기는 창만 닫고 그 화면에 머묾 */
 function openSheet(html, onMount) {
   if (!SHEET_H && !POP_SKIP) { history.pushState({ sheet: 1 }, ''); SHEET_H = true; }
-  $('#sheet-body').innerHTML = html; $('#sheet').hidden = false;
+  $('#sheet-body').innerHTML = html; $('#sheet').hidden = false; try { fixOrphans($('#sheet-body')); } catch (e) {}
   document.body.style.overflow = 'hidden'; document.body.classList.add('sheet-open');
   if (onMount) onMount($('#sheet-body'));
 }
@@ -2853,6 +2883,11 @@ function guessCat(s) {
     /카페|coffee|커피|아이스|디저트|빵|베이커리/i.test(s) ? '간식' : /입장|티켓|ticket|usj|박물관|전망/i.test(s) ? '관광' : '식사';
 }
 const art = (n, alt) => '<img class="art-img" src="img/' + n + '.webp" alt="' + esc(alt || '') + '">';
+/** USJ 안 일정 완료 도장(팀장님 2026-11-27 「USJ와 어울리는 도장」) — 지구본 줄·별, 파란 잉크(로고는 쓰지 않음) */
+const usjStamp = cls => '<span class="stampx usj ' + (cls || '') + '"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="50" cy="50" r="39.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 3"/><ellipse cx="50" cy="50" rx="17" ry="39" fill="none" stroke="currentColor" stroke-width="1.3" opacity=".4"/><path d="M11 50h78M17 32h66M17 68h66" stroke="currentColor" stroke-width="1.3" opacity=".4"/><text x="50" y="25" text-anchor="middle" font-size="10" fill="currentColor">★ ★ ★</text><text x="50" y="55" text-anchor="middle" font-size="24" font-weight="900" fill="currentColor" font-family="system-ui,sans-serif">USJ</text><text x="50" y="74" text-anchor="middle" font-size="12.5" font-weight="800" fill="currentColor" letter-spacing="1.5" font-family="system-ui,sans-serif">CLEAR!</text></svg></span>';
+/** 일반 일정 완료 도장 — 우리 「하하가족」 도장(팀장님 2026-11-27), 빨간 인주 */
+const hahaStamp = cls => '<span class="stampx haha ' + (cls || '') + '"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="4.5"/><circle cx="50" cy="50" r="39" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M50 30c-3-5-11-4-11 2 0 5 11 11 11 11s11-6 11-11c0-6-8-7-11-2z" fill="currentColor"/><text x="50" y="62" text-anchor="middle" font-size="17" font-weight="900" fill="currentColor" font-family="system-ui,sans-serif" letter-spacing="-.5">하하가족</text><text x="50" y="78" text-anchor="middle" font-size="11" font-weight="800" fill="currentColor" font-family="system-ui,sans-serif" letter-spacing="2">다녀옴</text></svg></span>';
+let JUST_DONE = '', LAST_HOLD = 0;
 const stampHtml = (txt, cls) => '<span class="stampx ' + (cls || '') + '"><img src="img/stamp-done.webp" alt=""><b>' + esc(txt || '다녀옴') + '</b></span>';
 const curTrip = () => { const r = route(); return r.view === 'trip' ? D.trips[r.trip] : null; };
 
@@ -2945,7 +2980,11 @@ document.addEventListener('click', e => {
     'tr-face-type': () => openSheet('<h2>상대방에게 할 말</h2><textarea id="tr-face-in" class="in" rows="3" placeholder="한국어로 적어요"></textarea><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" data-act="tr-face-send">번역해서 보여 주기</button></div>', b => { const x = b.querySelector('textarea'); x && x.focus(); }),
     'tr-face-send': async () => { const S = trState(), L = trLang(t); const F = S.face || (S.face = {}); const txt = ($('#tr-face-in') || {}).value || ''; closeSheet(); const out = await trRun(t, txt, KO, L, 'face'); if (out) { F.toThem = out; render(); speak(out, L[2]); } },
     'item-edit': () => editRec('item', t, D.items[v]),
-    'item-done': () => { const i = D.items[v]; buzz(); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } if ($('#sheet .iv-head')) itemView(t, D.items[v]); },
+    'item-done': () => {
+      // 일정 카드의 동그라미는 꾹 눌러야 도장(실수로 눌리지 않게, 2026-11-27). 일정 창의 「다녀옴」 단추는 그대로 한 번에
+      if (el.closest('.tl-card') && el.dataset.held !== '1') { if (Date.now() - LAST_HOLD < 1200) return; toast(D.items[v] && D.items[v].done ? '꾹 누르고 있으면 도장을 지워요' : '꾹 누르고 있으면 도장이 찍혀요'); el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); return; }
+      el.dataset.held = '';
+      const i = D.items[v]; buzz(); if (!i.done) JUST_DONE = i.id; setTimeout(() => { JUST_DONE = ''; }, 1500); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done || x.skip)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } else if (el.closest('.tl-card')) { const back = Object.assign({}, i); toast(i.done ? '도장을 지웠어요' : (i.zone === 'USJ' ? 'CLEAR! ' : '다녀옴! ') + planName(i), () => put('items', back)); } if ($('#sheet .iv-head')) itemView(t, D.items[v]); },
     'booking-new': () => editRec('booking', t, { kind: '숙소', date: t.start }),
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
     'tk-gate': () => tkGate(v, el.dataset.label),
@@ -3014,6 +3053,8 @@ document.addEventListener('click', e => {
     'sos-book': () => { closeSheet(); go(tripUrl(t.id, 'book')); setTimeout(() => { const x = document.getElementById('bk_sos'); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70 }); }, 300); },
     taxi: () => taxiOpen(t, v ? D.items[v] : null),
     late: () => lateOpen(t),
+    'item-shift': () => { const it = D.items[v], n = Number(el.dataset.n) || 0; if (!it || !it.time) return; const back = Object.assign({}, it); closeSheet(); put('items', Object.assign({}, it, { time: addMin(it.time, n) })); toast(planName(it) + ' ' + (n > 0 ? n + '분 뒤로' : -n + '분 앞으로') + ' · ' + addMin(it.time, n), () => put('items', back)); },
+    'item-skip': () => { const it = D.items[v]; if (!it) return; const back = Object.assign({}, it); closeSheet(); put('items', Object.assign({}, it, { skip: !it.skip })); toast(it.skip ? planName(it) + ' 다시 넣었어요' : planName(it) + ' 건너뛰었어요 — 동선·예산에서 빠져요', () => put('items', back)); },
     'late-go': () => lateGo(t, Number(v) || 15),
     'taxi-ja': () => { const hb = live('bookings', t.id).find(b => b.kind === '숙소'); if (hb) askText('일본어 주소 (택시 기사님께 보여 줄 주소)', hb.jaAddr || '', v2 => { put('bookings', Object.assign({}, hb, { jaAddr: v2.trim() })); taxiOpen(t); }); },
     'taxi-copy': () => { const x = el.dataset.v; (navigator.clipboard ? navigator.clipboard.writeText(x) : Promise.reject()).then(() => toast('주소를 복사했어요'), () => toast(x)); },
@@ -3163,7 +3204,7 @@ window.addEventListener('online', () => setTimeout(offlineAuto, 3000));
 const isFixed = i => !!(i.fixed || /정각/.test(i.title || ''));
 const addMin = (s, n) => { const m = String(s).match(/(\d{1,2}):(\d{2})/); if (!m) return s; const v = Math.min(23 * 60 + 59, +m[1] * 60 + +m[2] + n); return String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0'); };
 function lateList(t) {
-  const t0 = today(), now = hm().slice(0, 5), l = live('items', t.id).filter(i => i.date === t0 && !i.done && i.time).sort(byTime);
+  const t0 = today(), now = hm().slice(0, 5), l = live('items', t.id).filter(i => i.date === t0 && !i.done && !i.skip && i.time).sort(byTime);
   const cur = l.filter(i => i.time < now).slice(-1)[0], from = cur ? cur.time : now;
   return l.filter(i => i.time >= from);
 }
@@ -3318,6 +3359,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.8', d: '2026-11-27', title: '꾹 눌러 찍는 완료 도장', items: [
+    ['check', 'var(--coral)', '완료 도장', '일정 카드 오른쪽 동그라미를 0.7초 꾹 누르면 도장이 찍혀요(살짝 누르면 안 찍혀요 — 실수 막기). USJ 안은 파란 「USJ CLEAR!」, 다른 일정은 우리 「하하가족」 도장이에요. 지우려면 다시 꾹.'],
+    ['route', 'var(--sky)', '바뀌었나요?', '일정을 눌러 열면 −15·+15·+30·+60분으로 바로 옮기거나 「이번엔 건너뛰기」를 할 수 있어요. 건너뛴 일정은 회색으로 남고 동선·예산·「지금 · 다음」에서만 빠져요. 전철 시간이 달라지면 「다음 열차를 봐요」라고 알려 줘요.'],
+    ['text', 'var(--mint)', '줄바꿈', '모든 화면에서 마지막 줄에 한 글자만 남지 않게 다듬었어요.']] },
   { v: '6.7', d: '2026-11-27', title: '늦어지거나 순서가 바뀌어도 따라가요', items: [
     ['route', 'var(--coral)', '⏱ 늦어졌어요', '오늘 화면 「지금 · 다음 일정」의 「⏱ 늦어졌어요」를 누르고 +15·30·60분을 고르면, 다음 시간 정해진 일정(정각 입장권·공연·배·비행기) 앞까지 한꺼번에 미뤄요. 겹치면 알려 주고, 되돌리기도 돼요.'],
     ['globe', 'var(--sky)', '순서를 바꾸면 동선도', '일정 시간을 고치면 순서·동선 지도·「지금 · 다음」이 저절로 바뀌어요. USJ 안 걸음 분은 바로 앞 일정에서 다시 셈해요. 전철·택시 길은 앞 일정이 바뀌면 「길찾기로 다시 봐요」라고 알려 줘요.']] },
