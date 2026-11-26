@@ -1177,3 +1177,7 @@ body.rb-on{overflow:hidden}
 .rb-top10 li.done b{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--rb-ink) 40%,transparent)}
 .rb-leaf{position:relative}
 .rb-leaf.more{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 56px),rgba(0,0,0,.25));mask-image:linear-gradient(180deg,#000 calc(100% - 56px),rgba(0,0,0,.25))}
+/* 여행책 표지 카드 — 낱말 가운데서 줄이 바뀌지 않게 (「오사카 여행 / 책」 → 「오사카 / 여행책」) */
+.rb-card,.rb-card *{word-break:keep-all;overflow-wrap:break-word}
+.rb-cvt b{font-size:clamp(16px,4.6vw,19px);text-wrap:balance}
+.rb-cvt em{text-wrap:pretty}
