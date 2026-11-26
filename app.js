@@ -786,7 +786,9 @@ function sideNav(t, tab) {
 let WIDE_NOW = null;
 matchMedia('(min-width:1100px)').addEventListener('change', () => { if (PASS && ME) render(); });
 const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || (a.ts - b.ts);
-function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, i.cost)); return s; }
+/** 일정 1인 비용 = 그 일정 값 + 「여기까지 가는 길」 차비(교통 일정은 값이 곧 차비라 더하지 않음) — 2026-11-26 차비가 예산에서 빠지던 것 */
+const itemCost = i => (Number(i.cost) || 0) + (i.cat !== '이동' && i.go && Number(i.go.fare) > 0 ? Number(i.go.fare) : 0);
+function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, itemCost(i))); return s; }
 function spentWon(t, day) { let s = 0; live('spends', t.id).forEach(x => { if (!day || x.date === day) s += toWon(t, x.amount, x.cur); }); return s; }
 const parkBooking = t => live('bookings', t.id).find(b => b.kind === '주차');
 const lastPark = t => live('parks', t.id).sort((a, b) => b.ts - a.ts)[0];
@@ -1323,7 +1325,7 @@ function planTab(t) {
     return '<button class="day ' + (d === sel ? 'on' : '') + '" data-act="day" data-v="' + d + '"><small>' + (k + 1) + '일째</small><b class="num">' + esc(md(d)) + '</b>' + (wxd[d] && wxd[d].max != null ? '<span class="dwx">' + wxi(wxd[d].code, 22) + wxd[d].max + '°</span>' : '') + (all ? stampHtml('다녀옴', 'mini') : '') + '</button>';
   }).join('') + '</div>';
   let list = items.filter(i => i.date === sel).sort(byTime);
-  const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0);
+  const sum = list.reduce((s, i) => s + itemCost(i), 0);
   const dayAll = items.filter(i => i.date === sel); if (dayAll.length && dayAll.every(i => i.done)) h += '<div class="daydone">' + stampHtml(md(sel) + ' 다녀옴', 'big') + '<span>이날 일정을 모두 다녀왔어요!</span></div>';
   const kyotoDay = items.some(i => i.date === sel && /교토|후시미|기요미즈|기온|니시키|야사카|Kyoto|Fushimi|Kiyomizu|Gion|Nishiki|Yasaka/i.test((i.title || '') + ' ' + (i.place || '')));
   h += '<div class="sec-h" style="margin-top:6px"><h3 class="ih">' + (items.some(i => i.date === sel && /USJ|유니버설/i.test(i.title || '')) ? '<img class="h-art" src="img/usj-day.webp" alt="">' : kyotoDay ? '<img class="h-art" src="img/kyoto-thumb.webp" alt="">' : /-(12-31|01-01)$/.test(sel) ? '<img class="h-art" src="img/newyear.webp" alt="">' : ib('plan', 'var(--sky)', 1)) + (days.indexOf(sel) + 1) + '일째 · ' + esc(md(sel)) + (kyotoDay ? ' <span class="pill" style="font-size:12px">교토 가는 날</span>' : '') + '</h3><button class="linkbtn" data-act="item-new">＋ 일정 더하기</button></div>';
@@ -1333,7 +1335,7 @@ function planTab(t) {
     if (p.length > 1) { list = list.filter(i => !p.includes(i)); past = '<button class="past-toggle" data-act="show-past">지난 일정 ' + p.length + '개 보기</button>'; }
   }
   if (list.length) h += sunChip(t, sel);
-  const nn = (t.members || []).length || 1, daySum = items.filter(i => i.date === sel).reduce((q, i) => q + (Number(i.cost) || 0), 0);
+  const nn = (t.members || []).length || 1, daySum = items.filter(i => i.date === sel).reduce((q, i) => q + itemCost(i), 0);
   if (daySum) h += '<div class="daycost num"><span>' + ic('wallet') + '이날 예상</span><b>' + nn + '명 ' + comma(daySum * nn) + unit(t.cur) + '</b>' + (t.cur !== 'KRW' ? '<em>≈ ' + manWon(toWon(t, daySum * nn)) + '</em>' : '') + '<small>1인 ' + comma(daySum) + unit(t.cur) + '</small></div>';
   h += list.length || past ? past + tlList(t, list) + '<div class="muted num" style="text-align:right;margin-top:10px">이날 예상 ' + nn + '명 ' + comma(daySum * nn) + unit(t.cur) + (t.cur !== 'KRW' ? ' (≈ ' + manWon(toWon(t, daySum * nn)) + ')' : '') + ' · 1인 ' + comma(daySum) + unit(t.cur) + '</div>'
     : '<div class="card empty"><div class="art">🗺️</div><b>이날 일정이 비어 있어요</b>「가고 싶은 곳」에서 골라 넣거나 ＋로 더해요.</div>';
@@ -1344,7 +1346,7 @@ function schedTable(t, days, items) {
   [...days, ''].forEach(d => {
     const list = items.filter(i => (i.date || '') === d).sort(byTime);
     if (!list.length) return;
-    const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0); total += sum;
+    const sum = list.reduce((s, i) => s + itemCost(i), 0); total += sum;
     rows += '<tr class="dayrow"><td colspan="2">' + (d ? (days.indexOf(d) + 1) + '일째 · ' + esc(md(d)) : '날짜 미정') + (sum ? ' <span class="dr-tot num">· ' + NN + '명 ' + comma(sum * NN) + unit(t.cur) + (t.cur !== 'KRW' ? ' ≈ ' + manWon(toWon(t, sum * NN)) : '') + '</span>' : '') + '</td><td class="r num">' + comma(sum) + '</td></tr>';
     rows += list.map(i => '<tr data-act="item-view" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td>' + (IT_IMG[itemIcon(i)[0]] ? '<img class="ticon-img" src="img/it-' + IT_IMG[itemIcon(i)[0]] + '.webp" alt="">' : '<span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>') + esc(i.title) +
       (i.place ? '<div class="muted" style="font-size:13px;margin-left:15px">' + esc(i.place) + '</div>' : '') + '</td><td class="r num">' + (i.cost ? comma(i.cost) : '') + '</td></tr>').join('');
@@ -1442,7 +1444,9 @@ function payinEdit(t, id) {
 /* 경비 맨 위 — 예산 · 쓴 돈 · 남은 예산을 크게 나눠 보여 줌(팀장님 2026-11-26 「쓴 돈과 남은 예산이 총액에 비해 너무 작아」)
    쓴 돈 = 여행 전 미리 낸 돈(출발일 앞 날짜) + 여행 중 쓴 돈 · 막대는 예산을 세 칸(미리 낸 돈·여행 중·남음)으로 */
 function budgetBoard(t, bg, sp, spent) {
-  const pre = sp.filter(s => (s.date || '') < t.start).reduce((q, s) => q + toWon(t, s.amount, s.cur), 0), during = spent - pre;
+  const paidBk = live('bookings', t.id).map(b => Number(b.price) || 0).filter(Boolean);
+  const isPre = s => (s.date || '') < t.start || s.cat === '준비' || paidBk.includes(Number(s.amount)); // 출발 전 날짜 · 보험·여권 · 예약 값과 같은 결제(예: USJ 티켓을 이용일로 적은 것)
+  const pre = sp.filter(isPre).reduce((q, s) => q + toWon(t, s.amount, s.cur), 0), during = spent - pre;
   const total = bg.total || 1, left = bg.total - spent, over = left < 0;
   const w = x => Math.max(0, Math.min(100, x / Math.max(total, spent) * 100)).toFixed(1) + '%';
   const pct = Math.round(spent / total * 100);
@@ -1466,16 +1470,20 @@ function moneyTab(t) {
     '<div class="card budget receipt"><div class="between"><b>예산은 이렇게 셈해요</b><button class="linkbtn" data-act="budget-edit">예산 고치기</button></div><div class="muted small">가족 ' + bg.n + '명 · ' + bg.days + '일 · 1인 ' + manWon(bg.total / bg.n) + ' · 일정을 바꾸면 저절로 다시 계산돼요</div>' +
     '<div class="brows">' +
     '<div><span>' + ib('ticket', 'var(--c-관광)', 1) + '예약·결제한 것<small>' + (bg.bk.length ? esc(bg.bk.map(b => b.kind).join('·')) : '예약 금액을 넣으면 더해져요') + '</small></span><b class="num">' + manWon(bg.A) + '</b></div>' +
-    '<div><span>' + ib('plan', 'var(--c-이동)', 1) + '일정 비용<small>일정 ' + live('items', t.id).filter(i => i.cost).length + '개의 1인 비용 × ' + bg.n + '명</small></span><b class="num">' + manWon(bg.B) + '</b></div>' +
+    '<div><span>' + ib('plan', 'var(--c-이동)', 1) + '일정 비용<small>일정 ' + live('items', t.id).filter(i => itemCost(i)).length + '개의 1인 비용(차비 포함) × ' + bg.n + '명</small></span><b class="num">' + manWon(bg.B) + '</b></div>' +
     '<div><span>' + ib('bag', 'var(--c-쇼핑)', 1) + '간식·쇼핑 여유<small>1인 하루 ' + comma(bg.daily) + unit(t.cur) + ' × ' + bg.n + '명 × ' + bg.days + '일</small></span><b class="num">' + manWon(bg.C) + '</b></div>' +
     '<div><span>' + ib('sos', 'var(--c-기타)', 1) + '예비비<small>일정·여유의 ' + bg.pct + '%</small></span><b class="num">' + manWon(bg.D) + '</b></div></div></div>';
   h += '<div class="flex" style="margin-top:14px;gap:8px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="receipt">' + ic('camera') + '영수증 찍기</button><button class="btn big" style="flex:1" data-act="spend-new">' + ic('pen') + '직접 적기</button></div>';
   // 누가 냈나
   const paid = {}; mem.forEach(m => paid[m] = 0); let unknown = 0;
   sp.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.payer && s.payer in paid) paid[s.payer] += w; else unknown += w; });
-  const maxP = Math.max(1, ...Object.values(paid), unknown);
+  // 부부(임요한·장보정)는 함께 내니 한 줄로 묶음(팀장님 2026-11-26)
+  const cp = mem.filter(m => COUPLE.includes(m));
+  const groups = (cp.length > 1 ? [{ key: 'couple', name: '부부', sub: cp.join(' · '), amt: cp.reduce((q, m) => q + paid[m], 0), avs: cp.map(m => av(m, 30)).join(''), col: 'var(--coral)' }] : [])
+    .concat(mem.filter(m => cp.length < 2 || !COUPLE.includes(m)).map(m => ({ key: m, name: m, sub: '', amt: paid[m], avs: av(m, 34), col: AVC[famIdx(m) % AVC.length] })));
+  const maxP = Math.max(1, ...groups.map(g => g.amt), unknown);
   h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('users', 'var(--sky)', 1) + '누가 냈나</h3><span class="muted small">합계 ' + manWon(spent) + '</span></div><div class="card">' +
-    mem.map(m => '<div class="payrow">' + av(m, 34) + '<div class="pr-body"><div class="between"><b>' + esc(m) + '</b><b class="num">' + manWon(paid[m]) + '</b></div><div class="bar" style="--cc:' + AVC[famIdx(m) % AVC.length] + '"><i style="width:' + Math.round(paid[m] / maxP * 100) + '%"></i></div></div></div>').join('') +
+    groups.map(g => '<div class="payrow' + (g.key === 'couple' ? ' couple' : '') + '"><span class="pr-avs">' + g.avs + '</span><div class="pr-body"><div class="between"><b>' + esc(g.name) + (g.sub ? ' <small class="muted">' + esc(g.sub) + '</small>' : '') + '</b><b class="num">' + manWon(g.amt) + '</b></div><div class="bar" style="--cc:' + g.col + '"><i style="width:' + Math.round(g.amt / maxP * 100) + '%"></i></div></div></div>').join('') +
     (unknown ? '<button class="payrow" style="width:100%;text-align:left" data-act="filter-unknown"><span class="av" style="background:var(--faint)">?</span><div class="pr-body"><div class="between"><b>낸 사람 미정</b><b class="num">' + manWon(unknown) + '</b></div><div class="muted small">눌러서 낸 사람을 정해 주세요</div></div></button>' : '') + '</div>';
   // 결제 수단
   const byPay = {}; sp.forEach(s => { const k = s.pay || '정하지 않음'; byPay[k] = (byPay[k] || 0) + toWon(t, s.amount, s.cur); });
@@ -3017,6 +3025,11 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.2', d: '2026-11-26', title: '예산을 현실에 맞췄어요', items: [
+    ['money', 'var(--mint)', '예산 · 쓴 돈 · 남은 예산', '경비 맨 위에 세 숫자를 크게 나눠 보여요. 막대는 미리 낸 돈·여행 중 쓴 돈·남은 돈이에요. 「누가 냈나」는 부부를 한 줄로 묶었어요.'],
+    ['check', 'var(--sky)', '모든 금액 다시 확인', '전철·지하철 요금, 입장료, 식당 값을 공식 누리집과 최신 자료로 확인해 고쳤어요. 차비가 예산에서 빠지던 것, USJ 티켓이 두 번 더해지던 것도 고쳤어요.'],
+    ['ticket', 'var(--coral)', 'USJ 해리포터 점심', '12/30 11:00 스리 브룸스틱스 점심(1인 약 3,000엔)과 버터비어(900엔), 파크 간식(약 2,000엔)을 예산에 넣었어요.'],
+    ['receipt', 'var(--lav)', '일본 영수증을 더 잘 읽어요', '편의점·식당·면세·발권기·택시·손글씨 영수증 22장으로 시험해 금액·날짜·가게 이름을 모두 맞게 읽도록 고쳤어요.']] },
   { v: '6.1', d: '2026-11-26', title: '앱 전체가 맑은 유리처럼', items: [
     ['sun', 'var(--sky)', '유리 디자인', '디자인·사용성 전문가 검토를 거쳐 앱 전체를 새 아이폰처럼 유리 느낌으로 바꿨어요. 메뉴·단추·고르기 칸은 유리, 일정·돈·글은 또렷한 바탕 그대로예요.'],
     ['check', 'var(--mint)', '더 잘 보이게', '단추 글자 색을 진하게 해서 햇빛 아래서도 잘 보여요. 작은 글씨도 조금 키웠어요.'],
