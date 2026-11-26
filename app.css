@@ -108,7 +108,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
 /* 아래 메뉴 + 가운데 ＋ */
 .nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom));z-index:30;width:min(540px,calc(100% - 20px));height:var(--nav-h);
-  display:grid;grid-template-columns:1fr 1fr 76px 1fr 1fr;align-items:center;padding:0 6px;border-radius:24px;
+  display:grid;grid-template-columns:1fr 1fr 1fr 70px 1fr 1fr;align-items:center;padding:0 6px;border-radius:24px;
   background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:saturate(1.6) blur(18px);-webkit-backdrop-filter:saturate(1.6) blur(18px);box-shadow:0 10px 30px rgba(60,40,20,.18);border:1px solid var(--line)}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px;font-weight:700;color:var(--faint);padding:6px 0;min-height:56px;justify-content:center;border-radius:16px}
 .nav button svg{width:24px;height:24px}
@@ -418,10 +418,11 @@ details.more .f{margin-top:6px}
 @media (max-width:360px){
   html,body{font-size:15px}
   .wrap{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+  .topbar{margin:0 calc(-1*max(12px,env(safe-area-inset-left)));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
   .topbar h1{font-size:18px}
   .hero h2{font-size:24px}
   .grid2{gap:8px}.stat{padding:12px}.stat b{font-size:19px}
-  .nav{grid-template-columns:1fr 1fr 64px 1fr 1fr}.nav button{font-size:12px}.nav .plus{width:54px;height:54px}
+  .nav{grid-template-columns:1fr 1fr 1fr 58px 1fr 1fr}.nav button{font-size:12px}.nav .plus{width:54px;height:54px}
   .pass .side{min-width:70px;padding:10px 6px}.pass::before,.pass::after{right:61px}.pass .route b{font-size:22px}
   .tl-card{gap:8px;padding:10px}.tl-card .tm{min-width:44px}.chk{width:40px;height:40px}
   .outfit svg.fig{width:80px;height:134px}.outfit span{font-size:13px}
@@ -1315,3 +1316,10 @@ body.tk-on{overflow:hidden}
 .wl-card.art .wl-d small{opacity:1;color:#4a5466}
 .wl-card.art .wl-d em{background:var(--wc);color:#fff}
 .wl-card.art .wl-b{background:linear-gradient(transparent,rgba(255,255,255,.7) 40%)}
+
+.nav .pillbg{padding:2px 10px}
+@media (max-width:380px){.nav .pillbg{padding:2px 6px}.nav button svg{width:22px;height:22px}}
+.wl-link{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:12px 14px;border-radius:16px;background:color-mix(in srgb,var(--c-관광) 10%,var(--card));box-shadow:var(--sh);margin:4px 0 12px}
+.wl-link > span{display:flex;flex-direction:column;flex:1;min-width:0}.wl-link > span > span{font-size:13px;color:var(--sub)}.wl-link > svg{width:18px;height:18px;color:var(--sub)}
+.wl-acts{gap:8px;margin-top:14px}.wl-acts .btn{flex:1}
+.wl-go{font-style:normal;font-size:24px;color:var(--sub)}
