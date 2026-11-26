@@ -319,7 +319,7 @@ function othersChanged(d) {
   if (names.length) toast(names.map(n => ((fam(n) || {}).role || n) + '가 ' + who[n] + '개').join(', ') + ' 고쳤어요');
 }
 async function pull() {
-  try { adopt(await call('load')); setStatus(Q.length ? 'wait' : 'ok'); if (Q.length) kick(); }
+  try { adopt(await call('load')); setStatus(Q.length ? 'wait' : 'ok'); if (Q.length) kick(); setTimeout(tkSync, 300); }
   catch (e) { if (e.code === 'pass') relock(); else setStatus('bad'); }
 }
 async function poll() {
@@ -547,6 +547,7 @@ const tripUrl = (id, tab) => '#/trip/' + encodeURIComponent(id) + '/' + (tab || 
 window.addEventListener('hashchange', () => { closeSheet(true); if (RB) rbClose(true); render(); window.scrollTo(0, 0); });
 window.addEventListener('popstate', () => {
   if (POP_SKIP) { POP_SKIP = false; if (GO_LATER) { const g = GO_LATER; GO_LATER = null; go(g); return; } if (!$('#sheet').hidden && !SHEET_H) { history.pushState({ sheet: 1 }, ''); SHEET_H = true; } return; }
+  if (TKV) { tkClose(true); return; }
   if (SHEET_H || !$('#sheet').hidden) { SHEET_H = false; closeSheet(true); return; }
   if (RB) { rbClose(true); return; }
   const w = $('.tmap-wrap.full'); if (w) { w.classList.remove('full'); document.body.classList.remove('map-open'); setTimeout(() => MAP && MAP.invalidateSize(), 80); }
@@ -820,6 +821,7 @@ function todayTab(t) {
   const c = countryOf(t);
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
+  h += tkTodayCard(t);
   if (!longAgo(t)) h += '<div class="sec sos-row"><button class="sos-btn" data-act="sos-go">' + ic('sos') + '<span><b>도움이 필요해요</b><span>비상 연락 · 영사콜센터 · 숙소 주소 · 보험</span></span></button><button class="sos-tr" data-act="tr-open">🗣️<span>번역기</span></button></div>';
   if (ph === 'after') h += storyCard(t);
   h += agoCard(t);
@@ -1265,6 +1267,8 @@ function itemView(t, i) {
     (i.tip ? '<div class="tip"><span>' + ic('bulb') + '여행 팁</span><b>' + esc(i.tip) + '</b></div>' : '') +
     (prev ? '<div><span>' + ic('route') + '앞 일정</span><b>' + esc((prev.time ? prev.time + ' ' : '') + prev.title) + '</b></div>' : '') +
     (next ? '<div><span>' + ic('route') + '다음 일정</span><b>' + esc((next.time ? next.time + ' ' : '') + next.title) + '</b></div>' : '') + '</div>';
+  if (i.tk && D.bookings[i.tk.b] && tkList(D.bookings[i.tk.b]).some(q => tkLabel(D.bookings[i.tk.b], q) === i.tk.label)) { const tb = D.bookings[i.tk.b], col = tkColor(tb, i.tk.label);
+    h += '<div class="iv-tk" style="--wc:' + col + '"><span class="wl-ic">' + tkIcon(tb, i.tk.label) + '</span><span><b>' + esc(i.tk.label) + '</b><small>이 일정에서 쓰는 표</small></span><button class="btn pri" data-act="tk-gate" data-v="' + esc(tb.id) + '" data-label="' + esc(i.tk.label) + '">가족 모두</button><button class="btn" data-act="tk-me" data-v="' + esc(ME) + '">' + esc(ME) + ' 표</button></div>'; }
   h += goHtml(i);
   if (q.trim()) {
     h += '<div class="iv-map"><iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="지도" src="https://www.google.com/maps?q=' + encodeURIComponent(q) + '&hl=ko&z=15&output=embed"></iframe></div>';
@@ -1536,13 +1540,345 @@ function memoryTab(t) {
 }
 
 /* 따로 보는 쪽 */
+/* ---------- 지갑 — 사람마다 표 모음 (애플 지갑처럼) 2026-11-26 ----------
+   예약 칸 b.qr = [{who, label, file(드라이브 파일 id), code}] — 한 예약에 사람마다 여러 장(1일 입장권·닌텐도 입장권·푸드 바우처·탑승권 …)
+   b.tkNeed = ['1일 입장권', …] 이 예약에 있어야 할 표(없으면 빈 칸으로 보임). 일정 칸 i.tk = {b, label} → 일정 보기에서 그 표를 바로 엶.
+   사진은 데이터 파일에 넣지 않고 이 휴대폰 IndexedDB 「haha-tk」에 받아 둠 → 인터넷이 없어도 앱만 열면 보임. 앱을 열 때마다 저절로 받음(tkSync). */
+const TKDB = (() => { let p; return () => p || (p = new Promise((res, rej) => { const r = indexedDB.open('haha-tk', 1); r.onupgradeneeded = () => r.result.createObjectStore('img'); r.onsuccess = () => res(r.result); r.onerror = () => { p = null; rej(r.error); }; })); })();
+async function tkGet(id) { try { const db = await TKDB(); return await new Promise(res => { const q = db.transaction('img').objectStore('img').get(id); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { return null; } }
+async function tkPut(id, v) { try { const db = await TKDB(); await new Promise((res, rej) => { const tx = db.transaction('img', 'readwrite'); tx.objectStore('img').put(v, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); TK_HAVE.add(id); return true; } catch (e) { return false; } }
+const tkNm = n => String(n || '');
+const TK_HAVE = new Set(), TK_CHECKED = new Set();
+let TK_BUSY = false;
+const tkList = b => (b && !b.del && Array.isArray(b.qr) ? b.qr.filter(q => q && q.file) : []);
+const tkLocal = id => String(id).startsWith('local-');
+const tkLabel = (b, q) => q.label || (b.kind === '항공' ? '탑승권' : '입장권');
+const TK_SUGGEST = { 티켓: ['1일 입장권', '닌텐도 입장권', '푸드 바우처', '입장권', '익스프레스 패스'], 항공: ['탑승권'], 교통: ['승차권', '패스'], 기타: ['바우처'] };
+/** 표 색 — 이름으로 (애플 지갑처럼 표마다 색이 달라 한눈에) */
+/* 표 그림(배경) — 팀장님이 만들어 주시면 img/tk-<모양>.webp 로 넣고 여기에 이름을 더함 */
+const TK_ART = [];
+const tkColor = (b, lb, tp) => /닌텐도|nintendo/i.test(lb) ? '#D7262E' : /익스프레스|express/i.test(lb) ? '#6A3FC2' : TK_TPL[tp || tkType(b, { label: lb })].col;
+const tkIcon = (b, lb, tp) => /닌텐도/.test(lb) ? '🍄' : /익스프레스/.test(lb) ? '⚡' : TK_TPL[tp || tkType(b, { label: lb })].ic;
+/* 표 모양(틀) — 상황마다 미리 만든 표: 칸 이름표 · 색 · 그림. q.type이 없으면 표 이름·예약 종류로 짐작(tkType) */
+const TK_TPL = {
+  flight: { n: '탑승권', ic: '✈️', col: '#F25C05', route: 1, f: [['from', '출발'], ['to', '도착'], ['no', '편명'], ['board', '탑승 시각'], ['gate', '탑승구'], ['seat', '좌석'], ['cls', '등급']] },
+  ship: { n: '승선권', ic: '⛴️', col: '#0E7C9B', route: 1, f: [['from', '출항'], ['to', '도착'], ['no', '배 이름'], ['board', '승선 시각'], ['seat', '좌석·객실'], ['pier', '부두']] },
+  rail: { n: '승차권', ic: '🚆', col: '#1F8A5B', route: 1, f: [['from', '출발'], ['to', '도착'], ['no', '열차·버스'], ['board', '출발 시각'], ['car', '호차'], ['seat', '좌석']] },
+  park: { n: '입장권', ic: '🎢', col: '#1D4E9E', f: [['pass', '종류'], ['slot', '입장 시간'], ['area', '구역'], ['age', '구분']] },
+  tower: { n: '전망대', ic: '🗼', col: '#5B4BC4', f: [['slot', '입장 시간'], ['floor', '층'], ['age', '구분']] },
+  food: { n: '식사권', ic: '🍔', col: '#E98A12', f: [['place', '쓰는 곳'], ['menu', '메뉴'], ['slot', '시간'], ['pax', '인원']] },
+  show: { n: '공연·전시', ic: '🎭', col: '#B0306A', f: [['hall', '공연장'], ['slot', '시작'], ['gate', '입구'], ['seat', '좌석']] },
+  etc: { n: '표', ic: '🎟️', col: '#3D4B5C', f: [['slot', '시간'], ['place', '곳']] }
+};
+function tkType(b, q) {
+  if (q && TK_TPL[q.type]) return q.type;
+  const s = (q && q.label || '') + ' ' + (b.title || '');
+  return /탑승|항공|flight/i.test(s) || b.kind === '항공' ? 'flight' : /승선|페리|ferry|배표|크루즈/i.test(s) ? 'ship' : /승차|기차|열차|JR|신칸센|버스|bus/i.test(s) || b.kind === '교통' ? 'rail'
+    : /푸드|식사|식당|레스토랑|food|meal|밀\s*쿠폰/i.test(q && q.label || '') ? 'food' : /전망|스카이|타워|하루카스|tower|sky/i.test(s) ? 'tower' : /공연|전시|뮤지컬|콘서트|미술관|박물관|show/i.test(s) ? 'show'
+    : /입장|패스|닌텐도|익스프레스|스튜디오|랜드|월드|park|pass/i.test(s) || b.kind === '티켓' ? 'park' : 'etc';
+}
+/** 칸 값 — 표마다 적은 값(q.f) 먼저, 없으면 예약에서 */
+function tkFields(b, q) {
+  const tp = tkType(b, q), f = Object.assign({}, q.f || {});
+  if (TK_TPL[tp].route && b.kind === '항공') { const fi = flightInfo(b) || {}; f.from = f.from || fi.from || ''; f.to = f.to || fi.to || ''; f.no = f.no || fi.fn || ''; f.fromN = fi.fromN; f.toN = fi.toN; }
+  if (!f.board && TK_TPL[tp].route && b.time) f.board = b.time;
+  return f;
+}
+/* 라이브러리 — 앱 안 lib/ (인터넷 없이도 열리게 sw.js가 같이 보관) */
+const TK_LIB = {};
+const tkLib = n => TK_LIB[n] || (TK_LIB[n] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'lib/' + n + '.js'; s.onload = res; s.onerror = () => { TK_LIB[n] = null; rej(new Error('lib')); }; document.head.appendChild(s); }));
+/** 사진에서 QR·바코드 찾기 → {data:{f,t}, box:[x,y,w,h](0~1)} */
+async function tkDecode(src) {
+  try { await tkLib('zxing.min'); } catch (e) { return null; }
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }).catch(() => null); if (!img) return null;
+  for (const maxW of [2400, 1600, 1100, 800]) {
+    const k = Math.min(1, maxW / img.naturalWidth), w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.drawImage(img, 0, 0, w, h);
+    const px = g.getImageData(0, 0, w, h).data, lum = new Uint8ClampedArray(w * h);
+    for (let i = 0; i < w * h; i++) lum[i] = (px[i * 4] * 299 + px[i * 4 + 1] * 587 + px[i * 4 + 2] * 114) / 1000;
+    for (const Bin of [ZXing.HybridBinarizer, ZXing.GlobalHistogramBinarizer]) {
+      try {
+        const hints = new Map(); hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        const r = new ZXing.MultiFormatReader(); r.setHints(hints);
+        const res = r.decode(new ZXing.BinaryBitmap(new Bin(new ZXing.RGBLuminanceSource(lum, w, h))));
+        const f = ZXing.BarcodeFormat[res.getBarcodeFormat()], pts = res.getResultPoints().map(p => [p.getX() / w, p.getY() / h]);
+        const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+        let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+        if (/QR|AZTEC|DATA_MATRIX|MAXICODE/.test(f)) { const px_ = (x1 - x0) * .24, py_ = (y1 - y0) * .24; x0 -= px_; x1 += px_; y0 -= py_; y1 += py_; }
+        else { const bw = x1 - x0; x0 -= bw * .08; x1 += bw * .08; const cy = (y0 + y1) / 2, bh = Math.max(bw * w * .3 / h, .02); y0 = cy - bh / 2; y1 = cy + bh / 2; }
+        const cl = v => Math.max(0, Math.min(1, v));
+        return { data: { f, t: res.getText() }, box: [cl(x0), cl(y0), cl(x1) - cl(x0), cl(y1) - cl(y0)].map(v => Math.round(v * 1e4) / 1e4) };
+      } catch (e) {}
+    }
+  }
+  return null;
+}
+const JSB = { CODE_128: 'CODE128', EAN_13: 'EAN13', EAN_8: 'EAN8', CODE_39: 'CODE39', ITF: 'ITF', UPC_A: 'UPC', UPC_E: 'UPCE', CODABAR: 'codabar' };
+/** 표 안 코드 — 읽은 값이 있으면 또렷하게 다시 그림, 아니면 원본에서 그 자리만 잘라 크게 */
+async function tkCodeHtml(q, src) {
+  const d = q.data;
+  if (d && d.t && /QR_CODE/.test(d.f)) { try { await tkLib('qrcode'); const qr = qrcode(0, 'M'); qr.addData(d.t); qr.make(); return '<div class="tkc qr">' + qr.createSvgTag({ cellSize: 8, margin: 4, scalable: true }) + '</div>'; } catch (e) {} }
+  if (d && d.t && JSB[d.f]) { try { await tkLib('jsbarcode.min'); const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); JsBarcode(el, d.t, { format: JSB[d.f], displayValue: false, margin: 14, height: 110, width: 3 }); el.removeAttribute('width'); el.removeAttribute('height'); el.setAttribute('preserveAspectRatio', 'none'); return '<div class="tkc bar">' + el.outerHTML + '</div>'; } catch (e) {} }
+  if (src && q.box) { try { const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+    const [x, y, w, h] = q.box, W = img.naturalWidth, H = img.naturalHeight, sw = w * W, sh = h * H, k = Math.max(1, Math.ceil(900 / Math.max(sw, sh)));
+    const cv = document.createElement('canvas'); cv.width = Math.round(sw * k); cv.height = Math.round(sh * k); const g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, x * W, y * H, sw, sh, 0, 0, cv.width, cv.height);
+    return '<div class="tkc ' + (sw > sh * 1.6 ? 'bar' : 'qr') + ' crop"><img src="' + cv.toDataURL('image/png') + '" alt="코드"></div>'; } catch (e) {} }
+  return src ? '<div class="tkc orig"><img src="' + src + '" alt="원본 표"><small>코드를 못 찾아 원본을 보여 줘요 · 누르면 크게</small></div>' : '<div class="tkc none"><b>이 휴대폰에 아직 없어요</b><span>인터넷이 되는 곳에서 앱을 한 번 열면 저절로 저장돼요. 지금은 다른 가족 휴대폰이나 종이 표를 보여 주세요.</span></div>';
+}
+/** 표 모양 그리기 — 위(색 칸: 무슨 표·어디·누구) · 찢는 선 · 아래(흰 칸: 코드) */
+function tkPassHtml(e, codeHtml, mini) {
+  const b = e.b, q = e.q || {}, tp = tkType(b, q), T = TK_TPL[tp], f = tkFields(b, q), col = tkColor(b, e.lb, tp);
+  const fam_ = fam(q.who) || {}, rows = T.f.filter(([k]) => !(T.route && (k === 'from' || k === 'to')) && f[k]);
+  const head = T.route && (f.from || f.to)
+    ? '<div class="tp-route"><div><b>' + esc(f.from || '—') + '</b><small>' + esc(f.fromN || '') + '</small></div><span class="tp-path">' + T.ic + '</span><div><b>' + esc(f.to || '—') + '</b><small>' + esc(f.toN || '') + '</small></div></div>'
+    : '<div class="tp-name"><b>' + esc(f.place && tp !== 'food' ? f.place : (b.place || '').replace(/\s*\(.*$/, '').length > 1 && (b.place || '').replace(/\s*\(.*$/, '').length < 28 ? b.place.replace(/\s*\(.*$/, '') : b.title.replace(/\s*\(\d+명\)\s*$/, '')) + '</b></div>';
+  return '<div class="tpass t-' + tp + (mini ? ' mini' : '') + '" style="--wc:' + col + '">' +
+    '<div class="tp-top"><div class="tp-row1"><span class="tp-ic">' + tkIcon(b, e.lb, tp) + '</span><span class="tp-lb"><b>' + esc(e.lb) + '</b><small>' + esc(b.provider || T.n) + '</small></span><span class="tp-date"><b class="num">' + esc(b.date ? md(b.date) : '') + '</b><small class="num">' + esc(f.slot || f.board || tkWhen(D.trips[b.trip] || { id: b.trip }, b, e.lb) || '') + '</small></span></div>' +
+    head + '<div class="tp-fields"><div><small>이름</small><b>' + esc(q.who || '') + (fam_.role ? ' <i>' + esc(fam_.role) + '</i>' : '') + '</b></div>' + rows.map(([k, n]) => '<div><small>' + esc(n) + '</small><b>' + esc(f[k]) + '</b></div>').join('') + '</div></div>' +
+    '<div class="tp-tear"></div><div class="tp-bot">' + (codeHtml || '') + (q.code ? '<div class="tp-code num">' + esc(q.code) + '</div>' : '') + '</div></div>';
+}
+async function tkSync() {
+  if (TK_BUSY || !D || !D.bookings) return; TK_BUSY = true;
+  const before = TK_HAVE.size + TK_CHECKED.size;
+  try {
+    for (const b of Object.values(D.bookings)) {
+      if (!tkList(b).length || (b.date || '9') < ymd(new Date(Date.now() - 3 * 864e5))) continue; // 지난 표는 받지 않음
+      for (const q of tkList(b)) {
+        if (TK_HAVE.has(q.file)) continue;
+        if (await tkGet(q.file)) { TK_HAVE.add(q.file); continue; }
+        TK_CHECKED.add(q.file);
+        if (tkLocal(q.file) || !PASS || navigator.onLine === false) continue;
+        try { const r = await call('ticketImg', q.file); if (r && r.b64) await tkPut(q.file, 'data:' + (r.mime || 'image/jpeg') + ';base64,' + r.b64); } catch (e) {}
+      }
+    }
+  } finally { TK_BUSY = false; }
+  if (navigator.onLine !== false && Object.values(D.bookings).some(b => tkList(b).length)) { tkLib('qrcode').catch(() => {}); tkLib('jsbarcode.min').catch(() => {}); }
+  if (TK_HAVE.size + TK_CHECKED.size !== before && !TKV && $('#sheet').hidden) { const tab = route().tab; if (tab === 'wallet' || tab === 'today' || tab === 'plan') render(); }
+}
+setTimeout(tkSync, 1500);
+window.addEventListener('online', () => setTimeout(tkSync, 800));
+/** 이 여행의 표 — 사람 한 명(who) 또는 모두. 없어야 할 칸(tkNeed)은 miss로 */
+function tkEntries(t, who) {
+  const bk = live('bookings', t.id).filter(b => tkList(b).length || (b.tkNeed || []).length).sort((a, b) => ((a.date || '9') + (a.time || '')).localeCompare((b.date || '9') + (b.time || '')));
+  const out = [];
+  bk.forEach(b => {
+    const need = b.tkNeed || [], l = tkList(b).filter(q => !who || q.who === who);
+    const ord = lb => { const k = need.indexOf(lb); return k < 0 ? 99 : k; };
+    l.slice().sort((x, y) => ord(tkLabel(b, x)) - ord(tkLabel(b, y))).forEach(q => out.push({ b, q, lb: tkLabel(b, q) }));
+    if (who) need.forEach(lb => { if (!l.some(q => tkLabel(b, q) === lb)) out.push({ b, miss: lb, lb }); });
+  });
+  return out;
+}
+const tkPast = e => (e.b.date || '9') < today();
+/** 그날 쓰는 표의 시각 — 이 표와 이어진 일정(i.tk)의 시간, 없으면 예약 시간 */
+function tkWhen(t, b, lb) { const it = live('items', t.id).find(i => i.tk && i.tk.b === b.id && i.tk.label === lb); return (it && it.time) || b.time || ''; }
+function tkStatus(have, n) {
+  return have === n ? '<span class="tk-ok">✓ 이 휴대폰에 저장 — 인터넷 없이도 열려요</span>' : '<span class="tk-no">이 휴대폰에 ' + have + '/' + n + '장 — 인터넷이 되면 저절로 받아요</span>';
+}
+/* 지갑 맨 위 — 사람 고르기 + 표 더미 */
+function tkWallet(t) {
+  const mem = t.members || [], all = tkEntries(t);
+  const anyTk = live('bookings', t.id).some(b => tkList(b).length || (b.tkNeed || []).length);
+  if (!anyTk) return '';
+  const who = mem.includes(UI.tkWho) ? UI.tkWho : mem.includes(ME) ? ME : mem[0];
+  const mine = tkEntries(t, who), now = mine.filter(e => !tkPast(e)), past = mine.filter(tkPast);
+  const t0 = today();
+  now.sort((x, y) => (x.b.date === t0 ? 0 : 1) - (y.b.date === t0 ? 0 : 1)); // 오늘 쓸 표가 맨 앞 (애플 지갑처럼)
+  const card = (e, k, n) => {
+    const col = tkColor(e.b, e.lb), when = tkWhen(t, e.b, e.lb);
+    const has = e.q && TK_HAVE.has(e.q.file);
+    return '<button class="wl-card' + (e.miss ? ' miss' : '') + (k === n - 1 ? ' last' : '') + '" style="--wc:' + col + '" ' + (e.miss ? 'data-act="tk-add" data-v="' + esc(e.b.id) + '"' : 'data-act="tk-me" data-v="' + esc(who) + '" data-file="' + esc(e.q.file) + '"') + '>' +
+      '<div class="wl-h"><span class="wl-ic">' + tkIcon(e.b, e.lb) + '</span><span class="wl-lb"><b>' + esc(e.lb) + '</b><small>' + esc(e.b.provider || e.b.kind || '') + '</small></span><span class="wl-d">' + (e.b.date === t0 ? '<em>오늘</em>' : '') + '<b class="num">' + esc(e.b.date ? md(e.b.date) : '') + '</b><small class="num">' + esc(when) + '</small></span></div>' +
+      '<div class="wl-b"><div class="wl-t">' + esc(e.b.title) + '</div><div class="wl-f">' + (e.miss ? '<span>＋ 아직 없어요 · 눌러서 넣기</span>' : '<span>' + esc(tkNm(who)) + (e.q.code ? ' · <span class="num">' + esc(e.q.code) + '</span>' : '') + '</span><span>' + (has ? '✓ 저장됨' : '받는 중') + '</span>') + '</div></div></button>';
+  };
+  let h = '<div class="sec wl"><div class="sec-h"><h3 class="ih">' + ib('wallet', 'var(--c-관광)', 1) + esc(tkNm(who)) + ' 지갑' + '</h3><span class="muted small">인터넷 없이도 열려요</span></div>' +
+    '<div class="wl-who">' + mem.map(m => '<button class="' + (m === who ? 'on' : '') + '" data-act="tk-who" data-v="' + esc(m) + '">' + av(m, 28) + '<span>' + esc(tkNm(m)) + '</span><em class="num">' + all.filter(e => e.q.who === m && !tkPast(e)).length + '</em></button>').join('') + '</div>';
+  h += now.length ? '<div class="wl-stack">' + now.map((e, k) => card(e, k, now.length)).join('') + '</div>' : '<div class="card empty">' + esc(tkNm(who)) + '의 표가 아직 없어요</div>';
+  if (now.some(e => !e.miss)) h += '<button class="btn wl-gate" data-act="tk-me" data-v="' + esc(who) + '">' + tkWhose(who) + ' 차례로 보기</button>';
+  if (past.length) h += '<details class="wl-past"><summary>지난 표 ' + past.length + '</summary><div class="wl-stack">' + past.map((e, k) => card(e, k, past.length)).join('') + '</div></details>';
+  return h + '</div>';
+}
+/* 예약 카드 아래 — 표 이름마다 「가족 모두」로 보여주기 · 넣기 */
+function tkStrip(t, b) {
+  const l = tkList(b), need = b.tkNeed || [];
+  if (!l.length && !need.length) return b.kind === '숙소' || b.kind === '보험' || b.kind === '주차' ? '' : '<button class="tk-add" data-act="tk-add" data-v="' + esc(b.id) + '">' + ic('plus') + '사람마다 표(QR) 넣기</button>';
+  const lbs = [...new Set(need.concat(l.map(q => tkLabel(b, q))))], n = (D.trips[b.trip] || {}).members ? D.trips[b.trip].members.length : 4;
+  return '<div class="tk-strip">' + lbs.map(lb => { const c = l.filter(q => tkLabel(b, q) === lb).length;
+    return '<button class="tk-lb" style="--wc:' + tkColor(b, lb) + '" ' + (c ? 'data-act="tk-gate" data-v="' + esc(b.id) + '" data-label="' + esc(lb) + '"' : 'data-act="tk-add" data-v="' + esc(b.id) + '"') + '><span>' + tkIcon(b, lb) + '</span><b>' + esc(lb) + '</b><em class="num">' + c + '/' + n + '</em></button>'; }).join('') +
+    '<button class="tk-edit" data-act="tk-add" data-v="' + esc(b.id) + '" aria-label="표 넣기·고치기">' + ic('pen') + '</button></div>';
+}
+/* 오늘 화면 — 지금 쓸 표 (애플 지갑이 때맞춰 표를 띄우듯) */
+function tkTodayCard(t) {
+  const t0 = today(), tm = ymd(new Date(Date.now() + 864e5)), nowHM = hm();
+  const slots = [];
+  live('bookings', t.id).forEach(b => { if (!tkList(b).length || (b.date !== t0 && b.date !== tm)) return;
+    [...new Set((b.tkNeed || []).concat(tkList(b).map(q => tkLabel(b, q))))].forEach(lb => { const l = tkList(b).filter(q => tkLabel(b, q) === lb); if (l.length) slots.push({ b, lb, l, when: tkWhen(t, b, lb), day: b.date }); }); });
+  if (!slots.length) return '';
+  const today_ = slots.filter(s => s.day === t0).sort((a, b) => (a.when || '99').localeCompare(b.when || '99'));
+  const cur = today_.filter(s => !s.when || tkMin(s.when) >= tkMin(nowHM) - 90)[0] || today_[today_.length - 1];
+  let h = '<div class="sec tk-today">';
+  if (cur) {
+    const have = cur.l.filter(q => TK_HAVE.has(q.file)).length;
+    h += '<div class="tk-hero" style="--wc:' + tkColor(cur.b, cur.lb) + '"><div class="tk-h"><span class="wl-ic">' + tkIcon(cur.b, cur.lb) + '</span><span><small>지금 쓸 표' + (cur.when ? ' · ' + esc(cur.when) : '') + '</small><b>' + esc(cur.lb) + '</b><span>' + esc(cur.b.title) + '</span></span></div>' +
+      '<button class="btn big tk-go" data-act="tk-gate" data-v="' + esc(cur.b.id) + '" data-label="' + esc(cur.lb) + '">가족 모두 차례로 (' + cur.l.length + '명)</button>' +
+      '<div class="tk-people">' + cur.l.map(q => '<button data-act="tk-me" data-v="' + esc(q.who) + '" data-file="' + esc(q.file) + '">' + av(q.who, 36) + '<span>' + esc(tkNm(q.who)) + '</span></button>').join('') + '</div><div class="tk-st">' + tkStatus(have, cur.l.length) + '</div></div>';
+    const rest = today_.filter(s => s !== cur);
+    if (rest.length) h += '<div class="tk-more">' + rest.map(s => '<button data-act="tk-gate" data-v="' + esc(s.b.id) + '" data-label="' + esc(s.lb) + '" style="--wc:' + tkColor(s.b, s.lb) + '"><span>' + tkIcon(s.b, s.lb) + '</span><b>' + esc(s.lb) + '</b><small class="num">' + esc(s.when || '') + '</small></button>').join('') + '</div>';
+  }
+  slots.filter(s => s.day === tm).forEach(s => { const have = s.l.filter(q => TK_HAVE.has(q.file)).length; h += '<button class="tk-tom" data-act="tk-gate" data-v="' + esc(s.b.id) + '" data-label="' + esc(s.lb) + '"><b>내일 ' + esc(s.lb) + ' · ' + esc(s.b.title) + '</b>' + tkStatus(have, s.l.length) + '</button>'; });
+  return h + '</div>';
+}
+const tkMin = s => { const m = String(s || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : 0; };
+/* 보여주기 화면 — 표 한 장씩(화면 전체 그대로 · 잘라 낸 QR은 안 받음), 누르면 크게, 옆으로 밀면 다음 표 */
+let TKV = null;
+function tkGate(bid, lb) { const b = D.bookings[bid]; if (!b) return; const l = tkList(b).filter(q => tkLabel(b, q) === lb).map(q => ({ b, q, lb })); const i0 = l.findIndex(e => e.q.who === ME); tkOpen(l, i0 < 0 ? 0 : i0, 'gate', lb + ' · 가족 모두'); }
+function tkMe(t, who, file) { const l = tkEntries(t, who).filter(e => e.q && !tkPast(e)); const l2 = l.length ? l : tkEntries(t, who).filter(e => e.q); const i0 = l2.findIndex(e => e.q.file === file); tkOpen(l2, i0 < 0 ? 0 : i0, 'me', tkWhose(who)); }
+const tkWhose = who => tkNm(who) + ' 표';
+function tkOpen(list, start, mode, title) {
+  if (!list.length) return toast('보여 줄 표가 없어요');
+  if (TKV) tkClose(true);
+  TKV = { l: list, i: start || 0, mode, h: false, wl: null, orig: false };
+  const el = document.createElement('div'); el.id = 'tkview'; el.className = 'tkv'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', title);
+  el.innerHTML = '<div class="tkv-top"><button class="tkv-x" data-tk="close" aria-label="닫기">' + ic('back') + '</button><div class="tkv-ttl"><b>' + esc(title) + '</b><small>' + (mode === 'gate' ? '한 사람씩 자기 코드를 찍어요' : '옆으로 밀면 다음 표') + '</small></div><button class="tkv-o" data-tk="orig">원본</button></div>' +
+    '<div class="tkv-who"></div><div class="tkv-stage"></div><div class="tkv-dots"></div>' +
+    '<div class="tkv-tip">☀️ 휴대폰 밝기를 가장 밝게 올려 주세요 · 화면은 꺼지지 않아요</div>' +
+    '<div class="tkv-bot"><button class="btn" data-tk="prev">‹ 앞</button><button class="btn pri" data-tk="next">' + (mode === 'gate' ? '다음 사람' : '다음 표') + ' ›</button></div>';
+  document.body.appendChild(el); document.body.classList.add('tk-on'); document.body.style.overflow = 'hidden';
+  if (!POP_SKIP) { history.pushState({ tk: 1 }, ''); TKV.h = true; }
+  el.addEventListener('click', e => {
+    const x = e.target.closest('[data-tk]'); if (!x) return;
+    const a = x.dataset.tk;
+    if (a === 'close') tkClose(); else if (a === 'prev') tkTurn(-1); else if (a === 'next') tkTurn(1); else if (a === 'go') { TKV.i = +x.dataset.v; tkPaint(); }
+    else if (a === 'orig') { TKV.orig = !TKV.orig; tkPaint(); }
+  });
+  const stage = el.querySelector('.tkv-stage'); let sx = 0, sy = 0, moved = false;
+  stage.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; moved = false; }, { passive: true });
+  stage.addEventListener('touchend', e => { const p = e.changedTouches[0], dx = p.clientX - sx, dy = p.clientY - sy; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && !stage.classList.contains('zoom')) { moved = true; tkTurn(dx < 0 ? 1 : -1); } });
+  stage.addEventListener('click', e => {
+    if (moved) { moved = false; return; }
+    const im = e.target.closest('.tkv-orig img, .tkc.orig img'); if (!im) return;
+    if (stage.classList.toggle('zoom')) { const r = im.getBoundingClientRect(); im.style.transformOrigin = ((e.clientX - r.left) / r.width * 100) + '% ' + ((e.clientY - r.top) / r.height * 100) + '%'; } else im.style.transformOrigin = '';
+  });
+  tkWake();
+  tkPaint();
+}
+async function tkWake() { try { if (TKV && navigator.wakeLock && !TKV.wl) { TKV.wl = await navigator.wakeLock.request('screen'); TKV.wl.addEventListener('release', () => { if (TKV) TKV.wl = null; }); } } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && TKV) tkWake(); });
+function tkTurn(d) { if (!TKV) return; const n = TKV.l.length; if (n < 2) return; TKV.i = (TKV.i + d + n) % n; buzz(); tkPaint(); }
+async function tkPaint() {
+  const el = $('#tkview'); if (!el || !TKV) return;
+  const { l, i, mode } = TKV, e = l[i], q = e.q;
+  el.querySelector('.tkv-who').innerHTML = l.map((x, k) => '<button class="' + (k === i ? 'on' : '') + '" data-tk="go" data-v="' + k + '" style="--wc:' + tkColor(x.b, x.lb, tkType(x.b, x.q)) + '">' + (mode === 'gate' ? av(x.q.who, 30) + '<span>' + esc(tkNm(x.q.who)) + '</span>' : '<i>' + tkIcon(x.b, x.lb, tkType(x.b, x.q)) + '</i><span>' + esc(x.lb) + '</span>') + '</button>').join('');
+  el.querySelector('.tkv-dots').innerHTML = l.length > 1 ? l.map((x, k) => '<i class="' + (k === i ? 'on' : '') + '"></i>').join('') : '';
+  el.querySelector('.tkv-o').classList.toggle('on', TKV.orig);
+  const stage = el.querySelector('.tkv-stage'); stage.classList.remove('zoom');
+  let src = await tkGet(q.file);
+  if (!src && !q.data && !tkLocal(q.file) && PASS && navigator.onLine !== false) {
+    stage.innerHTML = '<div class="tkv-miss">표를 받는 중…</div>';
+    try { const r = await call('ticketImg', q.file); if (r && r.b64) { src = 'data:' + (r.mime || 'image/jpeg') + ';base64,' + r.b64; tkPut(q.file, src); } } catch (er) {}
+  }
+  if (!TKV || TKV.l[TKV.i] !== e) return;
+  if (TKV.orig) { stage.innerHTML = src ? '<div class="tkv-orig"><img src="' + src + '" alt="원본 바우처"><small>원본 바우처 · 누르면 크게</small></div>' : '<div class="tkv-miss"><b>원본이 이 휴대폰에 아직 없어요</b>인터넷이 되면 저절로 받아요.</div>'; return; }
+  const code = await tkCodeHtml(q, src);
+  if (!TKV || TKV.l[TKV.i] !== e || TKV.orig) return;
+  stage.innerHTML = tkPassHtml(e, code);
+}
+function tkClose(fromNav) {
+  if (!TKV) return;
+  const h = TKV.h; try { TKV.wl && TKV.wl.release(); } catch (e) {}
+  TKV = null;
+  const el = $('#tkview'); if (el) el.remove();
+  document.body.classList.remove('tk-on'); if ($('#sheet').hidden) document.body.style.overflow = '';
+  if (h && !fromNav) { POP_SKIP = true; history.back(); }
+}
+/* 표 한 장 — 모양(틀) 고르기 · 칸 채우기 · 미리 보기 */
+async function tkEditOne(bid, k) {
+  const b = D.bookings[bid], q0 = tkList(b)[k]; if (!q0) return;
+  const q = Object.assign({}, q0, { f: Object.assign({}, q0.f || {}) }), src = await tkGet(q.file);
+  const code = await tkCodeHtml(q, src);
+  const paint = el => { const tp = tkType(b, q), T = TK_TPL[tp];
+    el.querySelector('#te_prev').innerHTML = tkPassHtml({ b, q, lb: tkLabel(b, q) }, code, true);
+    el.querySelector('#te_f').innerHTML = T.f.map(([fk, n]) => '<div class="field half"><label>' + esc(n) + '</label><input class="in" data-te="' + fk + '" value="' + esc(q.f[fk] || '') + '" placeholder="' + esc(tkFields(b, Object.assign({}, q, { f: {} }))[fk] || '') + '"></div>').join('');
+    el.querySelectorAll('[data-te]').forEach(inp => inp.oninput = () => { q.f[inp.dataset.te] = inp.value.trim(); el.querySelector('#te_prev').innerHTML = tkPassHtml({ b, q, lb: tkLabel(b, q) }, code, true); }); };
+  openSheet('<h2>표 모양 · ' + esc(tkLabel(b, q)) + ' · ' + esc(q.who) + '</h2><div id="te_prev" class="te-prev"></div>' +
+    '<div class="field"><label>어떤 표</label><div class="opts" id="te_tp">' + Object.entries(TK_TPL).map(([key, T]) => '<button type="button" class="opt ' + (tkType(b, q) === key ? 'on' : '') + '" data-opt="' + key + '">' + T.ic + ' ' + esc(T.n) + '</button>').join('') + '</div></div>' +
+    '<div class="te-f" id="te_f"></div><label class="te-all"><input type="checkbox" id="te_all" checked> 같은 「' + esc(tkLabel(b, q)) + '」 표 모두에 같게 (이름·번호는 그대로)</label>' +
+    '<div class="sheet-acts"><button class="btn" id="te_back">뒤로</button><button class="btn pri" id="te_save">저장</button></div>', el => {
+    paint(el);
+    el.querySelectorAll('#te_tp .opt').forEach(o => o.onclick = () => { el.querySelectorAll('#te_tp .opt').forEach(x => x.classList.remove('on')); o.classList.add('on'); q.type = o.dataset.opt; paint(el); });
+    el.querySelector('#te_back').onclick = () => tkAdd(bid);
+    el.querySelector('#te_save').onclick = () => {
+      const all = el.querySelector('#te_all').checked, lb = tkLabel(b, q);
+      const fClean = Object.fromEntries(Object.entries(q.f).filter(([, v]) => v));
+      const out = tkList(D.bookings[bid]).map((x, j) => j === k || (all && tkLabel(b, x) === lb) ? Object.assign({}, x, { type: q.type || x.type, f: Object.assign({}, fClean) }) : x);
+      put('bookings', Object.assign({}, D.bookings[bid], { qr: out })); toast('표 모양을 저장했어요'); tkAdd(bid);
+    };
+  });
+}
+/* 넣기·고치기 — 사진 여러 장을 한꺼번에, 장마다 누구 표·무슨 표인지 고름 */
+async function tkAdd(bid) {
+  const b = D.bookings[bid]; if (!b) return;
+  const t = D.trips[b.trip] || {}, mem = (t.members || []).slice();
+  const l = tkList(b), sug = [...new Set((b.tkNeed || []).concat(TK_SUGGEST[b.kind] || TK_SUGGEST.기타))];
+  const imgs = await Promise.all(l.map(q => tkGet(q.file)));
+  const cnt = lb => l.filter(q => tkLabel(b, q) === lb).length;
+  openSheet('<h2>표 넣기 · ' + esc(b.title) + '</h2><p class="muted">바우처 화면을 사람마다 한 장씩 캡처해서 넣어요. QR만 잘라 내지 말고 화면 그대로 넣어요. 넣은 표는 이 휴대폰에 저장돼서 인터넷이 없어도 열려요.</p>' +
+    '<div class="field"><label>이 예약에 있어야 할 표 (쉼표로)</label><input class="in" id="tk_need" value="' + esc((b.tkNeed || []).join(', ')) + '" placeholder="예: 1일 입장권, 닌텐도 입장권, 푸드 바우처"></div>' +
+    '<div class="field"><label>새로 넣을 사진의 표 이름</label><div class="opts" id="tk_lb">' + sug.map((s, k) => '<button type="button" class="opt ' + (k === 0 ? 'on' : '') + '" data-opt="' + esc(s) + '">' + esc(s) + (cnt(s) ? ' ' + cnt(s) : '') + '</button>').join('') + '</div></div>' +
+    '<button class="btn pri big" id="tk_pick" style="width:100%">' + ic('camera') + '표 사진 고르기 (여러 장 한꺼번에)</button>' +
+    '<div class="tk-rows">' + l.map((q, k) => '<div class="tk-row"><div class="tk-th">' + (imgs[k] ? '<img src="' + imgs[k] + '" alt="">' : '<span>🎟️</span>') + '</div><div class="tk-rb"><input class="in tk-lbin" data-tk-lb="' + k + '" value="' + esc(tkLabel(b, q)) + '" aria-label="표 이름"><div class="opts" data-tk-who="' + k + '">' +
+      mem.map(m => '<button type="button" class="opt ' + (q.who === m ? 'on' : '') + '" data-opt="' + esc(m) + '">' + esc(tkNm(m)) + '</button>').join('') + '</div>' +
+      '<input class="in tk-code" data-tk-code="' + k + '" placeholder="표 번호 (있으면)" value="' + esc(q.code || '') + '"><div class="tk-rowacts"><span class="' + (q.data ? 'tk-ok' : 'tk-no') + '">' + (q.data ? '✓ ' + (/QR/.test(q.data.f) ? 'QR' : '바코드') + ' 읽음' : '코드 못 찾음') + '</span><button class="linkbtn" data-tk-one="' + k + '">모양·내용</button>' + (!q.data && imgs[k] ? '<button class="linkbtn" data-tk-re="' + k + '">다시 읽기</button>' : '') + '<button class="linkbtn tk-del" data-tk-del="' + k + '">빼기</button></div></div></div>').join('') + '</div>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="tk_save">저장</button></div>', el => {
+    const needOf = () => el.querySelector('#tk_need').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    const cur = () => { const out = tkList(D.bookings[bid]).map(q => Object.assign({}, q));
+      el.querySelectorAll('[data-tk-who]').forEach(o => { const k = +o.dataset.tkWho, on = o.querySelector('.opt.on'); if (out[k] && on) out[k].who = on.dataset.opt; });
+      el.querySelectorAll('[data-tk-lb]').forEach(o => { const k = +o.dataset.tkLb; if (out[k]) out[k].label = o.value.trim() || tkLabel(b, out[k]); });
+      el.querySelectorAll('[data-tk-code]').forEach(o => { const k = +o.dataset.tkCode; if (out[k]) out[k].code = o.value.trim(); }); return out; };
+    const keep = qr => put('bookings', Object.assign({}, D.bookings[bid], { qr, tkNeed: needOf() }));
+    el.querySelectorAll('[data-tk-del]').forEach(x => x.onclick = () => { const out = cur(); out.splice(+x.dataset.tkDel, 1); keep(out); tkAdd(bid); });
+    el.querySelector('#tk_save').onclick = () => { keep(cur()); closeSheet(); toast('표를 저장했어요'); };
+    el.querySelectorAll('[data-tk-one]').forEach(x => x.onclick = () => { keep(cur()); tkEditOne(bid, +x.dataset.tkOne); });
+    el.querySelectorAll('[data-tk-re]').forEach(x => x.onclick = async () => { const k = +x.dataset.tkRe, out = cur(); x.textContent = '찾는 중…'; const dec = await tkDecode(imgs[k]);
+      if (dec) { out[k].data = dec.data; out[k].box = dec.box; keep(out); toast('코드를 찾았어요'); tkAdd(bid); } else { x.textContent = '못 찾았어요'; } });
+    el.querySelector('#tk_pick').onclick = () => {
+      const lbOn = el.querySelector('#tk_lb .opt.on'), lb = lbOn ? lbOn.dataset.opt : (sug[0] || '입장권');
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true;
+      inp.onchange = async () => {
+        const files = [...(inp.files || [])].filter(f => /^image\//.test(f.type || '') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name || ''));
+        if (!files.length) return toast('사진 파일을 골라 주세요');
+        const out = cur(), used = new Set(out.filter(q => tkLabel(b, q) === lb).map(q => q.who));
+        const need = needOf(); if (!need.includes(lb)) need.push(lb);
+        toast(lb + ' ' + files.length + '장 넣는 중… (QR·바코드를 찾아요)');
+        for (const f of files) {
+          let src; try { src = await shrink(f, 1800, .92); } catch (er) { continue; }
+          const who = mem.find(m => !used.has(m)) || ME || mem[0]; used.add(who);
+          const id = 'local-' + uid('q'); await tkPut(id, src);
+          const dec = await tkDecode(src), same = out.find(x => tkLabel(b, x) === lb && (x.f || x.type));
+          const nq = { who, label: lb, file: id, code: '' }; if (dec) { nq.data = dec.data; nq.box = dec.box; }
+          if (same) { if (same.type) nq.type = same.type; if (same.f) nq.f = Object.assign({}, same.f); }
+          out.push(nq);
+          call('photo', src.split(',')[1], 'image/jpeg', lb + ' ' + who, '입장권').then(async r => {
+            if (!r || !r.id) return; await tkPut(r.id, src);
+            const b2 = D.bookings[bid]; put('bookings', Object.assign({}, b2, { qr: tkList(b2).map(x => x.file === id ? Object.assign({}, x, { file: r.id }) : x) }), true);
+          }).catch(() => toast('표 원본은 인터넷이 되면 다시 올려 주세요'));
+        }
+        put('bookings', Object.assign({}, D.bookings[bid], { qr: out, tkNeed: need }));
+        const miss = out.filter(x => !x.data).length; if (miss) toast(miss + '장은 코드를 못 찾았어요 — 그 표는 원본을 보여 줘요');
+        tkAdd(bid);
+      };
+      inp.click();
+    };
+  });
+}
 function walletPage(t) {
   const w = bookingWarnings(t), mode = UI.walletSort || LS.get('walletSort', 'date');
   const bk = live('bookings', t.id).sort((a, b) => ((a.date || '9') + (a.time || '')).localeCompare((b.date || '9') + (b.time || '')));
-  const card = b => passCard(t, b, w[b.id]) + (w[b.id] ? '<div class="warnline" style="margin:-4px 4px 4px">⚠️ ' + esc(w[b.id]) + '</div>' : '');
+  const card = b => passCard(t, b, w[b.id]) + tkStrip(t, b) + (w[b.id] ? '<div class="warnline" style="margin:-4px 4px 4px">⚠️ ' + esc(w[b.id]) + '</div>' : '');
   const grp = (name, list, cls) => '<div class="wgroup' + (cls ? ' ' + cls : '') + '"><div class="wgroup-h"><b>' + esc(name) + '</b><span class="muted num">' + list.length + '</span></div><div class="stack">' + list.map(card).join('') + '</div></div>';
-  let h = '<div class="flex" style="gap:8px;margin:4px 0 12px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="booking">' + ic('camera') + '예약 화면 찍기</button><button class="btn big" style="flex:1" data-act="booking-new">' + ic('pen') + '직접 적기</button></div>';
+  let h = tkWallet(t) + '<div class="flex" style="gap:8px;margin:4px 0 12px"><button class="btn pri big" style="flex:1" data-act="photo" data-v="booking">' + ic('camera') + '예약 화면 찍기</button><button class="btn big" style="flex:1" data-act="booking-new">' + ic('pen') + '직접 적기</button></div>';
   if (!bk.length) return h + '<div class="card empty">예약이 아직 없어요</div>';
+  h += '<div class="wrest-h" style="margin-top:4px"><b>예약</b></div>';
   // 항공·숙소·보험은 늘 맨 위에 고정
   const PIN = ['항공', '숙소', '보험'];
   PIN.forEach(k => { const l = bk.filter(b => b.kind === k); if (l.length) h += grp(k, l, 'pinned'); });
@@ -2425,6 +2761,10 @@ document.addEventListener('click', e => {
     'item-done': () => { const i = D.items[v]; buzz(); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } if ($('#sheet .iv-head')) itemView(t, D.items[v]); },
     'booking-new': () => editRec('booking', t, { kind: '숙소', date: t.start }),
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
+    'tk-gate': () => tkGate(v, el.dataset.label),
+    'tk-me': () => t && tkMe(t, v, el.dataset.file),
+    'tk-who': () => { UI.tkWho = v; render(); },
+    'tk-add': () => tkAdd(v),
     'spend-new': () => editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
     'spend-edit': () => editRec('spend', t, D.spends[v]),
     'check-new': () => { const k = UI.prepTab || ''; editRec('check', t, { cat: k === 'todo' ? '출발 전' : k.startsWith('p:') ? '옷' : '기타', who: '', owner: k.startsWith('p:') ? k.slice(2) : '' }); },
@@ -2633,6 +2973,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '5.6', d: '2026-11-26', title: '사람마다 지갑이 생겼어요', items: [
+    ['wallet', 'var(--c-관광)', '내 이름 지갑', '지갑에 임요한·장보정·임하은·임하늘 이름마다 표 모음이 있어요. 오늘 쓸 표가 맨 앞에 오고, 누르면 큰 표로 열려요. 옆으로 밀면 다음 표예요.'],
+    ['ticket', 'var(--coral)', 'QR이 크고 또렷하게', 'A4 바우처를 찍어 넣으면 QR·바코드만 찾아 휴대폰에 맞는 멋진 표 모양으로 다시 그려요. 비행기·배·기차·놀이공원·전망대·식당·공연 표 모양이 있어요. 원본도 「원본」 단추로 볼 수 있어요.'],
+    ['check', 'var(--mint)', '인터넷이 없어도', '넣은 표는 휴대폰에 저장돼서 인터넷이 안 돼도 앱만 열면 보여요. USJ 날엔 오늘 화면에 「지금 쓸 표」가 뜨고, 「가족 모두」를 누르면 한 사람씩 차례로 보여 줘요.']] },
   { v: '5.5', d: '2026-11-26', title: '예약 화면을 더 잘 읽어요', items: [
     ['camera', 'var(--coral)', '앱 예약 화면도 척척', '클룩 같은 예약 앱 화면을 찍어 넣으면 금액·표 이름·예약번호·사람 수를 제대로 읽어요. 예약번호 숫자를 금액으로, 휴대폰 맨 위 시계 줄을 가게 이름으로 잘못 읽던 것을 고쳤어요.'],
     ['receipt', 'var(--mint)', '쓴 돈을 더 자세히', '「무엇에 썼나」에 선물·기념품, 유심·와이파이, 보험·여권·준비가 새로 생겼어요. 경비 화면에서 어디에 돈이 많이 들었는지 더 또렷이 보여요.'],
