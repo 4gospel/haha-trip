@@ -854,7 +854,7 @@ function todayTab(t) {
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
   h += tkTodayCard(t);
-  if (ph === 'before' && dayDiff(t0, t.start) <= 14 && !LS.get('offlineAt', 0)) h += '<div class="sec"><button class="alert" style="--cc:var(--mint)" data-act="offline"><span><b>📦 출발 전 「오프라인 준비」를 해 주세요</b><span>와이파이에서 한 번 — 일본에서 인터넷이 끊겨도 티켓·그림·일본어 소리가 열려요</span></span></button></div>';
+  if (ph === 'before' && dayDiff(t0, t.start) <= 3 && !LS.get('offlineAt', 0)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="offline"><span><b>📦 오프라인 준비가 아직 덜 끝났어요</b><span>인터넷이 되면 저절로 받아요 · 눌러서 지금 받기</span></span></button></div>';
   if (!longAgo(t)) h += '<div class="sec sos-row"><button class="sos-btn" data-act="sos-go">' + ic('sos') + '<span><b>도움이 필요해요</b><span>비상 연락 · 영사콜센터 · 숙소 주소 · 보험</span></span></button><button class="sos-tr" data-act="tr-open">🗣️<span>번역기</span></button></div>';
   if (ph === 'after') h += storyCard(t);
   h += agoCard(t);
@@ -2970,7 +2970,7 @@ document.addEventListener('submit', async e => {
     if (!p) return;
     msg.textContent = '확인 중… 처음엔 자료를 받느라 10초쯤 걸릴 수 있어요';
     PASS = p; LOGGING = true;
-    try { const d = await call('load'); LS.set('pass', p); LOGGING = false; adopt(d, true); othersChanged(D); startRoute(); render(); }
+    try { const d = await call('load'); LS.set('pass', p); LOGGING = false; adopt(d, true); othersChanged(D); startRoute(); render(); setTimeout(offlineAuto, 5000); }
     catch (er) { PASS = ''; LOGGING = false; msg.textContent = er.code === 'pass' ? '암호가 맞지 않아요' : (er.code === 'not_setup' || er.code === 'net') ? '서버 준비가 아직 안 됐어요' : '연결이 안 돼요. 인터넷을 확인해 주세요'; }
   }
 });
@@ -3029,8 +3029,8 @@ async function offlineStatus() {
   return st;
 }
 async function offlineOpen() {
-  openSheet('<h2>📦 여행 전 오프라인 준비</h2><div class="muted">인터넷이 되는 곳(와이파이)에서 한 번 눌러 두면, 일본에서 인터넷이 끊겨도 앱·티켓·그림·일본어 소리가 열려요.</div><div id="of_st" class="card" style="margin-top:12px">확인 중…</div>' +
-    '<button class="btn pri big" id="of_go" style="width:100%;margin-top:12px">지금 받아 두기</button><div class="muted small" style="margin-top:10px">지도 바탕 그림은 미리 받지 않아요(지도 회사 규칙). 구글 지도 앱에서 오사카·교토 「오프라인 지도」를 받아 두세요. 아이폰은 사파리 「홈 화면에 추가」로 연 앱에서 눌러 주세요.</div>' +
+  openSheet('<h2>📦 여행 전 오프라인 준비</h2><div class="muted">인터넷이 되면 앱이 <b>저절로</b> 받아 둬요. 일본에서 인터넷이 끊겨도 앱·티켓·그림·일본어 소리가 열려요. 아래 칸이 모두 ✅면 끝이에요.</div><div id="of_st" class="card" style="margin-top:12px">확인 중…</div>' +
+    '<button class="btn big" id="of_go" style="width:100%;margin-top:12px">지금 한 번 더 받기</button><div class="muted small" style="margin-top:10px">지도 바탕 그림은 미리 받지 않아요(지도 회사 규칙). 구글 지도 앱에서 오사카·교토 「오프라인 지도」를 받아 두세요. 아이폰은 사파리와 「홈 화면 앱」의 저장 칸이 따로라, 여행 중 쓸 홈 화면 앱을 한 번 열어 두면 그 안에도 저절로 받아요.</div>' +
     '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>', async el => {
     const paint = st => { const ok = (a, b) => a >= b && b > 0 ? '✅' : '⬜'; el.querySelector('#of_st').innerHTML =
       '<div class="facts"><div><span>' + ok(st.have, st.files) + ' 그림·소리·지도 파일</span><b class="num">' + st.have + ' / ' + st.files + '</b></div>' +
@@ -3048,10 +3048,33 @@ async function offlineOpen() {
       } catch (e) { bad++; }
       TK_CHECKED.clear(); await tkSync();
       b.disabled = false; b.textContent = bad ? '다시 받아 두기 (' + bad + '개 못 받음)' : '✓ 다 받아 두었어요';
-      LS.set('offlineAt', Date.now()); paint(await offlineStatus());
+      if (!bad) { OF_DONE = true; LS.set('offlineAt', Date.now()); } paint(await offlineStatus());
     };
   });
 }
+/** 저절로 오프라인 준비 (팀장님 2026-11-27 「강제로」 — 가족 모두 무제한 요금제): 인터넷이 되면 빠진 파일만 조용히 받아 둠 */
+let OF_BUSY = false, OF_DONE = false;
+async function offlineAuto() {
+  if (OF_BUSY || OF_DONE || !PASS || !window.caches || navigator.onLine === false) return;
+  OF_BUSY = true;
+  try {
+    const st = await offlineStatus(); if (!st.list || !st.list.length) return;
+    const sig = st.list.length + ':' + (st.bytes || 0), c = await caches.open(ASSET_C);
+    const ks = await c.keys(), have = new Set(ks.map(r => new URL(r.url).pathname.replace(/^.*\/haha-trip\//, '').replace(/^\//, '')));
+    const need = st.list.filter(f => !have.has(f)), first = !LS.get('offlineAt', 0), loud = first && need.length > 20;
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then(ok => LS.set('persisted', !!ok)).catch(() => {}); } catch (e) {}
+    if (loud) toast('📦 여행 준비물(그림·소리·지도)을 휴대폰에 받아 두는 중이에요');
+    let i = 0, bad = 0;
+    const work = async () => { while (i < need.length && navigator.onLine !== false) { const f = need[i++]; try { const r = await fetch(f, { cache: 'reload' }); if (r.ok) await c.put(f, r); else bad++; } catch (e) { bad++; } } };
+    await Promise.all([work(), work(), work()]);
+    if (i < need.length) bad += need.length - i;
+    if (need.length) { TK_CHECKED.clear(); await tkSync(); }
+    if (!bad) { OF_DONE = true; LS.set('offlineSig', sig); LS.set('offlineAt', Date.now()); if (loud) toast('✓ 오프라인 준비 끝 — 인터넷이 끊겨도 앱·티켓이 열려요'); }
+  } catch (e) {} finally { OF_BUSY = false; }
+}
+setTimeout(offlineAuto, 6000);
+setInterval(offlineAuto, 10 * 60000);
+window.addEventListener('online', () => setTimeout(offlineAuto, 3000));
 /** 한 줄 적기 창 */
 function askText(title, val, cb) {
   openSheet('<h2>' + esc(title) + '</h2><textarea class="in" id="ask_v" rows="3">' + esc(val || '') + '</textarea><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="ask_ok">저장</button></div>', el => { const i = el.querySelector('#ask_v'); setTimeout(() => i.focus(), 50); el.querySelector('#ask_ok').onclick = () => { const v = i.value; closeSheet(); cb(v); }; });
@@ -3103,7 +3126,7 @@ function settings() {
     '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>구글 드라이브 폴더<small>4gospel 「하하가족여행」 — 원본·사진·기록 문서·백업 (저절로 저장)</small></span></button>' +
     '<button data-act="notion-edit">' + ib('notion', 'var(--ink)', 1) + '<span>노션 연결<small>「하하가족여행」 정리함으로 보내기</small></span></button>' +
 
-    '<button data-act="offline">' + ib('download' in ICON ? 'download' : 'folder', 'var(--mint)', 1) + '<span>여행 전 오프라인 준비<small>' + (LS.get('offlineAt', 0) ? '마지막 ' + new Date(LS.get('offlineAt', 0)).toLocaleDateString('ko-KR') : '출발 전에 와이파이에서 한 번') + '</small></span></button>' +
+    '<button data-act="offline">' + ib('download' in ICON ? 'download' : 'folder', 'var(--mint)', 1) + '<span>여행 전 오프라인 준비<small>' + (LS.get('offlineAt', 0) ? '✅ 받아 둠 · ' + new Date(LS.get('offlineAt', 0)).toLocaleDateString('ko-KR') : '인터넷이 되면 저절로 받아요') + '</small></span></button>' +
     '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
     '<button data-act="install">' + ib('phone', 'var(--sky)', 1) + '<span>홈 화면에 앱처럼 두기</span></button>' +
     '<button data-act="copy-link">' + ib('link', 'var(--mint)', 1) + '<span>앱 주소 복사<small>가족에게 보내 주세요 (암호는 따로)</small></span></button>' +
@@ -3164,6 +3187,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.4', d: '2026-11-27', title: '오프라인 준비가 저절로 돼요', items: [
+    ['folder', 'var(--mint)', '저절로 받아 두기', '앱을 열고 인터넷이 되면 그림·일본어 소리·지도·티켓을 저절로 휴대폰에 받아 둬요. 따로 누르지 않아도 돼요. 설정 → 「여행 전 오프라인 준비」에서 ✅로 확인할 수 있어요.'],
+    ['sos', 'var(--coral)', '택시 카드에 일본어 주소', '숙소 주소를 일본어(大阪市西成区花園南1丁目10-4)로 넣었어요. 「택시에 숙소 주소 보여 주기」를 기사님께 그대로 보여 드리면 돼요.'],
+    ['ticket', 'var(--sky)', 'USJ 오픈런', '12/30 USJ는 공식 8시 개장이지만 연말엔 7:15~7:45쯤 일찍 열려요. 새벽 5:45에 숙소를 나서 6:30에 입구에 서도록 아침 일정을 앞당겼어요.']] },
   { v: '6.3', d: '2026-11-26', title: '여섯 전문가 점검을 반영했어요', items: [
     ['sos', 'var(--warn)', '도움 창 · 택시 카드', '「도움이 필요해요」를 누르면 110·119·영사콜센터를 큰 단추로 바로 걸 수 있어요. 「택시에 숙소 주소 보여 주기」는 기사님께 그대로 보여 드리는 큰 글씨 화면이에요.'],
     ['folder', 'var(--mint)', '여행 전 오프라인 준비', '설정 → 「여행 전 오프라인 준비」를 와이파이에서 한 번 눌러 주세요. 인터넷이 끊겨도 티켓·그림·지도·일본어 소리가 열려요.'],
