@@ -31,6 +31,7 @@ const persist = () => {
   if (!okQ && !persist.qw) { persist.qw = true; setTimeout(() => toast('고친 내용을 이 휴대폰에 담지 못했어요. 인터넷 연결을 확인해 주세요'), 50); }
 };
 if (LS.get('big', false)) document.documentElement.classList.add('big');
+if (LS.get('solid', false)) document.documentElement.classList.add('solid'); // 「선명하게」 — 유리 효과 끄기(전문가 의견 2026-11-26)
 
 /* ---------- 작은 도구 ---------- */
 const $ = s => document.querySelector(s);
@@ -2837,6 +2838,7 @@ document.addEventListener('click', e => {
     'export-notion': () => exportTo('exportNotion', v, '노션'),
     settings: () => settings(),
     'who-again': () => { ME = ''; LS.del('me'); closeSheet(); render(); },
+    solid: () => { const on = !document.documentElement.classList.contains('solid'); document.documentElement.classList.toggle('solid', on); LS.set('solid', on); closeSheet(); toast(on ? '유리 효과를 끄고 선명하게 했어요' : '유리 효과를 다시 켰어요'); },
     big: () => { const on = !document.documentElement.classList.contains('big'); document.documentElement.classList.toggle('big', on); LS.set('big', on); closeSheet(); toast(on ? '글씨를 크게 했어요' : '글씨를 보통으로 했어요'); },
     pull: () => { closeSheet(); pull().then(() => toast('새로 받았어요')); },
     logout: () => { if (!el.dataset.armed) { el.dataset.armed = '1'; el.querySelector('span').firstChild.textContent = '한 번 더 누르면 이 기기에서 나가요'; return; } PASS = ''; ME = ''; ['pass', 'me', 'data', 'q', 'seen'].forEach(k => LS.del(k)); D = empty(); Q = []; closeSheet(); render(); },
@@ -2934,6 +2936,7 @@ function settings() {
   const big = document.documentElement.classList.contains('big');
   openSheet('<h2>설정</h2><div class="flex" style="margin-bottom:8px">' + av(ME, 44) + '<div><b style="font-size:17px">' + esc(ME) + '</b><div class="muted">이 휴대폰을 쓰는 사람</div></div></div><div class="menu-list">' +
     '<button data-act="big">' + ib('text', 'var(--coral)', 1) + '<span>글씨 ' + (big ? '보통으로' : '크게') + '<small>지금 ' + (big ? '크게' : '보통') + '</small></span></button>' +
+    '<button data-act="solid">' + ib('sun', 'var(--sky)', 1) + '<span>' + (document.documentElement.classList.contains('solid') ? '유리 효과 다시 켜기' : '선명하게 (유리 효과 끄기)') + '<small>' + (document.documentElement.classList.contains('solid') ? '지금 선명하게 보여요' : '글씨가 잘 안 보이면 눌러 주세요') + '</small></span></button>' +
     '<button data-act="who-again">' + ib('users', 'var(--sky)', 1) + '<span>다른 사람으로 바꾸기</span></button>' +
     '<button data-act="fam-edit">' + ib('users', 'var(--mint)', 1) + '<span>가족 목록<small>' + esc(D.meta.family.map(f => f.name).join(', ')) + '</small></span></button>' +
     '<button data-act="pass-edit">' + ib('key', 'var(--sun)', 1) + '<span>가족 암호 바꾸기<small>바꾸면 다른 가족도 새 암호를 넣어야 해요</small></span></button>' +
@@ -3000,6 +3003,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.1', d: '2026-11-26', title: '앱 전체가 맑은 유리처럼', items: [
+    ['sun', 'var(--sky)', '유리 디자인', '디자인·사용성 전문가 검토를 거쳐 앱 전체를 새 아이폰처럼 유리 느낌으로 바꿨어요. 메뉴·단추·고르기 칸은 유리, 일정·돈·글은 또렷한 바탕 그대로예요.'],
+    ['check', 'var(--mint)', '더 잘 보이게', '단추 글자 색을 진하게 해서 햇빛 아래서도 잘 보여요. 작은 글씨도 조금 키웠어요.'],
+    ['users', 'var(--coral)', '「선명하게」 설정', '유리 느낌이 눈에 불편하면 설정 → 「선명하게 (유리 효과 끄기)」를 눌러 주세요.']] },
   { v: '6.0', d: '2026-11-26', title: '늘 밝은 화면으로', items: [
     ['sparkle' in ICON ? 'sparkle' : 'sun', 'var(--sky)', '유리처럼 맑은 아래 메뉴', '아래 메뉴와 지갑 티켓 화면이 새 아이폰처럼 유리 모양이 됐어요. QR이 있는 칸은 스캐너가 잘 읽도록 하얀색 그대로예요.'],
     ['sun', 'var(--sun)', '밝은 화면만', '휴대폰이 어두운 화면(야간 모드)이어도 앱은 늘 밝은 화면으로 열려요.'],

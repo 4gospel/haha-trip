@@ -420,6 +420,7 @@ details.more .f{margin-top:6px}
   html,body{font-size:15px}
   .wrap{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
   .topbar{margin:0 calc(-1*max(12px,env(safe-area-inset-left)));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+  .wallet,.days,.diary-who{margin-left:calc(-1*max(12px,env(safe-area-inset-left)));margin-right:calc(-1*max(12px,env(safe-area-inset-right)));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
   .topbar h1{font-size:18px}
   .hero h2{font-size:24px}
   .grid2{gap:8px}.stat{padding:12px}.stat b{font-size:19px}
@@ -1330,7 +1331,7 @@ body:has(.nav)::after{content:"";position:fixed;left:0;right:0;bottom:0;height:c
 body.sheet-open::after,body.map-open::after,body.tk-on::after,body.rb-on::after{display:none}
 @media (min-width:1100px){body:has(.snav)::after{display:none}}
 /* 아래 메뉴 = 아이폰 「리퀴드 글래스」처럼(팀장님 2026-11-26): 짙은 흐림으로 뒤 글자는 색만 비치고, 밝은 유리 테두리·빛 반사·유리 방울 */
-.nav{border-radius:30px;background:linear-gradient(180deg,rgba(255,255,255,.74),rgba(255,255,255,.52));-webkit-backdrop-filter:blur(24px) saturate(1.9);backdrop-filter:blur(24px) saturate(1.9);
+.nav{border-radius:30px;background:linear-gradient(180deg,rgba(255,255,255,.74),rgba(255,255,255,.52));-webkit-backdrop-filter:blur(24px) saturate(1.4);backdrop-filter:blur(24px) saturate(1.4);
   border:1px solid rgba(255,255,255,.75);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.4),inset 0 0 0 .5px rgba(255,255,255,.5),0 14px 34px rgba(60,40,20,.16),0 2px 6px rgba(60,40,20,.08)}
 .nav::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(112deg,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 30%,rgba(255,255,255,0) 70%,rgba(255,255,255,.35) 100%);opacity:.7}
 .nav button{position:relative;z-index:1;color:#7E8794}
@@ -1340,13 +1341,12 @@ body.sheet-open::after,body.map-open::after,body.tk-on::after,body.rb-on::after{
 .nav .plus{background:radial-gradient(circle at 34% 24%,#FFA486 0%,var(--coral) 55%,#F0603F 100%);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.65),inset 0 -2px 4px rgba(150,40,10,.22),0 10px 22px color-mix(in srgb,var(--coral) 42%,transparent),0 0 0 5px rgba(255,255,255,.7),0 0 0 6px rgba(255,255,255,.35)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.nav{background:rgba(255,255,255,.96)}}
 /* ---------- 지갑 티켓 화면 — 유리 모양(팀장님 2026-11-26). QR이 있는 아래 흰 칸은 그대로 흰색(스캐너가 잘 읽게) ---------- */
-:root{--glass:linear-gradient(180deg,rgba(255,255,255,.72),rgba(255,255,255,.48));--glass-edge:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35),0 0 0 1px rgba(255,255,255,.6),0 8px 24px rgba(60,40,20,.10)}
-body:has(.flow-pass){background:radial-gradient(60% 40% at 10% 8%,rgba(122,190,255,.35),transparent 70%),radial-gradient(50% 35% at 95% 30%,rgba(255,150,120,.30),transparent 70%),radial-gradient(60% 40% at 30% 85%,rgba(120,220,190,.28),transparent 70%),var(--bg);background-attachment:fixed}
-.wseg{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8);box-shadow:var(--glass-edge);border-radius:18px;padding:4px;border:0}
+:root{--glass:linear-gradient(180deg,rgba(255,255,255,.86),rgba(255,255,255,.72));--glass-edge:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.35),0 0 0 1px rgba(255,255,255,.6),0 8px 24px rgba(60,40,20,.10)}
+.wseg{background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);box-shadow:var(--glass-edge);border-radius:18px;padding:4px;border:0}
 .wseg button{border-radius:14px;background:transparent;color:#5B6675}
 .wseg button.on{background:linear-gradient(180deg,#fff,rgba(255,255,255,.82));color:var(--ink);box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(255,255,255,.9),0 3px 10px rgba(60,40,20,.12)}
 .flow-pass .sec-h .ih .ib,.flow-pass .wl .sec-h{position:relative}
-.flow-pass .wl-who button{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.7);backdrop-filter:blur(16px) saturate(1.7);box-shadow:var(--glass-edge);color:var(--ink)}
+.flow-pass .wl-who button{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);box-shadow:var(--glass-edge);color:var(--ink)}
 .flow-pass .wl-who button.on{background:linear-gradient(180deg,#fff,rgba(255,255,255,.85));color:var(--coral);box-shadow:inset 0 1px 0 #fff,0 0 0 1.5px color-mix(in srgb,var(--coral) 55%,#fff),0 4px 12px color-mix(in srgb,var(--coral) 22%,transparent)}
 .flow-pass .wl-who button.on em{background:color-mix(in srgb,var(--coral) 16%,#fff);color:var(--coral)}
 .wl-card{isolation:isolate}
@@ -1355,15 +1355,15 @@ body:has(.flow-pass){background:radial-gradient(60% 40% at 10% 8%,rgba(122,190,2
 .wl-card.art .wl-d,.tpass.art .tp-date{background:rgba(255,255,255,.62);-webkit-backdrop-filter:blur(10px) saturate(1.6);backdrop-filter:blur(10px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 .5px rgba(255,255,255,.8)}
 .wl-card.art .wl-ic,.tpass.art .tp-ic{background:rgba(255,255,255,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 1px 0 #fff,0 0 0 .5px rgba(255,255,255,.8)}
 .tpass.art .tp-fields{background:rgba(255,255,255,.5);-webkit-backdrop-filter:blur(12px) saturate(1.6);backdrop-filter:blur(12px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 .5px rgba(255,255,255,.7)}
-.flow-pass .wl-gate,.flow-pass .wl-acts .btn:not(.pri),.wl-past summary{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.7);backdrop-filter:blur(16px) saturate(1.7);box-shadow:var(--glass-edge);border:0;color:var(--ink)}
+.flow-pass .wl-gate,.flow-pass .wl-acts .btn:not(.pri),.wl-past summary{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);box-shadow:var(--glass-edge);border:0;color:var(--ink)}
 .wl-past summary{border-radius:14px;padding:10px 14px;list-style:none}
 .flow-pass .btn.pri{background:radial-gradient(circle at 30% 20%,#FFA486,var(--coral) 60%,#F0603F);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.6),inset 0 -2px 4px rgba(150,40,10,.2),0 8px 20px color-mix(in srgb,var(--coral) 35%,transparent);border:0}
 .flow-pass .tk-hero{box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 0 0 1px rgba(255,255,255,.35),0 10px 26px rgba(0,0,0,.14)}
 .flow-pass .tk-people button,.flow-pass .tk-go{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-.flow-pass .tk-more button,.flow-pass .tk-tom{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.7);backdrop-filter:blur(16px) saturate(1.7);box-shadow:var(--glass-edge)}
+.flow-pass .tk-more button,.flow-pass .tk-tom{background:var(--glass);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);box-shadow:var(--glass-edge)}
 /* 크게 보기 화면 — 둘레는 유리, 티켓 아래 칸은 흰색 */
 .tkv{background:radial-gradient(70% 45% at 12% 10%,rgba(122,190,255,.42),transparent 70%),radial-gradient(60% 40% at 95% 45%,rgba(255,150,120,.34),transparent 70%),radial-gradient(70% 45% at 25% 95%,rgba(120,220,190,.32),transparent 70%),#F7F3EE}
-.tkv-x,.tkv-o,.tkv-who button,.tkv-bot .btn:not(.pri){background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);box-shadow:var(--glass-edge);color:#1d2433;border:0}
+.tkv-x,.tkv-o,.tkv-who button,.tkv-bot .btn:not(.pri){background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);box-shadow:var(--glass-edge);color:#1d2433;border:0}
 .tkv-who button.on,.tkv-o.on{background:linear-gradient(180deg,color-mix(in srgb,var(--wc,#1d2433) 88%,#fff),var(--wc,#1d2433));color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 4px 12px rgba(0,0,0,.16)}
 .tkv-bot .btn.pri{background:radial-gradient(circle at 30% 20%,#FFA486,var(--coral) 60%,#F0603F);color:#fff;box-shadow:inset 0 1.5px 1px rgba(255,255,255,.6),0 8px 20px color-mix(in srgb,var(--coral) 35%,transparent);border:0}
 .tkv .tkv-stage{background:rgba(255,255,255,.28);-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 0 0 1px rgba(255,255,255,.55)}
@@ -1376,3 +1376,91 @@ body:has(.flow-pass){background:radial-gradient(60% 40% at 10% 8%,rgba(122,190,2
 .tp-tear{-webkit-mask:radial-gradient(circle at 0 50%,transparent 11px,#000 11.5px) left/51% 100% no-repeat,radial-gradient(circle at 100% 50%,transparent 11px,#000 11.5px) right/51% 100% no-repeat;mask:radial-gradient(circle at 0 50%,transparent 11px,#000 11.5px) left/51% 100% no-repeat,radial-gradient(circle at 100% 50%,transparent 11px,#000 11.5px) right/51% 100% no-repeat}
 .tpass{background:transparent;box-shadow:none!important;filter:drop-shadow(0 10px 20px rgba(40,30,20,.14)) drop-shadow(0 0 .6px rgba(40,30,20,.25))}
 .tkv .tpass{box-shadow:none!important}
+
+/* =====================================================================
+   앱 전체 유리 디자인 (2026-11-26) — 디자인 전문가·UI/UX(접근성) 전문가 검토를 거쳐 정함
+   원칙: 유리는 「떠 있는 조작 층」(아래 메뉴·머리 줄·알림·고르기 단추)에만, 내용(카드·글·돈·QR·입력 칸)은 또렷한 바탕
+   · 글자 뒤 유리는 흰색 .72 이상 · 채도 1.4 이하 · 실시간 흐림은 화면당 3~4개(아래 메뉴·머리 줄·알림), 나머지는 「유리 모양」만
+   · 대비: 본문 4.5:1 이상, 산호색 글자는 --coral-ink, 주 단추는 진한 산호 · 흰 테두리 옆에 옅은 짙은 선
+   · 설정 「선명하게」(html.solid)·투명도 줄이기·대비 높이기 설정이면 유리를 끔
+   ===================================================================== */
+:root{
+  --sub:var(--soft); --faint:#66707D; --coral-ink:#C2410C; --warn-ink:#C62A2F;
+  --glass-regular:linear-gradient(180deg,rgba(255,255,255,.88),rgba(255,255,255,.74));
+  --glass-thick:linear-gradient(180deg,#FFFDFA,#FFF9F3);
+  --glass-tint:linear-gradient(180deg,#CC4A26,#B93D10);
+  --glass-edge:inset 0 1px 0 rgba(255,255,255,.95),0 0 0 1px rgba(31,42,55,.08),0 8px 24px rgba(60,40,20,.10);
+  --glass-edge-sm:inset 0 1px 0 #fff,0 0 0 1px rgba(31,42,55,.10),0 2px 8px rgba(60,40,20,.08);
+  --glass-edge-tint:inset 0 1.5px 1px rgba(255,255,255,.45),inset 0 -2px 4px rgba(120,30,5,.22),0 8px 20px rgba(200,80,40,.28);
+  --blur-s:blur(10px) saturate(1.3); --blur-m:blur(18px) saturate(1.4);
+}
+/* 유리가 비칠 은은한 바탕 빛 — 고정 층(아이폰은 background-attachment:fixed를 무시) */
+html{background-color:var(--bg)} body{background:transparent}
+html::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(55% 35% at 8% 6%,rgba(122,190,255,.16),transparent 70%),radial-gradient(45% 30% at 96% 34%,rgba(255,150,120,.14),transparent 70%),radial-gradient(55% 35% at 25% 92%,rgba(120,220,190,.12),transparent 70%)}
+/* 머리 줄 — 아래로 사라지는 유리(실시간 흐림 ①) */
+.topbar{background:linear-gradient(180deg,var(--bg) 0%,color-mix(in srgb,var(--bg) 86%,transparent) 70%,transparent);-webkit-backdrop-filter:var(--blur-s);backdrop-filter:var(--blur-s);
+  padding-bottom:16px;margin-bottom:-6px;-webkit-mask-image:linear-gradient(#000 74%,transparent);mask-image:linear-gradient(#000 74%,transparent)}
+/* 동그란 유리 단추(흐림 없이 모양만 — 머리 줄 유리 위 유리를 겹치지 않게) */
+.iconbtn{border-radius:999px;background:var(--glass-regular);box-shadow:var(--glass-edge-sm)}
+/* 고르기 단추(세그먼트)·칩·날짜 — 유리 모양, 흐림 없음. 안쪽 둥글기 = 바깥 − 여백 */
+.seg{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);border-radius:18px}
+.seg button{border-radius:14px;color:var(--soft)}
+.seg button.on{background:linear-gradient(180deg,#fff,rgba(255,255,255,.9));color:var(--ink);box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(31,42,55,.08),0 3px 10px rgba(60,40,20,.12)}
+.seg.mini{border-radius:12px}.seg.mini button{border-radius:9px}
+.chipbtn,.day{background:var(--glass-regular);box-shadow:var(--glass-edge-sm)}
+.chipbtn{color:var(--soft)}
+.chipbtn.on{background:var(--glass-tint);color:#fff;box-shadow:var(--glass-edge-tint)}
+.day.on{background:linear-gradient(180deg,#34486B,var(--navy));box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 16px rgba(32,48,74,.28)}
+/* 주 단추 — 진한 산호 유리(흰 글자 대비 4.6~5.2:1) · 보조 단추는 바탕 위에서만 유리 모양 */
+.btn.pri,.flow-pass .btn.pri,.tkv-bot .btn.pri{background:var(--glass-tint);color:#fff;box-shadow:var(--glass-edge-tint);border:0}
+.sheet-acts .btn:not(.pri),.flow > .btn:not(.pri),.flow > .flex > .btn:not(.pri){background:var(--glass-regular);box-shadow:var(--glass-edge-sm)}
+/* 산호색 글자는 진하게 */
+.linkbtn,.nav button.on,.flow-pass .wl-who button.on,.toast button{color:var(--coral-ink)}
+.nav button{color:var(--soft)}
+.sos-btn b{color:var(--warn-ink)}
+/* 아래 창(시트) — 입력 칸이 있어 거의 불투명(흐림 없음), 위 가장자리만 유리 빛 · 뒤 어둡게는 .42 */
+.sheet-bg{background:rgba(31,22,12,.42)}
+.sheet-card{background:var(--glass-thick);border-radius:30px 30px 0 0;box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(255,255,255,.7),0 -12px 40px rgba(60,40,20,.16)}
+.sheet-card .in{background:#fff}
+/* 알림(토스트) — 밝은 유리 알약(실시간 흐림 ②) */
+.toast{background:rgba(255,253,250,.94);color:var(--ink);border-radius:999px;padding:12px 18px;-webkit-backdrop-filter:var(--blur-m);backdrop-filter:var(--blur-m);box-shadow:var(--glass-edge)}
+.toast button{min-height:44px}
+/* 큰 여행 카드(히어로) — 그림은 그대로, 가장자리 빛과 그 위 작은 유리 */
+.hero::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 0 0 1px rgba(255,255,255,.18)}
+.hero .dday{background:rgba(255,255,255,.88);box-shadow:var(--glass-edge-sm)}
+.chip-w{background:rgba(20,28,48,.40);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 0 .5px rgba(255,255,255,.35)}
+/* 내용 카드 — 유리 아님, 또렷한 가는 선만 */
+.card,.stat,.alert,.tl-card,.pass{box-shadow:0 0 0 1px rgba(120,80,40,.08),var(--sh)}
+.tl-card,.wl-card{contain:layout paint}
+/* 지갑 작은 조각은 흐림 없이(그림이 움직이지 않아 같은 모양, 휴대폰 부담 ↓) */
+.wl-card.art .wl-d,.tpass.art .tp-date,.wl-card.art .wl-ic,.tpass.art .tp-ic,.tpass.art .tp-fields,.flow-pass .wl-who button,.flow-pass .tk-people button,.flow-pass .tk-go,.tkv-who button,.tkv-x,.tkv-o{-webkit-backdrop-filter:none;backdrop-filter:none}
+.wl-card.art .wl-d,.tpass.art .tp-date{background:rgba(255,255,255,.88)}
+.tpass.art .tp-fields{background:rgba(255,255,255,.72)}
+.flow-pass .wseg,.flow-pass .wl-gate,.flow-pass .wl-acts .btn:not(.pri),.wl-past summary,.flow-pass .tk-more button,.flow-pass .tk-tom,.tkv-bot .btn:not(.pri){-webkit-backdrop-filter:none;backdrop-filter:none}
+/* 누르기 쉬운 크기(44px) */
+.tkv-o,.iv-tk .btn{min-height:44px}
+.flow-pass .wl-who button{min-height:44px;padding:6px 14px 6px 6px}
+/* 초점 테두리 — 어디서나 보이는 두 겹 */
+:focus-visible{outline:3px solid #1F2A37;outline-offset:2px;box-shadow:0 0 0 5px #fff}
+html{scroll-padding-top:84px;scroll-padding-bottom:calc(var(--nav-h) + 40px + env(safe-area-inset-bottom))}
+/* 작은 글자 키우기(50대 눈) */
+.sync{font-size:13px}.tk-ok,.tk-no,.iv-tk small,.wl-f{font-size:13px}
+/* PC 왼쪽 메뉴 — 유리 판(흐림 없이 모양만) */
+@media (min-width:1100px){.snav{background:var(--glass-regular);box-shadow:var(--glass-edge)}.snav nav button.on{background:linear-gradient(180deg,#fff,rgba(255,255,255,.85));box-shadow:var(--glass-edge-sm)}}
+/* 흐림이 안 되는 브라우저·「선명하게」·투명도 줄이기·대비 높이기 → 유리 끄고 또렷하게 */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.toast,.nav{background:#FFFBF6}}
+html.solid .nav,html.solid .toast,html.solid .topbar{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.solid .nav{background:#FFFFFF!important}html.solid .nav::before,html.solid .wl-card::after,html.solid .hero::after{display:none!important}
+html.solid .topbar{background:var(--bg)!important;-webkit-mask-image:none!important;mask-image:none!important}
+html.solid::before{display:none}
+html.solid .seg,html.solid .chipbtn:not(.on),html.solid .day:not(.on),html.solid .iconbtn,html.solid .wseg,html.solid .wl-who button,html.solid .tkv-x,html.solid .tkv-o,html.solid .tkv-who button,html.solid .tkv-bot .btn:not(.pri),html.solid .sheet-acts .btn:not(.pri){background:#FFFFFF!important;box-shadow:0 0 0 1.5px rgba(31,42,55,.22)!important}
+html.solid .seg button.on,html.solid .wseg button.on{background:var(--ink)!important;color:#fff!important}
+html.solid .day.on,html.solid .chipbtn.on{box-shadow:0 0 0 2px #fff,0 0 0 3.5px var(--ink)!important}
+html.solid .tkv .tkv-stage{background:#fff!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more){
+  .nav,.toast,.topbar,.tkv .tkv-stage{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+  .nav,.toast{background:#FFFFFF!important}.topbar{background:var(--bg)!important;-webkit-mask-image:none!important;mask-image:none!important}
+  html::before{display:none}.nav::before,.wl-card::after{display:none}
+  .seg,.chipbtn:not(.on),.day:not(.on),.iconbtn,.wseg{background:#fff!important;box-shadow:0 0 0 1.5px rgba(31,42,55,.24)!important}
+  .seg button.on,.wseg button.on{background:var(--ink)!important;color:#fff!important}}
