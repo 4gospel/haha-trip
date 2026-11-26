@@ -1524,3 +1524,6 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .taxi-how ol{margin:8px 0 8px 18px;padding:0;display:grid;gap:8px;font-size:15px;line-height:1.55}
 .tk-tom small{color:var(--muted,#6b7280);font-size:13px}
 .taxi-go{background:#FFF4D6;color:#7a4b00;border-color:#f3d48a}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.alert .al-t{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:2px;background:none;border:0;padding:0;color:inherit;font:inherit}
+.alert .al-t span{font-size:14px;color:var(--muted,#6b7280)}

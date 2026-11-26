@@ -931,7 +931,7 @@ function todayTab(t) {
     if (urgent.length || wl.length) {
       h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('sos', 'var(--warn)', 1) + '먼저 챙길 것</h3><button class="linkbtn" data-act="tab" data-v="prep">준비물 모두</button></div><div class="stack">';
       wl.forEach(id => { h += '<button class="alert" style="--cc:var(--warn)" data-act="booking-edit" data-v="' + esc(id) + '">' + ib('sos', 'var(--warn)') + '<span><b>' + esc(D.bookings[id].title) + '</b><span>' + esc(warns[id]) + '</span></span></button>'; });
-      urgent.forEach(x => { h += '<div class="alert" style="--cc:var(--sun)"><button class="chk" data-act="check-done" data-v="' + esc(x.id) + '" aria-label="끝 표시"></button>' + pic(prepIcon(x), 36) + '<span><b>' + esc(x.text) + '</b><span>' + esc(x.memo || x.cat || '') + (x.who ? ' · ' + esc(x.who) : '') + '</span></span></div>'; });
+      urgent.forEach(x => { h += '<div class="alert" style="--cc:var(--sun)"><button class="chk" data-act="check-done" data-v="' + esc(x.id) + '" aria-label="끝 표시"></button>' + pic(prepIcon(x), 36) + '<button class="al-t" data-act="check-edit" data-v="' + esc(x.id) + '"><b>' + esc(x.text) + '</b><span class="clamp2">' + esc(String(x.memo || x.cat || '').split('\n')[0]) + (x.who ? ' · ' + esc(x.who) : '') + '</span></button></div>'; }); // 긴 메모는 두 줄만 — PC에서 화면을 꽉 채우던 것(2026-11-27)
       h += '</div></div>';
     }
   }
@@ -2119,7 +2119,7 @@ function prepPage(t) {
     const l = groups[g].sort((a, b) => (a.done - b.done) || a.ts - b.ts);
     h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + pic(PREP_CAT[g] || PREP_CAT.기타, 36) + esc(g) + '</h3><span class="muted num">' + l.filter(c => c.done).length + '/' + l.length + '</span></div><div class="card">' +
       l.map(c => '<div class="row ' + (c.done ? 'done' : '') + '"><button class="chk ' + (c.done ? 'on' : '') + '" data-act="check-done" data-v="' + esc(c.id) + '" aria-label="끝 표시">' + (c.done ? ic('check') : '') + '</button>' + pic(prepIcon(c), 34) +
-        '<button class="body" style="text-align:left;min-height:44px" data-act="check-edit" data-v="' + esc(c.id) + '"><div class="t">' + esc(c.text) + '</div>' + (c.memo ? '<div class="m">' + esc(c.memo) + '</div>' : '') + '</button>' +
+        '<button class="body" style="text-align:left;min-height:44px" data-act="check-edit" data-v="' + esc(c.id) + '"><div class="t">' + esc(c.text) + '</div>' + (c.memo ? '<div class="m clamp2">' + esc(c.memo) + '</div>' : '') + '</button>' +
         (c.who && !owner ? '<span class="pill">' + esc(whoName(c.who)) + '</span>' : '') + '</div>').join('') + '</div></div>';
   });
   return h;
@@ -2700,7 +2700,7 @@ const F = {
     { k: 'cat', label: '묶음', type: 'opts', options: Object.keys(PREP_CAT) },
     { k: 'owner', label: '누구 짐', type: 'opts', options: ['', ...(t.members || [])], names: { '': '함께 (공통·할 일)' } },
     { k: 'who', label: '맡은 사람 (함께 챙길 짐·할 일)', type: 'opts', options: ['', ...(t.members || [])], more: 1 },
-    { k: 'memo', label: '메모' }],
+    { k: 'memo', label: '메모', type: 'textarea' }],
   rec: t => [
     { k: 'kind', label: '어떤 곳', type: 'opts', options: ['명소', '맛집', '쇼핑', '숙소', '팁'] },
     { k: 'name', label: '이름' }, { k: 'area', label: '동네', half: 1 }, { k: 'price', label: '값', half: 1 },
