@@ -750,28 +750,31 @@ async function mountMap(again) {
 }
 
 /* 여행 화면 */
-const TABS = [['today', '오늘'], ['plan', '일정'], ['pass', '지갑'], ['+', ''], ['money', '경비'], ['book', '수첩']];
+const TABS = [['today', '오늘'], ['plan', '일정'], ['+', ''], ['pass', '지갑'], ['book', '수첩']];
+/* 지갑 안 「표 | 경비」 — 돈 관리도 지갑에서(팀장님 2026-11-26). 예전 주소 #/…/money 는 지갑 → 경비로 */
+const wseg = () => UI.wseg || LS.get('wseg', 'pass');
 const PAGES = { talk: '번역기', wallet: '예약 모두', prep: '준비물', car: '내 차 어디?', info: '여행 정보', memory: '추억', weather: '날씨', passport: '여권' };
 function tripView(t, tab) {
   if (tab === 'over') tab = 'today';
   if (tab === 'recs') { UI.mode = 'want'; tab = 'plan'; }
   if (tab === 'log') tab = 'memory';
+  if (tab === 'money') { UI.wseg = 'money'; tab = 'pass'; }
   const isPage = !!PAGES[tab];
   if (!isPage && !TABS.some(x => x[0] === tab)) tab = 'today';
   let h = '<div class="wrap">' + sideNav(t, tab) + '<div class="topbar">' +
     (isPage ? '<button class="iconbtn" data-act="tab" data-v="today" aria-label="뒤로">' + ic('back') + '</button><h1>' + PAGES[tab] + '</h1>'
       : '<button class="iconbtn" data-act="home" aria-label="여행 목록">' + ic('home') + '</button><h1><button data-act="switch-trip"><span>' + esc(t.title) + '</span>' + ic('down') + '</button></h1>') +
     '<span id="sync" class="sync"></span><button class="iconbtn" data-act="trip-menu" data-v="' + esc(t.id) + '" aria-label="여행 메뉴">' + ic('more') + '</button></div>';
-  h += '<div class="flow flow-' + tab + '">' + ({ today: todayTab, plan: planTab, pass: passPage, money: moneyTab, book: bookTab, memory: memoryTab, talk: talkPage, wallet: walletPage, prep: prepPage, car: carPage, info: infoPage, weather: weatherPage, passport: passportPage })[tab](t) + '</div>';
+  h += '<div class="flow flow-' + (tab === 'pass' && wseg() === 'money' ? 'money' : tab) + '">' + ({ today: todayTab, plan: planTab, pass: passPage, money: moneyTab, book: bookTab, memory: memoryTab, talk: talkPage, wallet: walletPage, prep: prepPage, car: carPage, info: infoPage, weather: weatherPage, passport: passportPage })[tab](t) + '</div>';
   h += '</div><nav class="nav" aria-label="여행 메뉴">' + TABS.map(([k, n]) => k === '+'
     ? '<div><button class="plus" data-act="quick" aria-label="더하기">' + ic('plus') + '</button></div>'
-    : '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k === 'pass' ? 'ticket' : k) + '</span>' + n + '</button>').join('') + '</nav>';
+    : '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k === 'pass' ? 'wallet' : k) + '</span>' + n + '</button>').join('') + '</nav>';
   return h;
 }
 /* PC 왼쪽 메뉴 — 넓은 화면(1100px~)에서만 보이고 아래 떠 있는 메뉴를 대신해요 */
 const WIDE = () => matchMedia('(min-width:1100px)').matches;
 function sideNav(t, tab) {
-  const MAIN = [['today', '오늘'], ['plan', '일정'], ['pass', '지갑', 'ticket'], ['money', '경비'], ['book', '수첩']];
+  const MAIN = [['today', '오늘'], ['plan', '일정'], ['pass', '지갑', 'wallet'], ['book', '수첩']];
   const MORE = [['prep', '준비물', 'prep'], ['wallet', '예약 모두', 'ticket'], ['memory', '추억', 'memory'], ['talk', '번역기', 'mic'], ['weather', '날씨', 'sun'], ['car', '내 차 어디?', 'car'], ['passport', '여권', 'doc'], ['info', '여행 정보', 'globe']];
   const b = (k, n, i) => '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '"' + (k === tab ? ' aria-current="page"' : '') + '>' + ic(i || k) + '<span>' + n + '</span></button>';
   return '<aside class="snav" aria-label="여행 메뉴"><button class="snav-home" data-act="home">' + ic('home') + '<span>하하가족여행</span></button>' +
@@ -1881,7 +1884,10 @@ async function tkAdd(bid) {
 }
 /* 지갑 — 아래 메뉴 한 칸. 표만 모아 봄 (애플 지갑처럼), 예약 목록은 「예약 모두」 쪽 */
 function passPage(t) {
-  let h = tkTodayCard(t) + tkWallet(t, true);
+  const seg = wseg();
+  let h = '<div class="seg wseg" role="tablist" aria-label="지갑"><button role="tab" aria-selected="' + (seg !== 'money') + '" class="' + (seg !== 'money' ? 'on' : '') + '" data-act="wseg" data-v="pass">🎫 표</button><button role="tab" aria-selected="' + (seg === 'money') + '" class="' + (seg === 'money' ? 'on' : '') + '" data-act="wseg" data-v="money">💰 경비</button></div>';
+  if (seg === 'money') return h + moneyTab(t);
+  h += tkTodayCard(t) + tkWallet(t, true);
   h += '<div class="flex wl-acts"><button class="btn pri big" data-act="tk-pick">' + ic('camera') + '표 넣기</button><button class="btn big" data-act="tab" data-v="wallet">' + ic('ticket') + '예약 모두</button></div>';
   return h;
 }
@@ -2692,7 +2698,7 @@ const curTrip = () => { const r = route(); return r.view === 'trip' ? D.trips[r.
 /* 빠른 추가 (＋) */
 function quickAdd(t) {
   const tab = route().tab;
-  const hot = { plan: 'item-new', money: 'spend-new', memory: UI.memK === 'place' ? 'place-new' : 'note-new', prep: 'check-new', car: 'park-new', wallet: 'booking-new' }[tab] || '';
+  const hot = { plan: 'item-new', money: 'spend-new', pass: wseg() === 'money' ? 'spend-new' : '', memory: UI.memK === 'place' ? 'place-new' : 'note-new', prep: 'check-new', car: 'park-new', wallet: 'booking-new' }[tab] || '';
   const Q = [['spend-new', 'receipt', '쓴 돈', 'var(--c-식사)'], ['item-new', 'plan', '일정', 'var(--c-이동)'], ['booking-new', 'ticket', '예약·티켓', 'var(--c-관광)'],
     ['park-new', 'car', '내 차', 'var(--c-주차)'], ['note-new', 'pen', '일기', 'var(--c-쇼핑)'], ['place-new', 'star', '가 본 곳', 'var(--c-간식)'],
     ['check-new', 'prep', '준비물', 'var(--mint)', 'bag'], ['rec-new', 'recs', '가고 싶은 곳', 'var(--c-관광)'], ['photo-any', 'camera', '사진만', 'var(--c-기타)']];
@@ -2784,6 +2790,7 @@ document.addEventListener('click', e => {
     'tk-me': () => t && tkMe(t, v, el.dataset.file),
     'tk-who': () => { UI.tkWho = v; render(); },
     'tk-pick': () => t && tkPick(t),
+    wseg: () => { UI.wseg = v; LS.set('wseg', v); render(); window.scrollTo(0, 0); },
     'tk-add': () => tkAdd(v),
     'spend-new': () => editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', date: (today() >= t.start && today() <= t.end) ? today() : t.start, cur: t.cur, cat: '식사', payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice() }, { focus: 'amount' }),
     'spend-edit': () => editRec('spend', t, D.spends[v]),
@@ -2993,6 +3000,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '5.9', d: '2026-11-26', title: '경비는 지갑 안으로', items: [
+    ['wallet', 'var(--mint)', '아래 메뉴는 다시 4개', '오늘 · 일정 · ＋ · 지갑 · 수첩이에요. 「경비」 자리에 「지갑」이 들어갔어요.'],
+    ['money', 'var(--coral)', '지갑 안에 「표 | 경비」', '지갑 맨 위에서 「🎫 표」와 「💰 경비」를 골라요. 쓴 돈·예산·정산은 모두 「💰 경비」에 그대로 있어요.']] },
   { v: '5.8', d: '2026-11-26', title: '지갑은 나만 봐요', items: [
     ['ticket', 'var(--c-관광)', '내 표만 보여요', '지갑에는 내 이름의 표만 보여요. 아빠(임요한)는 가족 모두의 표를 보고 입구에서 「가족 모두 차례로」 보여 줄 수 있어요.'],
     ['check', 'var(--mint)', '암호 넣을 때 끊기지 않게', '암호를 넣는 중에 앱이 새 판으로 바뀌며 처음 화면으로 돌아가던 것을 고쳤어요. 처음엔 자료를 받느라 10초쯤 걸릴 수 있어요.']] },
