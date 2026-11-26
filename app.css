@@ -1483,7 +1483,7 @@ html.solid .tkv .tkv-stage{background:#fff!important;-webkit-backdrop-filter:non
 .bud-key i{width:10px;height:10px;border-radius:3px;display:inline-block}.bud-key i.pre{background:#B93D10}.bud-key i.dur{background:#FF9A7A}.bud-key i.left{background:color-mix(in srgb,var(--mint) 45%,#fff)}
 @media (max-width:360px){.bud3{gap:6px}.bud3 > div{padding:10px 8px}}
 .bud3 b em{font-style:normal;font-size:.5em;font-weight:800;margin-left:3px;letter-spacing:0}
-.pr-avs{display:flex;flex:none}.payrow.couple .pr-avs .av+.av{margin-left:-10px;border:2px solid var(--card)}
+.pr-avs{display:flex;flex:none;gap:4px}.payrow.couple .pr-avs .av{width:30px!important;height:30px!important}
 /* 한글 줄바꿈 — 낱말 가운데서 끊지 않음(「여 / 행」처럼 한 글자만 내려가지 않게, 팀장님 2026-11-26). 띄어쓰기 없는 긴 글(주소·링크)은 넘칠 때만 끊음 · 제목은 줄 길이를 고르게 */
 html{word-break:keep-all;overflow-wrap:anywhere}
 h1,h2,h3,h4,.t,.tp-name b,.lb b,.sec-h b,.card b,.hero b{text-wrap:balance}
