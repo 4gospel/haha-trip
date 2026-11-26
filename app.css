@@ -1163,3 +1163,4 @@ body.rb-on{overflow:hidden}
 .rb-cover::before{background:linear-gradient(180deg,rgba(8,16,40,.6),rgba(8,16,40,.15) 45%,rgba(8,16,40,0) 60%)}
 .rb-cin{padding-top:clamp(28px,8vh,64px)}
 #rb-print .rb-cin{bottom:auto;top:0}
+.rb-oimg{position:relative}.rb-oimg figcaption{position:absolute;right:8px;bottom:8px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.45);color:#fff}
