@@ -768,7 +768,7 @@ function tripView(t, tab) {
   h += '<div class="flow flow-' + (tab === 'pass' && wseg() === 'money' ? 'money' : tab) + '">' + ({ today: todayTab, plan: planTab, pass: passPage, money: moneyTab, book: bookTab, memory: memoryTab, talk: talkPage, wallet: walletPage, prep: prepPage, car: carPage, info: infoPage, weather: weatherPage, passport: passportPage })[tab](t) + '</div>';
   h += '</div><nav class="nav" aria-label="여행 메뉴">' + TABS.map(([k, n]) => k === '+'
     ? '<div><button class="plus" data-act="quick" aria-label="더하기">' + ic('plus') + '</button></div>'
-    : '<button class="' + (k === tab ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k === 'pass' ? 'wallet' : k) + '</span>' + n + '</button>').join('') + '</nav>';
+    : '<button class="' + (k === tab || (k === 'pass' && tab === 'wallet') ? 'on' : '') + '" data-act="tab" data-v="' + k + '" aria-current="' + (k === tab ? 'page' : 'false') + '"><span class="pillbg">' + ic(k === 'pass' ? 'wallet' : k) + '</span>' + n + '</button>').join('') + '</nav>';
   return h;
 }
 /* PC 왼쪽 메뉴 — 넓은 화면(1100px~)에서만 보이고 아래 떠 있는 메뉴를 대신해요 */
@@ -3001,6 +3001,7 @@ async function aiEdit() {
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
   { v: '6.0', d: '2026-11-26', title: '늘 밝은 화면으로', items: [
+    ['sparkle' in ICON ? 'sparkle' : 'sun', 'var(--sky)', '유리처럼 맑은 아래 메뉴', '아래 메뉴가 새 아이폰처럼 유리 모양이 됐어요. 뒤 글자가 비쳐 헷갈리지 않아요.'],
     ['sun', 'var(--sun)', '밝은 화면만', '휴대폰이 어두운 화면(야간 모드)이어도 앱은 늘 밝은 화면으로 열려요.'],
     ['ticket', 'var(--c-관광)', '「표」 대신 「티켓」', '지갑 안 말이 「🎫 티켓 | 💰 경비」, 「티켓 넣기」, 「지금 쓸 티켓」처럼 바뀌었어요.']] },
   { v: '5.9', d: '2026-11-26', title: '경비는 지갑 안으로', items: [
