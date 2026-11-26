@@ -3,7 +3,7 @@
   --bg:#FFF8F1; --bg2:#FFF1E4; --card:#FFFFFF; --ink:#1F2A37; --soft:#5B6675; --faint:#97A0AC; --line:#F0E4D8; --fill:#FBF1E7;
   --sky:#4C8DF6; --sun:#FFC23D; --coral:#FF7A59; --mint:#22BFA0; --lav:#9B7BF2; --pink:#F2629B; --warn:#E5484D; --ok:#1FA971;
   --accent:var(--coral); --on-accent:#FFFFFF; --navy:#20304A;
-  --c-이동:#4C8DF6; --c-관광:#22BFA0; --c-식사:#FF7A59; --c-간식:#E8A400; --c-숙소:#9B7BF2; --c-쇼핑:#F2629B; --c-주차:#3B6FE0; --c-기타:#8A94A3;
+  --c-이동:#4C8DF6; --c-관광:#22BFA0; --c-식사:#FF7A59; --c-간식:#E8A400; --c-숙소:#9B7BF2; --c-쇼핑:#F2629B; --c-주차:#3B6FE0; --c-기타:#8A94A3; --c-선물:#E0567A; --c-통신:#2AA7C9; --c-준비:#6B7FA8;
   --r:20px; --sh:0 1px 2px rgba(80,50,20,.05),0 8px 24px rgba(80,50,20,.08);
   --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
   --nav-h:72px; color-scheme:light;
@@ -11,7 +11,7 @@
 @media (prefers-color-scheme:dark){:root{
   --bg:#0F1722; --bg2:#141E2B; --card:#1A2430; --ink:#EEF2F6; --soft:#AAB4C0; --faint:#6F7B89; --line:#273444; --fill:#212D3B;
   --sky:#6EA8FF; --sun:#FFD36E; --coral:#FF8E70; --mint:#45D6B8; --lav:#B49CFF; --pink:#FF86B6; --navy:#0B1626;
-  --c-이동:#6EA8FF; --c-관광:#45D6B8; --c-식사:#FF8E70; --c-간식:#FFD36E; --c-숙소:#B49CFF; --c-쇼핑:#FF86B6; --c-주차:#7FA6FF; --c-기타:#A3ADBA;
+  --c-이동:#6EA8FF; --c-관광:#45D6B8; --c-식사:#FF8E70; --c-간식:#FFD36E; --c-숙소:#B49CFF; --c-쇼핑:#FF86B6; --c-주차:#7FA6FF; --c-기타:#A3ADBA; --c-선물:#FF8AA6; --c-통신:#5CCBEA; --c-준비:#9AABD0;
   --sh:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); color-scheme:dark;
 }}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}

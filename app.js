@@ -101,7 +101,11 @@ const safeUrl = u => /^https:\/\//i.test(String(u || '')) ? u : '';
 const safeImg = u => /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(u || '')) ? u : '';
 
 const CATS = ['이동', '관광', '식사', '간식', '숙소', '쇼핑', '기타'];
-const cc = c => 'var(--c-' + (CATS.includes(c) || c === '주차' ? c : '기타') + ')';
+/* 쓴 돈은 일정보다 조금 더 나눔(2026-11-26) — 저장 값은 짧은 낱말 그대로, 화면엔 풀어 쓴 이름 */
+const SPEND_CATS = ['식사', '간식', '이동', '관광', '숙소', '쇼핑', '선물', '통신', '준비', '기타'];
+const SPEND_NAME = { 식사: '🍜 식사', 간식: '☕ 간식·카페', 이동: '🚆 교통', 관광: '🎟️ 입장·체험', 숙소: '🛏️ 숙소', 쇼핑: '🛍️ 쇼핑', 선물: '🎁 선물·기념품', 통신: '📶 유심·와이파이', 준비: '🛂 보험·여권·준비', 기타: '기타' };
+const SPEND_IC = { 이동: 'plane', 숙소: 'bed', 식사: 'bowl', 쇼핑: 'bag', 간식: 'cup', 관광: 'ticket', 선물: 'gift', 통신: 'plug', 준비: 'doc' };
+const cc = c => 'var(--c-' + (CATS.includes(c) || SPEND_CATS.includes(c) || c === '주차' ? c : '기타') + ')';
 const RECC = { 명소: '관광', 맛집: '식사', 쇼핑: '쇼핑', 팁: '이동', 숙소: '숙소' };
 const AVC = ['#4C8DF6', '#F2629B', '#FF7A59', '#22BFA0', '#9B7BF2', '#E8A400'];
 const fam = n => D.meta.family.find(f => f.name === n);
@@ -1223,7 +1227,7 @@ async function scanSave(el) {
   const past = t.end < today();
   keep('items').forEach(x => put('items', { id: uid('i'), trip: t.id, date: x.date || t.start, time: x.time || '', title: x.title, cat: CATS.includes(x.cat) ? x.cat : '관광', place: x.place || '', memo: x.memo || '', cost: 0, done: past || (x.date || '') <= today() }, true));
   keep('places').forEach(x => put('places', { id: uid('p'), trip: t.id, name: x.name, cat: PCATS.includes(x.cat) ? x.cat : '명소', memo: x.memo || '', rating: 0, map: x.name }, true));
-  keep('spends').forEach(x => put('spends', { id: uid('s'), trip: t.id, date: x.date || t.start, title: x.title, amount: +x.amount || 0, cur: x.cur || t.cur || 'KRW', cat: CATS.includes(x.cat) ? x.cat : guessCat(x.title || ''), payer: '', pay: '', share: '함께' }, true));
+  keep('spends').forEach(x => put('spends', { id: uid('s'), trip: t.id, date: x.date || t.start, title: x.title, amount: +x.amount || 0, cur: x.cur || t.cur || 'KRW', cat: SPEND_CATS.includes(x.cat) ? x.cat : guessCat(x.title || ''), payer: '', pay: '', share: '함께' }, true));
   keep('bookings').forEach(x => put('bookings', { id: uid('b'), trip: t.id, kind: x.kind || '기타', title: x.title, date: x.date || '', time: x.time || '', provider: x.provider || '', code: x.code || '', price: +x.price || 0, cur: x.cur || t.cur || 'KRW', place: x.place || '' }, true));
   const caps = {}; (d.photos || []).forEach(p => caps[p.i] = p.caption);
   for (const i of S.pick) {
@@ -1462,12 +1466,12 @@ function moneyTab(t) {
   // 갈래별
   const cats = {}; sp.forEach(s => cats[s.cat || '기타'] = (cats[s.cat || '기타'] || 0) + toWon(t, s.amount, s.cur));
   const max = Math.max(1, ...Object.values(cats)), ce = Object.entries(cats).sort((a, b) => b[1] - a[1]);
-  if (ce.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('bag', 'var(--c-쇼핑)', 1) + '어디에 썼나</h3></div><div class="card">' + ce.map(([c, v]) => '<div class="cat-row" style="--cc:' + cc(c) + '"><span class="flex" style="gap:8px;font-weight:700"><span class="dot"></span>' + esc(c) + '</span><div class="bar"><i style="width:' + Math.round(v / max * 100) + '%"></i></div><span class="num" style="font-weight:800">' + manWon(v) + '</span></div>').join('') + '</div></div>';
+  if (ce.length) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('bag', 'var(--c-쇼핑)', 1) + '무엇에 썼나</h3></div><div class="card">' + ce.map(([c, v]) => '<div class="cat-row" style="--cc:' + cc(c) + '"><span class="flex" style="gap:8px;font-weight:700"><span class="dot"></span>' + esc((SPEND_NAME[c] || c).replace(/^\S+ (?=\S)/, '')) + '</span><div class="bar"><i style="width:' + Math.round(v / max * 100) + '%"></i></div><span class="num" style="font-weight:800">' + manWon(v) + '</span></div>').join('') + '</div></div>';
   // 기록
   const f = UI.spendFilter;
   const list = f === 'unknown' ? sp.filter(s => !s.payer || !mem.includes(s.payer)) : sp;
   h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('receipt', 'var(--coral)', 1) + '쓴 돈 기록 ' + list.length + '</h3>' + (f ? '<button class="linkbtn" data-act="filter-clear">모두 보기</button>' : '') + '</div><div class="card">' +
-    (list.length ? list.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + (safeImg(s.thumb) ? '<img class="th" src="' + s.thumb + '" alt="">' : ib(s.cat === '이동' ? 'plane' : s.cat === '숙소' ? 'bed' : s.cat === '식사' ? 'bowl' : s.cat === '쇼핑' ? 'bag' : s.cat === '간식' ? 'cup' : 'receipt', cc(s.cat), 1)) +
+    (list.length ? list.map(s => '<button class="row" data-act="spend-edit" data-v="' + esc(s.id) + '">' + (safeImg(s.thumb) ? '<img class="th" src="' + s.thumb + '" alt="">' : ib(SPEND_IC[s.cat] || 'receipt', cc(s.cat), 1)) +
       '<span class="body"><div class="t">' + esc(s.title) + '</div><div class="m">' + esc(md(s.date)) + ' · ' + (s.payer ? esc(s.payer) : '<span style="color:var(--warn)">낸 사람 미정</span>') + (s.pay ? ' · ' + (PAY_IC[s.pay] || '') + esc(s.pay) : '') + (s.share === '개인' ? ' · 개인' : '') + '</div></span>' +
       '<span class="amt num">' + comma(s.amount) + unit(s.cur || t.cur) + ((s.cur || t.cur) !== 'KRW' ? '<small>≈ ' + manWon(toWon(t, s.amount, s.cur)) + '</small>' : '') + '</span></button>').join('')
       : '<div class="empty">' + art('empty-receipt') + '<b>아직 쓴 돈이 없어요</b>영수증을 찍으면 금액이 저절로 적혀요.</div>') + '</div></div>';
@@ -2155,14 +2159,14 @@ const F = {
   item: t => [
     { k: 'title', label: '할 일', ph: '예: 후시미 이나리 신사' },
     { k: 'date', label: '날짜 (비우면 날짜 미정)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
-    { k: 'cat', label: '갈래', type: 'opts', options: CATS },
+    { k: 'cat', label: '어떤 일정', type: 'opts', options: CATS },
     { k: 'place', label: '장소 (지도 검색어)', ph: '예: Fushimi Inari Taisha' },
     { k: 'addr', label: '주소 (숙소·식당 등, 있으면)', ph: '예: 大阪市浪速区… 또는 우리말 주소' },
     { k: 'cost', label: '1인 비용 (' + unit(t.cur) + ')', type: 'number' },
     { k: 'memo', label: '메모', type: 'textarea', ph: '가는 길·예약번호' },
     { k: 'tip', label: '💡 여행 팁 (여기서 알아 둘 것)', type: 'textarea', ph: '예: 아침 일찍 가면 한적해요', more: 1 }],
   booking: t => [
-    { k: 'kind', label: '갈래', type: 'opts', options: ['항공', '숙소', '티켓', '교통', '주차', '보험', '서류', '기타'] },
+    { k: 'kind', label: '어떤 예약', type: 'opts', options: ['항공', '숙소', '티켓', '교통', '주차', '보험', '서류', '기타'] },
     { k: 'title', label: '이름', ph: '예: 인천공항 제1터미널 예약주차장(P5)' },
     { k: 'date', label: '날짜 (입차·체크인)', type: 'date', half: 1 }, { k: 'time', label: '시간', type: 'time', half: 1 },
     { k: 'end', label: '끝 (도착·출차·체크아웃)', ph: '예: 09:50 또는 2027-01-01 13:30' },
@@ -2175,8 +2179,8 @@ const F = {
   spend: t => [
     { k: 'amount', label: '얼마', type: 'number', huge: 1, ph: '0' },
     { k: 'cur', label: '돈', type: 'opts', options: [...new Set([t.cur || 'KRW', 'KRW'])], names: CUR },
-    { k: 'title', label: '어디에', ph: '예: 구로몬 시장 점심' },
-    { k: 'cat', label: '갈래', type: 'opts', options: CATS },
+    { k: 'title', label: '어디서 · 무엇을', ph: '예: 구로몬 시장 점심' },
+    { k: 'cat', label: '무엇에 썼나', type: 'opts', options: SPEND_CATS, names: SPEND_NAME },
     { k: 'payer', label: '낸 사람', type: 'opts', options: t.members || [] },
     { k: 'pay', label: '어떻게 냈나', type: 'opts', options: PAYS },
     { k: 'share', label: '누구 돈', type: 'opts', options: ['함께', '개인'], names: { 함께: '👨‍👩‍👧‍👦 가족 함께', 개인: '🙋 개인 (내 몫만)' } },
@@ -2190,7 +2194,7 @@ const F = {
     { k: 'who', label: '맡은 사람 (함께 챙길 짐·할 일)', type: 'opts', options: ['', ...(t.members || [])], more: 1 },
     { k: 'memo', label: '메모' }],
   rec: t => [
-    { k: 'kind', label: '갈래', type: 'opts', options: ['명소', '맛집', '쇼핑', '숙소', '팁'] },
+    { k: 'kind', label: '어떤 곳', type: 'opts', options: ['명소', '맛집', '쇼핑', '숙소', '팁'] },
     { k: 'name', label: '이름' }, { k: 'area', label: '동네', half: 1 }, { k: 'price', label: '값', half: 1 },
     { k: 'desc', label: '설명', type: 'textarea' }, { k: 'hours', label: '여는 시간·휴무', more: 1 },
     { k: 'map', label: '지도 검색어', ph: '예: Kuromon Market', more: 1 }, { k: 'link', label: '누리집 (https://…)', type: 'url', more: 1 }],
@@ -2199,7 +2203,7 @@ const F = {
     { k: 'text', label: '오늘 이야기', type: 'textarea', ph: DIARY_Q[new Date().getDate() % DIARY_Q.length] },
     { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'mood', label: '기분', type: 'opts', options: Object.keys(MOOD), imgs: 'mood' }],
   place: t => [
-    { k: 'name', label: '곳 이름' }, { k: 'cat', label: '갈래', type: 'opts', options: ['맛집', '명소', '숙소', '쇼핑', '카페'] },
+    { k: 'name', label: '곳 이름' }, { k: 'cat', label: '어떤 곳', type: 'opts', options: ['맛집', '명소', '숙소', '쇼핑', '카페'] },
     { k: 'rating', label: '별점', type: 'stars' }, { k: 'memo', label: '한마디', type: 'textarea', ph: '다시 가고 싶나요? 무엇이 맛있었나요?' },
     { k: 'addr', label: '주소', ph: '예: 제주 서귀포시 성산읍 일출로 284-12' },
     { k: 'map', label: '지도 검색어', more: 1 }],
@@ -2310,8 +2314,8 @@ function openFromRead(kind, t, f, ph, read) {
   const inTrip = today() >= t.start && today() <= t.end;
   if (kind === 'receipt') {
     const cur = f.cur && CUR[f.cur] ? f.cur : t.cur;
-    const cat = CATS.includes(f.cat) ? f.cat : guessCat(f.title || '');
-    editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice(), memo: f.insurer ? '여행자보험 · ' + f.insurer : '' }, { photo: ph, read, focus: 'amount' });
+    const cat = SPEND_CATS.includes(f.cat) ? f.cat : guessCat(f.title || '');
+    editRec('spend', t, { pay: LS.get('lastPay', '카드'), share: '함께', amount: Number(f.amount) || 0, cur, title: f.title || '', date: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') ? f.date : (inTrip ? today() : t.start), cat, payer: (t.members || []).includes(ME) ? ME : '', split: (t.members || []).slice(), memo: f.insurer ? '여행자보험 · ' + f.insurer : (f.memo || '') }, { photo: ph, read, focus: 'amount' });
   } else if (kind === 'booking') {
     const r = {}; ['kind', 'title', 'date', 'time', 'end', 'code', 'provider', 'place', 'car', 'deposit', 'phone', 'seat', 'price', 'cur', 'memo'].forEach(k => { if (f[k] != null && f[k] !== '') r[k] = f[k]; });
     if (!BK[r.kind]) r.kind = '티켓';
@@ -2322,7 +2326,8 @@ function openFromRead(kind, t, f, ph, read) {
   }
 }
 function guessCat(s) {
-  return /보험|insurance/i.test(s) ? '기타' : /항공|air|jr|역|철도|버스|택시|난카이|지하철|교통|metro|駅|電鉄|タクシー/i.test(s) ? '이동' : /호텔|숙소|hotel|inn/i.test(s) ? '숙소' : /ローソン|セブン|ファミリーマート|ファミマ|로손|세븐일레븐|패밀리마트|편의점/i.test(s) ? '간식' : /마트|돈키|ドン・キホーテ|쇼핑|드럭|ドラッグ|store|mart/i.test(s) ? '쇼핑' :
+  return /보험|insurance|여권|passport|비자|visa|캐리어|환전\s*수수료/i.test(s) ? '준비' : /유심|usim|e\s*sim|이심|와이파이|wi-?fi|로밍|도시락\s*와이파이/i.test(s) ? '통신' :
+    /선물|기념품|お土産|おみやげ|오미야게|souvenir/i.test(s) ? '선물' : /유니버(설|셜)|스튜디오\s*패스|입장권|이용권|자유이용|1일권|투어|체험/i.test(s) ? '관광' : /항공|air|jr|역|철도|버스|택시|난카이|지하철|교통|metro|駅|電鉄|タクシー/i.test(s) ? '이동' : /호텔|숙소|hotel|inn/i.test(s) ? '숙소' : /ローソン|セブン|ファミリーマート|ファミマ|로손|세븐일레븐|패밀리마트|편의점/i.test(s) ? '간식' : /마트|돈키|ドン・キホーテ|쇼핑|드럭|ドラッグ|store|mart/i.test(s) ? '쇼핑' :
     /카페|coffee|커피|아이스|디저트|빵|베이커리/i.test(s) ? '간식' : /입장|티켓|ticket|usj|박물관|전망/i.test(s) ? '관광' : '식사';
 }
 const art = (n, alt) => '<img class="art-img" src="img/' + n + '.webp" alt="' + esc(alt || '') + '">';
@@ -2628,6 +2633,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '5.5', d: '2026-11-26', title: '예약 화면을 더 잘 읽어요', items: [
+    ['camera', 'var(--coral)', '앱 예약 화면도 척척', '클룩 같은 예약 앱 화면을 찍어 넣으면 금액·표 이름·예약번호·사람 수를 제대로 읽어요. 예약번호 숫자를 금액으로, 휴대폰 맨 위 시계 줄을 가게 이름으로 잘못 읽던 것을 고쳤어요.'],
+    ['receipt', 'var(--mint)', '쓴 돈을 더 자세히', '「무엇에 썼나」에 선물·기념품, 유심·와이파이, 보험·여권·준비가 새로 생겼어요. 경비 화면에서 어디에 돈이 많이 들었는지 더 또렷이 보여요.'],
+    ['ticket', 'var(--sky)', '유니버설 표를 샀어요', '12월 30일 유니버설 스튜디오 재팬 1일 패스 4장(슈퍼 닌텐도 월드 입장 포함)이 티켓 지갑과 경비에 들어갔어요. 바우처에 적힌 입장 시각을 한 번 확인해 주세요.']] },
   { v: '5.4', d: '2026-11-26', title: '여행책을 전문가 눈으로 다듬었어요', items: [
     ['check', 'var(--mint)', '사실을 한 번 더', '일본사·한국사·여행·국어 네 갈래로 점검해 틀린 연도와 설명을 고쳤어요. 오사카성 돌담은 히데요시가 아니라 도쿠가와 때 쌓은 것이라는 것도 새로 적었어요.'],
     ['ticket', 'var(--coral)', '면세가 바뀌었어요', '11월부터 면세는 세금까지 먼저 내고 공항에서 돌려받는 방식이에요. 책 1장과 스파월드·쓰텐카쿠 주의할 점도 더했어요.'],
