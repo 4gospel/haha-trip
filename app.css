@@ -1464,3 +1464,22 @@ html.solid .tkv .tkv-stage{background:#fff!important;-webkit-backdrop-filter:non
   html::before{display:none}.nav::before,.wl-card::after{display:none}
   .seg,.chipbtn:not(.on),.day:not(.on),.iconbtn,.wseg{background:#fff!important;box-shadow:0 0 0 1.5px rgba(31,42,55,.24)!important}
   .seg button.on,.wseg button.on{background:var(--ink)!important;color:#fff!important}}
+
+/* 경비 맨 위 — 예산·쓴 돈·남은 예산 세 칸 (내용이라 유리 아님, 또렷하게) */
+.bud3{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:2px 0 10px}
+.bud3 .b3-t{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:10px}.bud3 .b3-t small{flex-basis:100%}.bud3 .b3-t b{font-size:clamp(30px,9vw,40px)}
+.bud3 > div{background:var(--card);border-radius:18px;padding:12px 10px;box-shadow:0 0 0 1px rgba(120,80,40,.08),var(--sh);display:flex;flex-direction:column;gap:2px;min-width:0}
+.bud3 small{font-size:13px;font-weight:800;color:var(--soft)}
+.bud3 b{font-size:clamp(24px,7.4vw,32px);font-weight:900;letter-spacing:-.02em;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bud3 span{font-size:13px;color:var(--soft);font-weight:600}
+.bud3 .b3-t b{color:var(--ink)}
+.bud3 .b3-s{background:linear-gradient(180deg,color-mix(in srgb,var(--coral) 12%,#fff),#fff)}.bud3 .b3-s b{color:var(--coral-ink)}
+.bud3 .b3-l{background:linear-gradient(180deg,color-mix(in srgb,var(--mint) 14%,#fff),#fff)}.bud3 .b3-l b{color:#0E7A62}
+.bud3 .b3-l.over{background:linear-gradient(180deg,#FDE3E3,#fff)}.bud3 .b3-l.over b,.bud3 .b3-l.over small{color:var(--warn-ink)}
+.bud-bar{display:flex;height:16px;border-radius:99px;overflow:hidden;background:color-mix(in srgb,var(--mint) 22%,#fff);box-shadow:inset 0 0 0 1px rgba(31,42,55,.08);margin:4px 2px 8px}
+.bud-bar i{display:block;height:100%}.bud-bar i.pre{background:#B93D10}.bud-bar i.dur{background:#FF9A7A}
+.bud-key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--soft);margin:0 2px 14px}
+.bud-key span{display:inline-flex;align-items:center;gap:5px}.bud-key b{color:var(--ink)}
+.bud-key i{width:10px;height:10px;border-radius:3px;display:inline-block}.bud-key i.pre{background:#B93D10}.bud-key i.dur{background:#FF9A7A}.bud-key i.left{background:color-mix(in srgb,var(--mint) 45%,#fff)}
+@media (max-width:360px){.bud3{gap:6px}.bud3 > div{padding:10px 8px}}
+.bud3 b em{font-style:normal;font-size:.5em;font-weight:800;margin-left:3px;letter-spacing:0}

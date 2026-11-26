@@ -1439,6 +1439,21 @@ function payinEdit(t, id) {
     rec, vals => { const v = { id: cur ? cur.id : 'pi' + Date.now().toString(36), who: vals.who, amt: Number(vals.amt) || 0, date: vals.date || today(), memo: vals.memo || '', ts: Date.now(), by: ME || '' }; if (!v.amt) return toast('금액을 넣어 주세요'); save(list.filter(p => p.id !== v.id).concat([v])); closeSheet(); toast('들어온 돈을 적었어요'); },
     cur ? () => { save(list.filter(p => p.id !== cur.id)); closeSheet(); toast('지웠어요'); } : null);
 }
+/* 경비 맨 위 — 예산 · 쓴 돈 · 남은 예산을 크게 나눠 보여 줌(팀장님 2026-11-26 「쓴 돈과 남은 예산이 총액에 비해 너무 작아」)
+   쓴 돈 = 여행 전 미리 낸 돈(출발일 앞 날짜) + 여행 중 쓴 돈 · 막대는 예산을 세 칸(미리 낸 돈·여행 중·남음)으로 */
+function budgetBoard(t, bg, sp, spent) {
+  const pre = sp.filter(s => (s.date || '') < t.start).reduce((q, s) => q + toWon(t, s.amount, s.cur), 0), during = spent - pre;
+  const total = bg.total || 1, left = bg.total - spent, over = left < 0;
+  const w = x => Math.max(0, Math.min(100, x / Math.max(total, spent) * 100)).toFixed(1) + '%';
+  const pct = Math.round(spent / total * 100);
+  const big = x => { const m = String(manWon(x)).match(/^([\d.,]+)\s*(.*)$/); return m ? m[1] + '<em>' + esc(m[2]) + '</em>' : esc(manWon(x)); };
+  return '<div class="bud3">' +
+    '<div class="b3-t"><small>예산 · 예상 총액</small><b class="num">' + big(bg.total) + '</b><span>가족 ' + bg.n + '명 · 1인 ' + manWon(bg.total / bg.n) + '</span></div>' +
+    '<div class="b3-s"><small>쓴 돈</small><b class="num">' + big(spent) + '</b><span>' + pct + '% 썼어요</span></div>' +
+    '<div class="b3-l' + (over ? ' over' : '') + '"><small>' + (over ? '예산 넘음' : '남은 예산') + '</small><b class="num">' + big(Math.abs(left)) + '</b><span>' + (over ? '예산을 고쳐 주세요' : '1인 ' + manWon(left / bg.n)) + '</span></div></div>' +
+    '<div class="bud-bar" role="img" aria-label="예산 ' + manWon(bg.total) + ' 가운데 미리 낸 돈 ' + manWon(pre) + ', 여행 중 쓴 돈 ' + manWon(during) + ', 남은 예산 ' + manWon(Math.max(0, left)) + '"><i class="pre" style="width:' + w(pre) + '"></i><i class="dur" style="width:' + w(during) + '"></i></div>' +
+    '<div class="bud-key"><span><i class="pre"></i>미리 낸 돈 <b class="num">' + manWon(pre) + '</b></span><span><i class="dur"></i>여행 중 <b class="num">' + manWon(during) + '</b></span><span><i class="left"></i>남음 <b class="num">' + manWon(Math.max(0, left)) + '</b></span></div>';
+}
 function moneyTab(t) {
   const mem = t.members || [];
   const split = t.splitMode !== 'one'; // 기본은 「자녀 몫」 정산 (팀장님 2026-11-26)
@@ -1447,9 +1462,8 @@ function moneyTab(t) {
   const spent = spentWon(t), shared = sp.filter(s => s.share !== '개인');
   const pctUsed = bg.total ? Math.min(100, Math.round(spent / bg.total * 100)) : 0;
   let h = '<div class="tabhead th-money"><div><small>' + esc(t.title) + '</small><b>여행 지갑</b><span>쓴 돈 ' + manWon(spent) + ' · 남은 예산 ' + manWon(Math.max(0, bg.total - spent)) + '</span></div><img class="th-art wide" src="img/wallet-cover.webp" alt=""></div>' +
-    '<div class="card budget receipt"><div class="between"><span class="muted">예상 총액 (가족 ' + bg.n + '명 · ' + bg.days + '일)</span><button class="linkbtn" data-act="budget-edit">예산 고치기</button></div>' +
-    '<div class="big-num num">' + manWon(bg.total) + '</div><div class="muted small">1인 ' + manWon(bg.total / bg.n) + ' · 일정을 바꾸면 저절로 다시 계산돼요</div>' +
-    '<div class="bar" style="margin:12px 0 6px;--cc:var(--coral)"><i style="width:' + pctUsed + '%"></i></div><div class="between small"><span>쓴 돈 <b class="num">' + manWon(spent) + '</b></span><span class="muted">남은 예산 <b class="num">' + manWon(Math.max(0, bg.total - spent)) + '</b></span></div>' +
+    budgetBoard(t, bg, sp, spent) +
+    '<div class="card budget receipt"><div class="between"><b>예산은 이렇게 셈해요</b><button class="linkbtn" data-act="budget-edit">예산 고치기</button></div><div class="muted small">가족 ' + bg.n + '명 · ' + bg.days + '일 · 1인 ' + manWon(bg.total / bg.n) + ' · 일정을 바꾸면 저절로 다시 계산돼요</div>' +
     '<div class="brows">' +
     '<div><span>' + ib('ticket', 'var(--c-관광)', 1) + '예약·결제한 것<small>' + (bg.bk.length ? esc(bg.bk.map(b => b.kind).join('·')) : '예약 금액을 넣으면 더해져요') + '</small></span><b class="num">' + manWon(bg.A) + '</b></div>' +
     '<div><span>' + ib('plan', 'var(--c-이동)', 1) + '일정 비용<small>일정 ' + live('items', t.id).filter(i => i.cost).length + '개의 1인 비용 × ' + bg.n + '명</small></span><b class="num">' + manWon(bg.B) + '</b></div>' +
