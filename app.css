@@ -929,10 +929,12 @@ body.map-open .nav,body.map-open .fab{display:none}
   .flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather{display:block;column-width:340px;column-gap:24px}
   .flow-today>*,.flow-book>*,.flow-money>*,.flow-memory>*,.flow-info>*,.flow-weather>*{break-inside:avoid}
   :is(.flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather)>:is(.greet,.hero,.seg,.days,.chips,.between,.book-cover,.diary-head,.wx-now,.grid2,.flex,.sec-h,.tl,.muted,.sched-wrap,.diary-who,.photos,.memo-sec,.tmap-sec,.scan-add,.card.flex),
-  :is(.flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather)>.sec:has(.tl,.outfits,.photos,.memo-grid,.tmap){column-span:all}
+  :is(.flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather)>.sec:has(.tl,.outfits,.photos,.memo-grid,.tmap,>.days){column-span:all}
   .flow-today .wallet{flex-wrap:nowrap;overflow-x:auto}.flow-today .wallet .pass{width:300px;flex:none}
   .flow-today>.grid2,.flow-money>.grid2{display:grid}
   .flow-book>.book-cover{max-width:none}
+  /* 여러 단 화면 안의 카드 묶음(.stack)은 한 단에 갇히지 않게 폭 전체로 펼침 (좁은 단 안에서 다시 세 칸으로 나뉘어 글자가 세로로 쌓이던 것) */
+  :is(.flow-today,.flow-book,.flow-money,.flow-memory,.flow-info,.flow-weather)>.stack{column-span:all;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-bottom:18px}
 }
 /* 문화 체험 갈래 */
 .kindtag.cu{background:color-mix(in srgb,#9b5bd4 20%,transparent);color:color-mix(in srgb,#9b5bd4 75%,var(--ink))}
