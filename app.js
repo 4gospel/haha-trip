@@ -540,10 +540,11 @@ function route() {
 let GO_LATER = null, SHEET_H = false, POP_SKIP = false;
 const go = h => { if (POP_SKIP) { GO_LATER = h; return; } if (location.hash !== h) location.hash = h; else render(); }; // 창을 닫는 뒤로가기가 끝난 뒤에 옮김
 const tripUrl = (id, tab) => '#/trip/' + encodeURIComponent(id) + '/' + (tab || 'today');
-window.addEventListener('hashchange', () => { closeSheet(true); render(); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', () => { closeSheet(true); if (RB) rbClose(true); render(); window.scrollTo(0, 0); });
 window.addEventListener('popstate', () => {
   if (POP_SKIP) { POP_SKIP = false; if (GO_LATER) { const g = GO_LATER; GO_LATER = null; go(g); return; } if (!$('#sheet').hidden && !SHEET_H) { history.pushState({ sheet: 1 }, ''); SHEET_H = true; } return; }
   if (SHEET_H || !$('#sheet').hidden) { SHEET_H = false; closeSheet(true); return; }
+  if (RB) { rbClose(true); return; }
   const w = $('.tmap-wrap.full'); if (w) { w.classList.remove('full'); document.body.classList.remove('map-open'); setTimeout(() => MAP && MAP.invalidateSize(), 80); }
 });
 
@@ -1319,24 +1320,26 @@ function planTab(t) {
     if (p.length > 1) { list = list.filter(i => !p.includes(i)); past = '<button class="past-toggle" data-act="show-past">지난 일정 ' + p.length + '개 보기</button>'; }
   }
   if (list.length) h += sunChip(t, sel);
-  h += list.length || past ? past + tlList(t, list) + '<div class="muted num" style="text-align:right;margin-top:10px">이날 1인 예상 ' + comma(sum) + unit(t.cur) + (t.cur !== 'KRW' ? ' · ≈ ' + manWon(toWon(t, sum)) : '') + '</div>'
+  const nn = (t.members || []).length || 1, daySum = items.filter(i => i.date === sel).reduce((q, i) => q + (Number(i.cost) || 0), 0);
+  if (daySum) h += '<div class="daycost num"><span>' + ic('wallet') + '이날 예상</span><b>' + nn + '명 ' + comma(daySum * nn) + unit(t.cur) + '</b>' + (t.cur !== 'KRW' ? '<em>≈ ' + manWon(toWon(t, daySum * nn)) + '</em>' : '') + '<small>1인 ' + comma(daySum) + unit(t.cur) + '</small></div>';
+  h += list.length || past ? past + tlList(t, list) + '<div class="muted num" style="text-align:right;margin-top:10px">이날 예상 ' + nn + '명 ' + comma(daySum * nn) + unit(t.cur) + (t.cur !== 'KRW' ? ' (≈ ' + manWon(toWon(t, daySum * nn)) + ')' : '') + ' · 1인 ' + comma(daySum) + unit(t.cur) + '</div>'
     : '<div class="card empty"><div class="art">🗺️</div><b>이날 일정이 비어 있어요</b>「가고 싶은 곳」에서 골라 넣거나 ＋로 더해요.</div>';
   return h;
 }
 function schedTable(t, days, items) {
-  let rows = '', total = 0;
+  let rows = '', total = 0; const NN = (t.members || []).length || 1;
   [...days, ''].forEach(d => {
     const list = items.filter(i => (i.date || '') === d).sort(byTime);
     if (!list.length) return;
     const sum = list.reduce((s, i) => s + (Number(i.cost) || 0), 0); total += sum;
-    rows += '<tr class="dayrow"><td colspan="2">' + (d ? (days.indexOf(d) + 1) + '일째 · ' + esc(md(d)) : '날짜 미정') + '</td><td class="r num">' + comma(sum) + '</td></tr>';
+    rows += '<tr class="dayrow"><td colspan="2">' + (d ? (days.indexOf(d) + 1) + '일째 · ' + esc(md(d)) : '날짜 미정') + (sum ? ' <span class="dr-tot num">· ' + NN + '명 ' + comma(sum * NN) + unit(t.cur) + (t.cur !== 'KRW' ? ' ≈ ' + manWon(toWon(t, sum * NN)) : '') + '</span>' : '') + '</td><td class="r num">' + comma(sum) + '</td></tr>';
     rows += list.map(i => '<tr data-act="item-view" data-v="' + esc(i.id) + '" style="cursor:pointer"><td class="tm num">' + esc(i.time || '') + '</td><td>' + (IT_IMG[itemIcon(i)[0]] ? '<img class="ticon-img" src="img/it-' + IT_IMG[itemIcon(i)[0]] + '.webp" alt="">' : '<span class="ticon" style="--cc:' + itemIcon(i)[1] + '">' + ic(itemIcon(i)[0]) + '</span>') + esc(i.title) +
       (i.place ? '<div class="muted" style="font-size:13px;margin-left:15px">' + esc(i.place) + '</div>' : '') + '</td><td class="r num">' + (i.cost ? comma(i.cost) : '') + '</td></tr>').join('');
   });
   if (!rows) return '<div class="card empty">일정이 아직 없어요</div>';
   const n = (t.members || []).length || 1;
   return '<div class="sched-wrap"><table class="sched"><thead><tr><th>시간</th><th>할 일 · 장소</th><th class="r">1인(' + unit(t.cur) + ')</th></tr></thead><tbody>' + rows +
-    '<tr class="dayrow"><td colspan="2">합계 (1인)</td><td class="r num">' + comma(total) + '</td></tr></tbody></table></div>' +
+    '<tr class="dayrow"><td colspan="2">합계 (1인) <span class="dr-tot num">· ' + n + '명 ' + comma(total * n) + unit(t.cur) + '</span></td><td class="r num">' + comma(total) + '</td></tr></tbody></table></div>' +
     '<div class="muted" style="margin-top:10px">가족 ' + n + '명 예상 ' + manWon(toWon(t, total) * n) + ' · 줄을 누르면 고칠 수 있어요</div>';
 }
 function wantView(t) {
@@ -1378,54 +1381,54 @@ function budgetOf(t) {
   const D = (B + C) * pct / 100;
   return { A, B, C, D, total: A + B + C + D, bk, daily, pct, n, days };
 }
-/* 각자 낼 몫 — 총액(함께 쓴 돈) · 사람마다 낼 몫 · 이미 낸 돈(결제 + 들어온 돈) · 남은 돈 */
+/* 정산 — 자녀만 낼 몫을 정하고(팀장님), 나머지는 우리 부부가 모두 냄 · 자녀가 먼저 결제한 것(예: 하늘이 숙소)은 그 자녀 몫에서 빠짐 · 들어온 돈은 자녀가 나중에 부부에게 낸 돈 */
 const payinsOf = t => (t.payins || []).filter(p => p && !p.del);
+const kidsOf = t => (t.members || []).filter(m => !COUPLE.includes(m));
 function duesCalc(t, sp, mem) {
-  const owner = mem.includes(t.walletBy) ? t.walletBy : mem[0], dues = t.dues || {};
-  const fam = sp.filter(s => s.share !== '개인'), total = fam.reduce((q, s) => q + toWon(t, s.amount, s.cur), 0);
-  const paid = {}, got = {}; mem.forEach(m => { paid[m] = 0; got[m] = 0; }); let unknown = 0;
-  fam.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.payer in paid) paid[s.payer] += w; else unknown += w; });
-  payinsOf(t).forEach(p => { if (p.who in got && p.who !== owner) got[p.who] += Number(p.amt) || 0; });
-  const gotAll = Object.values(got).reduce((a, b) => a + b, 0);
-  const rows = mem.map(m => {
-    const isO = m === owner, set = !isO && dues[m] != null && dues[m] !== '';
-    const due = isO ? 0 : (Number(dues[m]) || 0), done = isO ? paid[m] - gotAll : paid[m] + got[m];
-    return { m, isO, set, due, paid: paid[m], got: isO ? gotAll : got[m], done };
-  });
-  const o = rows.find(r => r.isO); if (o) o.due = Math.max(0, total - rows.filter(r => !r.isO).reduce((q, r) => q + r.due, 0));
-  rows.forEach(r => r.left = r.due - r.done);
-  return { owner, total, rows, unknown };
+  const kids = mem.filter(m => !COUPLE.includes(m)), par = mem.filter(m => COUPLE.includes(m)), dues = t.dues || {};
+  const total = sp.reduce((q, s) => q + toWon(t, s.amount, s.cur), 0);
+  const paid = {}; mem.forEach(m => paid[m] = 0); let unknown = 0;
+  sp.forEach(s => { const w = toWon(t, s.amount, s.cur); if (s.payer in paid) paid[s.payer] += w; else unknown += w; });
+  const got = {}; kids.forEach(m => got[m] = 0); payinsOf(t).forEach(p => { if (p.who in got) got[p.who] += Number(p.amt) || 0; });
+  const rows = kids.map(m => { const set = Number(dues[m]) > 0, due = Number(dues[m]) || 0; return { m, set, due, paid: paid[m], got: got[m], left: due - paid[m] - got[m] }; });
+  const kidDue = rows.reduce((q, r) => q + r.due, 0), gotAll = rows.reduce((q, r) => q + r.got, 0), parPaid = par.reduce((q, m) => q + paid[m], 0);
+  const pr = { names: par, due: Math.max(0, total - kidDue), paid: parPaid, got: gotAll };
+  pr.left = pr.due - (pr.paid - pr.got);
+  return { total, rows, pr, unknown, kids };
 }
 function duesCard(t, sp, mem) {
   const D = duesCalc(t, sp, mem), pin = payinsOf(t).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  const leftTxt = r => !r.isO && !r.set ? '<span class="muted">' + (r.done ? '몫 미정' : '—') + '</span>' : Math.abs(r.left) < 100 ? '<span style="color:var(--ok)">다 냈어요 ✓</span>' : r.left > 0 ? '<span style="color:var(--warn)">' + (r.isO ? '남은 몫 ' : '더 낼 돈 ') + manWon(r.left) + '</span>' : '<span style="color:var(--ok)">' + (r.isO ? '더 낸 돈 ' : '돌려받을 돈 ') + manWon(-r.left) + '</span>';
-  let h = '<div class="card dues"><div class="between"><span class="muted">함께 쓴 돈 총액</span><button class="linkbtn" data-act="dues-edit">몫 정하기</button></div><div class="big-num num">' + manWon(D.total) + '</div>' +
-    '<div class="dues-rows">' + D.rows.map(r => '<div class="dues-row">' + av(r.m, 34) + '<div class="dr-b"><div class="between"><b>' + esc(r.m) + (r.isO ? ' <span class="pill" style="font-size:11px">가족 지갑</span>' : '') + '</b><b class="num">' + leftTxt(r) + '</b></div>' +
-      '<div class="dr-n num"><span>낼 몫 <b>' + (r.isO ? manWon(r.due) + ' <small>(나머지)</small>' : r.set ? manWon(r.due) : '<button class="linkbtn" data-act="dues-edit">정하기</button>') + '</b></span><span>결제 <b>' + manWon(r.paid) + '</b></span><span>' + (r.isO ? '받은 돈' : '들어온 돈') + ' <b>' + manWon(r.got) + '</b></span></div></div></div>').join('') + '</div>' +
+  const leftTxt = r => !r.set ? '<span class="muted">몫 미정</span>' : Math.abs(r.left) < 100 ? '<span style="color:var(--ok)">다 냈어요 ✓</span>' : r.left > 0 ? '<span style="color:var(--warn)">더 낼 돈 ' + comma(Math.round(r.left)) + '원</span>' : '<span style="color:var(--ok)">돌려받을 돈 ' + comma(Math.round(-r.left)) + '원</span>';
+  let h = '<div class="card dues"><div class="between"><span class="muted">이번 여행에 쓴 돈</span>' + (D.kids.length ? '<button class="linkbtn" data-act="dues-edit">자녀 몫 정하기</button>' : '') + '</div><div class="big-num num">' + manWon(D.total) + '</div>' +
+    '<div class="dues-rows">' + D.rows.map(r => '<div class="dues-row">' + av(r.m, 34) + '<div class="dr-b"><div class="between"><b>' + esc(r.m) + '</b><b class="num">' + leftTxt(r) + '</b></div>' +
+      '<div class="dr-n num"><span>낼 몫 <b>' + (r.set ? manWon(r.due) : '<button class="linkbtn" data-act="dues-edit">정하기</button>') + '</b></span><span>먼저 결제 <b>' + manWon(r.paid) + '</b></span><span>들어온 돈 <b>' + manWon(r.got) + '</b></span></div></div></div>').join('') +
+    (D.pr.names.length ? '<div class="dues-row par"><span class="dr-av">' + D.pr.names.map(n => av(n, 28)).join('') + '</span><div class="dr-b"><div class="between"><b>우리 부부 <span class="pill" style="font-size:11px">나머지 모두</span></b><b class="num">' + manWon(D.pr.due) + '</b></div>' +
+      '<div class="dr-n num"><span>결제 <b>' + manWon(D.pr.paid) + '</b></span><span>자녀에게 받은 돈 <b>' + manWon(D.pr.got) + '</b></span>' + (Math.abs(D.pr.left) >= 100 ? '<span>' + (D.pr.left > 0 ? '아직 남은 돈 <b>' : '자녀에게 받을 돈 <b>') + manWon(Math.abs(D.pr.left)) + '</b></span>' : '') + '</div></div></div>' : '') + '</div>' +
     (D.unknown ? '<div class="warnline">낸 사람 미정 ' + manWon(D.unknown) + ' — 위 「누가 냈나」에서 낸 사람을 정해 주세요</div>' : '') +
-    '<div class="muted small" style="margin-top:6px">낼 몫은 똑같이 나누지 않아요. 몫을 정해 넣으면 이미 결제한 돈과 들어온 돈을 빼고 남은 돈이 보여요. ' + esc(D.owner) + '의 몫은 총액에서 다른 사람 몫을 뺀 나머지예요. 「개인」으로 적은 돈은 빠져요.</div></div>';
-  h += '<div class="card" style="margin-top:10px"><div class="between"><b>' + ic('wallet') + ' 들어온 돈</b><button class="btn small" data-act="payin-new">＋ 들어온 돈 적기</button></div>' +
-    (pin.length ? pin.map(p => '<button class="row" data-act="payin-edit" data-v="' + esc(p.id) + '">' + av(p.who, 28) + '<span class="body"><div class="t">' + esc(p.who) + ' <span class="num">' + manWon(Number(p.amt) || 0) + '</span></div><div class="m">' + esc((p.date ? md(p.date) + ' · ' : '') + (p.memo || D.owner + '에게')) + '</div></span></button>').join('') : '<div class="muted small" style="margin-top:6px">자녀가 몫을 나눠 내면 여기에 적어요. 예: 하늘이가 숙소를 결제했다면, 몫을 정한 뒤 남은 돈만 더 내면 돼요.</div>') + '</div>';
+    '<div class="muted small" style="margin-top:6px">똑같이 나누지 않아요. 자녀가 낼 몫만 정하면, 먼저 결제한 돈(예: 숙소)과 나중에 낸 돈을 빼고 남은 돈이 보여요. 나머지는 모두 우리 부부가 내요.</div></div>';
+  if (D.kids.length) h += '<div class="card" style="margin-top:10px"><div class="between"><b>' + ic('wallet') + ' 자녀가 낸 돈</b><button class="btn small" data-act="payin-new">＋ 들어온 돈 적기</button></div>' +
+    (pin.length ? pin.map(p => '<button class="row" data-act="payin-edit" data-v="' + esc(p.id) + '">' + av(p.who, 28) + '<span class="body"><div class="t">' + esc(p.who) + ' <span class="num">' + comma(Number(p.amt) || 0) + '원</span></div><div class="m">' + esc((p.date ? md(p.date) + ' · ' : '') + (p.memo || '우리 부부에게')) + '</div></span></button>').join('') : '<div class="muted small" style="margin-top:6px">자녀가 몫을 보내 주면 여기에 적어요.</div>') + '</div>';
   return h;
 }
 function duesEdit(t) {
-  const mem = t.members || [], owner = mem.includes(t.walletBy) ? t.walletBy : mem[0], dues = t.dues || {};
-  const others = mem.filter(m => m !== owner), rec = { walletBy: owner };
-  others.forEach(m => rec['d_' + m] = dues[m] != null ? dues[m] : '');
-  form('각자 낼 몫 정하기', [{ k: 'walletBy', label: '가족 지갑 (나머지를 맡는 사람)', type: 'opts', options: mem }].concat(others.map(m => ({ k: 'd_' + m, label: m + '이(가) 낼 몫 (원)', type: 'number', ph: '비우면 0원', half: 1 }))),
-    rec, vals => { const nd = {}; mem.filter(m => m !== vals.walletBy).forEach(m => { const v = Number(vals['d_' + m]) || 0; if (v > 0) nd[m] = v; }); put('trips', Object.assign({}, t, { walletBy: vals.walletBy, dues: nd })); closeSheet(); toast('몫을 정했어요'); }, null);
+  const kids = kidsOf(t), dues = t.dues || {}, rec = {};
+  if (!kids.length) return toast('이 여행에는 자녀가 없어요');
+  kids.forEach(m => rec['d_' + m] = dues[m] ? dues[m] : '');
+  form('자녀가 낼 몫 정하기', kids.map(m => ({ k: 'd_' + m, label: m + ' (원)', type: 'number', ph: '예: 500,000', half: 1 })),
+    rec, vals => { const nd = {}; kids.forEach(m => { const v = Number(vals['d_' + m]) || 0; if (v > 0) nd[m] = v; }); put('trips', Object.assign({}, t, { dues: nd, splitMode: 'split' })); closeSheet(); toast('자녀 몫을 정했어요'); }, null);
 }
 function payinEdit(t, id) {
-  const mem = t.members || [], owner = mem.includes(t.walletBy) ? t.walletBy : mem[0], list = payinsOf(t), cur = list.find(p => p.id === id);
-  const rec = cur ? Object.assign({}, cur) : { who: mem.find(m => m !== owner) || mem[0], date: today(), amt: '' };
+  const kids = kidsOf(t), list = payinsOf(t), cur = list.find(p => p.id === id);
+  if (!kids.length) return toast('이 여행에는 자녀가 없어요');
+  const rec = cur ? Object.assign({}, cur) : { who: kids[0], date: today(), amt: '' };
   const save = arr => put('trips', Object.assign({}, t, { payins: arr }));
-  form(cur ? '들어온 돈 고치기' : '들어온 돈 적기', [{ k: 'who', label: '누가 냈나', type: 'opts', options: mem.filter(m => m !== owner) }, { k: 'amt', label: '금액 (원)', type: 'number', huge: 1, ph: '예: 148,000' }, { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'memo', label: '메모', ph: '예: 숙소 몫 남은 돈', half: 1 }],
+  form(cur ? '들어온 돈 고치기' : '자녀가 낸 돈 적기', [{ k: 'who', label: '누가 냈나', type: 'opts', options: kids }, { k: 'amt', label: '금액 (원)', type: 'number', huge: 1, ph: '예: 148,299' }, { k: 'date', label: '날짜', type: 'date', half: 1 }, { k: 'memo', label: '메모', ph: '예: 남은 몫', half: 1 }],
     rec, vals => { const v = { id: cur ? cur.id : 'pi' + Date.now().toString(36), who: vals.who, amt: Number(vals.amt) || 0, date: vals.date || today(), memo: vals.memo || '', ts: Date.now(), by: ME || '' }; if (!v.amt) return toast('금액을 넣어 주세요'); save(list.filter(p => p.id !== v.id).concat([v])); closeSheet(); toast('들어온 돈을 적었어요'); },
     cur ? () => { save(list.filter(p => p.id !== cur.id)); closeSheet(); toast('지웠어요'); } : null);
 }
 function moneyTab(t) {
   const mem = t.members || [];
-  const split = t.splitMode === 'split';
+  const split = t.splitMode !== 'one'; // 기본은 「자녀 몫」 정산 (팀장님 2026-11-26)
   const bg = budgetOf(t);
   const sp = live('spends', t.id).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.ts - a.ts);
   const spent = spentWon(t), shared = sp.filter(s => s.share !== '개인');
@@ -1452,8 +1455,8 @@ function moneyTab(t) {
   if (sp.length) h += '<div class="paychips">' + Object.entries(byPay).sort((a, b) => b[1] - a[1]).map(([k, v]) => '<span class="pill">' + (PAY_IC[k] || '•') + ' ' + esc(k) + ' <b class="num">' + manWon(v) + '</b></span>').join('') + '</div>';
   h += '</div>';
   // 정산 — 1/n이 아니라 「각자 낼 몫」: 몫은 팀장님이 정하고, 지갑 주인(기본 임요한)의 몫은 나머지 · 들어온 돈(자녀가 나중에 낸 돈)은 따로 적음
-  h += '<div class="sec"><img class="settle-art" src="img/settle-family.webp" alt=""><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">각자 낼 몫</button></div>';
-  if (!split) h += '<div class="card muted">가족 공동 지갑으로 써요. 위 「누가 냈나」에서 누가 결제했는지만 봐요. 자녀가 나중에 낼 돈을 정하려면 「각자 낼 몫」을 눌러요.</div>';
+  h += '<div class="sec"><img class="settle-art" src="img/settle-family.webp" alt=""><div class="sec-h"><h3 class="ih">' + ib('money', 'var(--mint)', 1) + '정산</h3></div><div class="seg" style="margin-bottom:10px"><button class="' + (!split ? 'on' : '') + '" data-act="split" data-v="one">한 지갑 (정산 안 함)</button><button class="' + (split ? 'on' : '') + '" data-act="split" data-v="split">자녀 몫 정산</button></div>';
+  if (!split) h += '<div class="card muted">가족 공동 지갑으로 써요. 위 「누가 냈나」에서 누가 결제했는지만 봐요. 자녀가 낼 몫을 정하려면 「자녀 몫 정산」을 눌러요.</div>';
   else h += duesCard(t, sp, mem);
   h += '</div>';
   // 갈래별
@@ -1731,6 +1734,7 @@ function bookTab(t) {
   const head = (k, e, n) => '<div class="sec book-sec" id="bk_' + k + '"><div class="sec-h"><h3 class="ih">' + (HEAD_ART[k] ? '<img class="h-art" src="img/' + HEAD_ART[k] + '.webp" alt="">' : e) + ' ' + n + '</h3><button class="readchk ' + (bookRead(t, k) ? 'on' : '') + '" data-act="book-read" data-v="' + k + '">' + (bookRead(t, k) ? '✓ 읽었어요' : '읽었어요') + '</button></div>';
   let h = '<div class="card book-cover"><img class="bk-art" src="img/notebook.webp" alt=""><div class="flex" style="gap:14px"><div class="ring" style="--p:' + Math.round(readN / SECS.length * 100) + '"><span class="num">' + readN + '/' + SECS.length + '</span></div><div><b style="font-size:18px">' + (c ? c.f + ' ' : '') + esc(t.place) + ' 여행 수첩</b><div class="muted">떠나기 전에 한 칸씩 읽고 「읽었어요」를 눌러요. ' + esc(ME) + ' 님 진도예요.</div></div></div>' +
     '<div class="chips" style="margin-top:12px">' + SECS.map(([k, e, n]) => '<a class="chipbtn' + (bookRead(t, k) ? ' on' : '') + '" href="#" data-act="book-jump" data-v="' + k + '">' + e + ' ' + n + '</a>').join('') + '</div></div>';
+  h += bookCard(t);
   h += memoHtml(t);
   // 비상
   const hb = live('bookings', t.id).find(b => b.kind === '숙소');
@@ -1773,6 +1777,202 @@ function bookTab(t) {
     itemTips.map(i => '<div class="row"><span class="body"><div class="t">' + esc(md(i.date)) + ' ' + esc(i.title) + '</div><div class="m">💡 ' + esc(i.tip) + '</div></span></div>').join('') +
     '<button class="btn wide" style="margin-top:8px" data-act="tip-new">＋ 팁 더하기</button></div></div>';
   return h;
+}
+
+/* ---------- 여행책 (book-<도시>.js) — 책처럼 넘겨 읽기 · PDF·EPUB 받기 ---------- */
+const bookFor = t => { const B = window.TRIPBOOK || {}; return Object.values(B).find(b => b && b.match && b.match.test((t.place || '') + ' ' + (t.title || '') + ' ' + t.id)) || null; };
+const RB_KEY = t => 'rb.' + t.id + '.' + ME;
+let RB = null; // { t, b, P, chs, i, h }
+const RB_CAT = { 이동: '🚃', 관광: '📍', 식사: '🍽️', 간식: '🍡', 숙소: '🏨', 쇼핑: '🛍️', 주차: '🅿️', 기타: '•' };
+const rbItems = t => live('items', t.id).filter(i => i.title).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+function rbBuild(t, b) {
+  const P = [{ k: 'cover' }, { k: 'toc' }];
+  const days = daysOf(t), items = rbItems(t);
+  const ours = days.map((d, n) => ({ h: (n + 1) + '일째 · ' + md(d), day: d, see: [] })).filter(p => items.some(i => i.date === p.day));
+  if (live('recs', t.id).some(r => r.kind === '명소' || r.kind === '맛집')) ours.push({ h: '가 보고 싶은 곳', recs: 1, see: [] });
+  const chs = b.chapters.concat(ours.length ? [{ id: 'ours', ic: '📅', t: '우리 일정과 이어 보기', cover: 'route-cover', intro: '앱의 일정에서 바로 가져와요. 일정을 누르면 길찾기·영업시간이 있는 자세한 보기가 열리고, 「📖」를 누르면 그곳을 다룬 쪽으로 가요.', pages: ours }] : [])
+    .concat([{ id: 'end', ic: '🎒', t: '맺음', cover: 'notebook', intro: '퀴즈와 이 책을 만든 자료', pages: b.ending }]);
+  chs.forEach((c, ci) => { c.at = P.length; c.no = ci + 1; P.push({ k: 'open', c }); c.pages.forEach(p => P.push({ k: 'page', c, p })); });
+  const idx = []; P.forEach((x, i) => { if (x.k === 'page') (x.p.see || []).forEach(w => idx.push([w, i])); });
+  idx.sort((a, b2) => b2[0].length - a[0].length);
+  return { P, chs, idx };
+}
+const rbFind = (R, text) => { const s = String(text || ''); const m = R.idx.find(([w]) => s.includes(w)); return m ? m[1] : -1; };
+const rbItemText = i => (i.title || '') + ' ' + (i.place || '') + ' ' + (i.addr || '');
+/** 한 쪽 그리기 — st(정적)은 PDF·EPUB용: 누르는 단추 없이 */
+function rbPageHtml(R, t, b, i, st) {
+  const x = R.P[i]; if (!x) return '';
+  const go = (n, label) => st ? '<a class="rb-pn" href="#rbp-' + n + '">' + label.replace(/<em class="num">\d+<\/em>/, '').replace(/ \d+쪽$/, ' 읽기') + '</a>' : '<button class="rb-pn" data-rb="go" data-v="' + n + '">' + label + '</button>';
+  const sid = st ? ' id="rbp-' + i + '"' : '';
+  if (x.k === 'cover') return '<section class="rb-pg rb-cover"' + sid + '><img class="rb-cimg" src="img/' + b.cover + '.webp" alt=""><div class="rb-cin"><small>하하가족여행 문고 · ' + esc(b.ed) + '</small><h1>' + esc(b.title) + '</h1><p>' + esc(b.sub) + '</p><div class="rb-who">' + (t.members || []).map(n => '<span>' + esc((fam(n) || {}).role || n) + '</span>').join('') + '</div>' + (st ? '' : '<button class="rb-start" data-rb="go" data-v="1">펼치기 ›</button>') + '</div></section>';
+  if (x.k === 'toc') return '<section class="rb-pg"' + sid + '><div class="rb-run">차례</div><h2>차례</h2><ol class="rb-toc">' + R.chs.map(c => '<li>' + (st ? '<a href="#rbp-' + c.at + '">' : '<button data-rb="go" data-v="' + c.at + '">') + '<i>' + c.ic + '</i><b>' + esc(c.t) + '</b>' + (st ? '</a>' : '<em class="num">' + (c.at + 1) + '</em></button>') + '</li>').join('') + '</ol>' + (st ? '' : '<p class="small-note">장 이름을 누르면 바로 가요. 읽던 쪽은 저절로 기억해요.</p>') + '</section>';
+  if (x.k === 'open') { const c = x.c; return '<section class="rb-pg rb-open"' + sid + '><figure class="rb-oimg"><img src="img/' + c.cover + '.webp" alt=""></figure><div class="rb-oin"><small>' + (c.id === 'end' ? '' : '제 ' + c.no + ' 장') + '</small><h2><i>' + c.ic + '</i> ' + esc(c.t) + '</h2><p>' + esc(c.intro || '') + '</p><ul class="rb-olist">' + c.pages.map((p, k) => '<li>' + go(c.at + 1 + k, esc(p.h) + '<em class="num">' + (c.at + 2 + k) + '</em>') + '</li>').join('') + '</ul></div></section>'; }
+  const c = x.c, p = x.p;
+  let body = p.b || '';
+  if (p.day) body = '<div class="rb-day">' + rbItems(t).filter(it => it.date === p.day).map(it => { const n = rbFind(R, rbItemText(it)); const row = '<span class="rb-it-t num">' + esc(it.time || '') + '</span><span class="rb-it-b"><b>' + (RB_CAT[it.cat] || '•') + ' ' + esc(it.title) + '</b>' + (it.place ? '<small>' + esc(it.place) + '</small>' : '') + '</span>';
+    return '<div class="rb-it">' + (st ? '<span class="rb-it-m">' + row + '</span>' : '<button class="rb-it-m" data-act="item-view" data-v="' + esc(it.id) + '">' + row + '</button>') + (n > 0 ? go(n, '📖 ' + (n + 1) + '쪽') : '') + '</div>'; }).join('') + '</div>';
+  if (p.recs) body = '<p>일정 → 「가고 싶은 곳」에 모은 자료예요.</p><div class="rb-day">' + live('recs', t.id).filter(r => r.kind === '명소' || r.kind === '맛집').map(r => { const n = rbFind(R, (r.name || '') + ' ' + (r.area || '')); return '<div class="rb-it"><span class="rb-it-m"><span class="rb-it-b"><b>' + (r.kind === '맛집' ? '🍽️ ' : '⭐ ') + esc(r.name) + '</b><small>' + esc([r.area, r.desc].filter(Boolean).join(' · ')) + '</small></span></span>' + (n > 0 ? go(n, '📖 ' + (n + 1) + '쪽') : '') + '</div>'; }).join('') + '</div>';
+  const more = (p.more || []).map(([k, tt, u]) => { const href = k === 'yt' ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent(u) : k === 'wiki' ? 'https://ko.wikipedia.org/w/index.php?search=' + encodeURIComponent(u) : u;
+    return '<a class="rb-ln ' + k + '" href="' + esc(href) + '" target="_blank" rel="noopener"><i>' + (k === 'yt' ? '▶' : '📖') + '</i><span>' + esc(tt) + '<small>' + (k === 'yt' ? '유튜브에서 영상 찾기' : k === 'wiki' ? '위키백과 · 더 깊은 글' : esc(String(u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0])) + '</small></span></a>'; }).join('');
+  const ours = (p.see || []).length && !p.day ? rbItems(t).filter(it => (p.see || []).some(w => rbItemText(it).includes(w))).slice(0, 4) : [];
+  return '<section class="rb-pg"' + sid + '><div class="rb-run">' + c.ic + ' ' + esc(c.t) + '</div><h2>' + esc(p.h) + '</h2><div class="rb-body">' + body + '</div>' +
+    (ours.length ? '<div class="rb-ours"><b>📅 우리 일정에서</b>' + ours.map(it => (st ? '<span' : '<button data-act="item-view" data-v="' + esc(it.id) + '"') + ' class="rb-oi"><em class="num">' + esc(md(it.date)) + ' ' + esc(it.time || '') + '</em> ' + esc(it.title) + (st ? '</span>' : '</button>')).join('') + '</div>' : '') +
+    (more ? '<div class="rb-more"><b>🔗 더 보고 싶다면</b>' + more + '</div>' : '') + (st ? '' : '<div class="rb-folio num">' + (i + 1) + '</div>') + '</section>';
+}
+const rbWide = () => matchMedia('(min-width: 1000px) and (min-height: 560px)').matches;
+function rbPaint(dir) {
+  if (!RB) return;
+  const R = RB, n = R.P.length, wide = rbWide();
+  R.i = Math.max(0, Math.min(n - 1, R.i)); if (wide && R.i % 2) R.i--;
+  const el = $('#reader'); if (!el) return;
+  const pages = wide ? [R.i, R.i + 1] : [R.i];
+  const sh = el.querySelector('.rb-sheet');
+  sh.className = 'rb-sheet' + (wide ? ' spread' : '') + (dir ? ' in-' + dir : '');
+  sh.innerHTML = pages.map(k => k < n ? '<div class="rb-leaf">' + rbPageHtml(R, R.t, R.b, k) + '</div>' : '<div class="rb-leaf blank"></div>').join('');
+  sh.querySelectorAll('.rb-leaf').forEach(l => { l.scrollTop = 0; });
+  const x = R.P[R.i]; el.querySelector('.rb-ttl').textContent = x.c ? x.c.ic + ' ' + x.c.t : R.b.title;
+  const last = Math.min(n, R.i + pages.length);
+  el.querySelector('.rb-prog i').style.width = Math.round(last / n * 100) + '%';
+  el.querySelector('.rb-prog span').textContent = (wide && R.i + 1 < n ? (R.i + 1) + '–' + last : (R.i + 1)) + ' / ' + n;
+  el.querySelector('[data-rb="prev"]').disabled = R.i <= 0; el.querySelector('[data-rb="next"]').disabled = last >= n;
+  LS.set(RB_KEY(R.t), R.i);
+}
+function rbTurn(d) { if (!RB) return; const step = rbWide() ? 2 : 1, ni = RB.i + d * step; if (ni < 0 || ni >= RB.P.length) return; RB.i = ni; buzz(); rbPaint(matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : d > 0 ? 'next' : 'prev'); }
+function rbGo(i) { if (!RB) return; RB.i = i; rbPaint('next'); }
+function rbOpen(t, at) {
+  const b = bookFor(t); if (!b) return toast('이 여행의 책은 아직 없어요');
+  if (RB) rbClose(true);
+  const R = rbBuild(t, b), saved = LS.get(RB_KEY(t), 0);
+  RB = Object.assign(R, { t, b, i: at != null ? at : (+saved || 0), h: false });
+  const el = document.createElement('div'); el.id = 'reader'; el.className = 'rb'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', b.title);
+  el.innerHTML = '<div class="rb-top"><button class="rb-x" data-rb="close" aria-label="책 닫기">' + ic('back') + '</button><div class="rb-ttl"></div><button class="rb-tb" data-rb="go" data-v="1">차례</button><button class="rb-tb" data-act="rb-get" aria-label="PDF·EPUB 받기">⋯</button></div>' +
+    '<div class="rb-stage"><div class="rb-sheet"></div></div>' +
+    '<div class="rb-bot"><button class="rb-nb" data-rb="prev" aria-label="앞 쪽">‹</button><div class="rb-prog"><i></i><span class="num"></span></div><button class="rb-nb" data-rb="next" aria-label="다음 쪽">›</button></div>';
+  document.body.appendChild(el); document.body.classList.add('rb-on'); document.body.style.overflow = 'hidden';
+  if (!POP_SKIP) { history.pushState({ rb: 1 }, ''); RB.h = true; }
+  el.addEventListener('click', e => {
+    const b2 = e.target.closest('[data-rb]'); if (!b2) return;
+    const a = b2.dataset.rb;
+    if (a === 'close') rbClose(); else if (a === 'prev') rbTurn(-1); else if (a === 'next') rbTurn(1); else if (a === 'go') rbGo(+b2.dataset.v);
+  });
+  // 쓸어 넘기기 (옆으로) — 위아래는 쪽 안에서 스크롤
+  const stage = el.querySelector('.rb-stage'); let sx = 0, sy = 0, dx = 0, on = false, lock = '';
+  stage.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; dx = 0; on = true; lock = ''; }, { passive: true });
+  stage.addEventListener('touchmove', e => { if (!on) return; const p = e.touches[0]; const ddx = p.clientX - sx, ddy = p.clientY - sy; if (!lock && (Math.abs(ddx) > 10 || Math.abs(ddy) > 10)) lock = Math.abs(ddx) > Math.abs(ddy) * 1.2 ? 'x' : 'y'; if (lock === 'x') { dx = ddx; el.querySelector('.rb-sheet').style.transform = 'translateX(' + dx * .6 + 'px)'; } }, { passive: true });
+  stage.addEventListener('touchend', () => { if (!on) return; on = false; const sh = el.querySelector('.rb-sheet'); sh.style.transform = ''; if (lock === 'x' && Math.abs(dx) > 55) rbTurn(dx < 0 ? 1 : -1); });
+  rbPaint('');
+}
+function rbClose(fromNav) {
+  if (!RB) return;
+  const h = RB.h; RB = null;
+  const el = $('#reader'); if (el) el.remove();
+  document.body.classList.remove('rb-on'); if ($('#sheet').hidden) document.body.style.overflow = '';
+  if (h && !fromNav) { POP_SKIP = true; history.back(); }
+}
+window.addEventListener('resize', () => { if (RB) rbPaint(''); });
+document.addEventListener('keydown', e => {
+  if (!RB || !$('#sheet').hidden || /INPUT|TEXTAREA/.test((e.target || {}).tagName || '')) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); rbTurn(1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); rbTurn(-1); }
+  else if (e.key === 'Escape') rbClose();
+  else if (e.key === 'Home') rbGo(0);
+});
+function bookCard(t) {
+  const b = bookFor(t); if (!b) return '';
+  const R = rbBuild(t, b), saved = +LS.get(RB_KEY(t), 0) || 0;
+  return '<div class="card rb-card"><button class="rb-cv" data-act="rb-open" aria-label="' + esc(b.title) + ' 펼치기"><img src="img/' + b.cover + '.webp" alt=""><span class="rb-cvt"><small>하하가족여행 문고</small><b>' + esc(b.title) + '</b><em>' + esc(b.sub) + '</em></span></button>' +
+    '<div class="rb-cb"><b>📖 ' + esc(b.title) + '</b><div class="muted small">' + R.chs.length + '장 · ' + R.P.length + '쪽 · 일본 역사부터 교토 하루까지, 사진·지도·영상 링크와 함께</div>' +
+    '<div class="flex rb-cbtn"><button class="btn pri" data-act="rb-open">' + (saved > 1 ? '이어 읽기 · ' + (saved + 1) + '쪽' : '책 펼치기') + '</button>' + (saved > 1 ? '<button class="btn" data-act="rb-open" data-v="0">처음부터</button>' : '') + '<button class="btn" data-act="rb-get">PDF·EPUB</button></div></div></div>';
+}
+function rbGetSheet(t) {
+  openSheet('<h2>여행책 받아 두기</h2><p class="muted">인터넷이 없는 비행기 안에서도 읽을 수 있게 파일로 받아요. 영상·자료 링크는 파일 안에서도 눌러져요.</p><div class="newpick">' +
+    '<button data-act="rb-pdf">' + ib('book', 'var(--coral)') + '<span><b>PDF로 받기</b><small>인쇄 창이 열리면 「PDF로 저장」을 골라요 (A5 책 크기)</small></span></button>' +
+    '<button data-act="rb-epub">' + ib('book', 'var(--sky)') + '<span><b>EPUB(전자책)으로 받기</b><small>애플 북스·구글 플레이 북·리디 같은 전자책 앱에서 열려요</small></span></button></div>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
+}
+/* 정적 쪽 모음 (PDF·EPUB) — 접힌 퀴즈는 펴고, 그림은 바로 불러요 */
+function rbStatic(t, inert) {
+  const b = bookFor(t), R = rbBuild(t, b);
+  const doc = inert ? document.implementation.createHTMLDocument('') : document; // 전자책은 그림을 불러오지 않는 빈 문서에서
+  const wrap = doc.createElement('div');
+  wrap.innerHTML = R.P.map((x, i) => rbPageHtml(R, t, b, i, true)).join('');
+  wrap.querySelectorAll('details').forEach(d => { const q = doc.createElement('div'); q.className = 'rb-quiz open'; q.innerHTML = '<p class="q">' + d.querySelector('summary').innerHTML + '</p>' + Array.from(d.children).filter(c => c.tagName !== 'SUMMARY').map(c => c.outerHTML).join(''); d.replaceWith(q); });
+  wrap.querySelectorAll('img').forEach(im => im.removeAttribute('loading'));
+  return { b, R, wrap };
+}
+async function rbPdf(t) {
+  closeSheet();
+  const { b, wrap } = rbStatic(t);
+  wrap.id = 'rb-print'; wrap.className = 'rb-print';
+  document.body.appendChild(wrap); document.body.classList.add('rb-printing');
+  toast('책을 준비하고 있어요…');
+  await Promise.all(Array.from(wrap.querySelectorAll('img')).map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 8000); })));
+  const old = document.title; document.title = b.title + ' — 하하가족여행';
+  const done = () => { document.title = old; wrap.remove(); document.body.classList.remove('rb-printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => { try { window.print(); } catch (e) { toast('이 화면에서는 인쇄 창을 열 수 없어요. 사파리·크롬으로 열어 주세요'); done(); } setTimeout(() => { if (document.body.classList.contains('rb-printing') && !matchMedia('print').matches) done(); }, 60000); }, 300);
+}
+/* EPUB 3 — 압축 없는 zip을 직접 만들어요 */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint32(10, 0x00210000, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint32(12, 0x00210000, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    cen.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + data.length;
+  });
+  const csz = cen.reduce((s, x) => s + x.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csz, true); e.setUint32(16, off, true);
+  return new Blob(parts.concat(cen, [new Uint8Array(e.buffer)]), { type: 'application/epub+zip' });
+}
+async function toJpeg(src) {
+  const r = await fetch(src); const bl = await r.blob(); const bm = await createImageBitmap(bl);
+  const cv = document.createElement('canvas'), s = Math.min(1, 1000 / Math.max(bm.width, bm.height)); cv.width = Math.round(bm.width * s); cv.height = Math.round(bm.height * s);
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(bm, 0, 0, cv.width, cv.height);
+  const jb = await new Promise(res => cv.toBlob(res, 'image/jpeg', .82)); return new Uint8Array(await jb.arrayBuffer());
+}
+const EPUB_CSS = 'body{font-family:serif;line-height:1.75;margin:0 4%;word-break:keep-all}h1{font-size:1.8em}h2{font-size:1.35em;margin:.4em 0 .6em}.rb-run{font-size:.75em;color:#8a7a66}.lead{font-size:1.08em;border-left:4px solid #e9a36b;padding-left:.7em}figure{margin:1em 0}figure img{max-width:100%}figcaption{font-size:.8em;color:#666}figcaption small{display:block}.rb-art.small img{width:30%;float:right;margin:0 0 .5em .8em}.rb-box{border:1px solid #e5d9c7;border-radius:8px;padding:.6em .9em;margin:1em 0;background:#fbf6ee}.rb-voice{background:#eef4fc}.rb-tip{background:#ecf8f3}.rb-box>b{display:block;margin-bottom:.3em}.rb-facts div{border-bottom:1px solid #eee;padding:.35em 0}.rb-facts span{display:block;font-size:.85em;color:#777}.rb-tl{padding-left:1.2em}.rb-tl em{font-style:normal;font-weight:bold;margin-right:.5em}.rb-chk{font-size:.75em;color:#9a6400}.rb-era span{display:inline-block;border:1px solid #ddd;border-radius:6px;padding:.2em .5em;margin:.15em}.rb-era small{display:block;font-size:.75em;color:#777}.rb-lines div{margin:.4em 0}.rb-lines i{display:inline-block;color:#fff;font-style:normal;font-weight:bold;padding:0 .4em;border-radius:4px;margin-right:.4em}.rb-lines b{margin-right:.4em}.rb-more{border-top:1px dashed #ccc;margin-top:1.2em;padding-top:.6em}.rb-more a{display:block;margin:.4em 0;color:#b4232a}.rb-more small{display:block;color:#777;font-size:.8em}.rb-more i{font-style:normal;margin-right:.4em}.rb-ours{font-size:.9em;color:#555}.rb-ours span{display:block}.rb-it{border-bottom:1px solid #eee;padding:.4em 0}.rb-it-t{display:inline-block;min-width:3.2em;font-weight:bold}.rb-it small{display:block;color:#777}.rb-pn{font-size:.8em;color:#8a7a66;margin-left:.5em}.rb-folio{text-align:center;color:#aaa;font-size:.8em;margin-top:1.5em}.rb-cover{text-align:center}.rb-cover img{max-width:100%}.rb-who span{margin:0 .3em}.rb-toc li,.rb-olist li{margin:.3em 0}.rb-toc i,.rb-olist i,.rb-toc em,.rb-olist em{font-style:normal;margin:0 .4em}.rb-map{width:100%;height:auto}.m-land{fill:#f6f1e7}.m-sea{fill:#cfe3f5}.m-river{fill:none;stroke:#9cc4ea;stroke-width:4}.m-line{fill:none;stroke-width:3}.m-pt{fill:#ff7a59;stroke:#fff;stroke-width:2}.m-pt.us{fill:#4c8df6}.m-tx{font-size:12px;fill:#333}.m-area{font-size:13px;fill:#8a7a66;font-weight:bold}.m-note,.m-lt{font-size:10px;fill:#999}.m-n path{fill:#555}.m-n text{font-size:10px}.rb-quiz .q{font-weight:bold;margin-bottom:0}.rb-ref img{width:40%}.rb-credits{font-size:.85em}.small-note{font-size:.85em;color:#777}.rb-oimg img{width:100%}';
+async function rbEpub(t) {
+  closeSheet(); toast('전자책을 만들고 있어요…');
+  try {
+    const { b, R, wrap } = rbStatic(t, true);
+    const doc = wrap.ownerDocument;
+    const imgs = new Map(); let nImg = 0;
+    const secs = Array.from(wrap.children);
+    // 장마다 한 파일: 표지 · 차례 · 장(여는 쪽 + 쪽들)
+    const groups = [{ id: 'cover', t: '표지', els: [secs[0]], from: 0, to: 1 }, { id: 'toc', t: '차례', els: [secs[1]], from: 1, to: 2 }];
+    R.chs.forEach((c, ci) => groups.push({ id: 'c' + (ci + 1), t: c.t, els: secs.slice(c.at, c.at + 1 + c.pages.length), from: c.at, to: c.at + 1 + c.pages.length }));
+    const ser = new XMLSerializer();
+    const files = [{ name: 'mimetype', data: 'application/epub+zip' }, { name: 'META-INF/container.xml', data: '<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>' }];
+    const man = [], spine = [];
+    for (const g of groups) {
+      const box2 = doc.createElement('div'); g.els.forEach(e => box2.appendChild(e));
+      for (const im of box2.querySelectorAll('img')) { const src = im.getAttribute('src'); if (!imgs.has(src)) imgs.set(src, 'img/p' + (++nImg) + '.jpg'); im.setAttribute('src', imgs.get(src)); }
+      box2.querySelectorAll('a[href^="#rbp-"]').forEach(a => { const n = +a.getAttribute('href').slice(5), gi = groups.findIndex(g2 => g2.from <= n && n < g2.to); if (gi >= 0) a.setAttribute('href', groups[gi].id + '.xhtml#rbp-' + n); });
+      box2.querySelectorAll('button').forEach(bt => { const s = doc.createElement('span'); s.className = bt.className; s.innerHTML = bt.innerHTML; bt.replaceWith(s); });
+      const svg = !!box2.querySelector('svg');
+      const inner = Array.from(box2.childNodes).map(n => ser.serializeToString(n)).join('').replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '');
+      files.push({ name: 'OEBPS/' + g.id + '.xhtml', data: '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ko" xml:lang="ko"><head><meta charset="utf-8"/><title>' + esc(g.t) + '</title><link rel="stylesheet" href="style.css"/></head><body>' + inner + '</body></html>' });
+      man.push('<item id="' + g.id + '" href="' + g.id + '.xhtml" media-type="application/xhtml+xml"' + (svg ? ' properties="svg"' : '') + '/>'); spine.push('<itemref idref="' + g.id + '"/>');
+    }
+    let k = 0;
+    for (const [src, name] of imgs) { try { files.push({ name: 'OEBPS/' + name, data: await toJpeg(src) }); man.push('<item id="im' + (++k) + '" href="' + name + '" media-type="image/jpeg"' + (src.includes(b.cover) && k === 1 ? ' properties="cover-image"' : '') + '/>'); } catch (e) {} }
+    const nav = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="ko" xml:lang="ko"><head><meta charset="utf-8"/><title>차례</title></head><body><nav epub:type="toc" id="toc"><h1>차례</h1><ol>' + groups.filter(g => g.id !== 'cover').map(g => '<li><a href="' + g.id + '.xhtml">' + esc(g.t) + '</a></li>').join('') + '</ol></nav></body></html>';
+    files.push({ name: 'OEBPS/nav.xhtml', data: nav }, { name: 'OEBPS/style.css', data: EPUB_CSS });
+    const uidv = 'haha-trip-' + t.id + '-' + Date.now();
+    files.push({ name: 'OEBPS/content.opf', data: '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bid" xml:lang="ko"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bid">' + uidv + '</dc:identifier><dc:title>' + esc(b.title) + '</dc:title><dc:creator>하하가족여행</dc:creator><dc:language>ko</dc:language><dc:description>' + esc(b.sub) + '</dc:description><meta property="dcterms:modified">' + new Date().toISOString().replace(/\.\d+Z$/, 'Z') + '</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="css" href="style.css" media-type="text/css"/>' + man.join('') + '</manifest><spine>' + spine.join('') + '</spine></package>' });
+    const blob = zipStore(files);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = b.title.replace(/\s+/g, '') + '.epub'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    toast('전자책을 받았어요. 파일을 열면 전자책 앱으로 읽어요');
+  } catch (e) { console.error(e); toast('전자책을 만들지 못했어요'); }
 }
 
 /* ---------- 날씨 (날씨 앱처럼 날짜별·시간별) ---------- */
@@ -2180,6 +2380,10 @@ document.addEventListener('click', e => {
     'trip-scan-add': () => scanFlow(t),
     'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
     'item-view': () => itemView(t, D.items[v]),
+    'rb-open': () => rbOpen(t, v != null ? +v : null),
+    'rb-get': () => rbGetSheet(t),
+    'rb-pdf': () => rbPdf(t),
+    'rb-epub': () => rbEpub(t),
     'tr-open': () => { closeSheet(); go(tripUrl(t.id, 'talk')); },
     'tr-swap': () => { const S = trState(); S.dir = S.dir === 'ko' ? 'x' : 'ko'; S.text = ''; S.out = ''; render(); },
     'tr-mode': () => { trState().mode = v; render(); },
@@ -2411,9 +2615,15 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
-  { v: '5.1', d: '2026-11-26', title: '정산은 각자 낼 몫으로', items: [
-    ['money', 'var(--mint)', '1/n이 아니에요', '경비 → 정산의 「각자 낼 몫」에서 아빠가 자녀마다 낼 몫을 정해 넣어요. 이미 결제한 돈(예: 하늘이가 낸 숙소)과 나중에 들어온 돈을 빼고 남은 돈만 보여요.'],
-    ['wallet', 'var(--coral)', '들어온 돈 적기', '자녀가 나눠 낸 돈은 「＋ 들어온 돈 적기」로 남겨요. 가족 지갑(아빠)의 몫은 총액에서 다른 사람 몫을 뺀 나머지로 저절로 셈해요.']] },
+  { v: '5.2', d: '2026-11-26', title: '오사카 여행책이 나왔어요', items: [
+    ['book', 'var(--coral)', '수첩 안의 책 한 권', '수첩 맨 위 「📖 오사카 여행책」을 누르면 책이 펼쳐져요. 휴대폰은 옆으로 쓸어 넘기고, 컴퓨터는 ‹ › 단추나 ← → 키로 넘겨요. 읽던 쪽을 기억해요.'],
+    ['memory', 'var(--lav)', '일본 역사부터 연말연시까지', '일본 역사 한눈에, 오사카의 역사, 동네 안내, 교토 하루, 먹거리, 교통, 설 풍습을 실제 사진·그림 지도·재미있는 일화와 함께 담았어요.'],
+    ['plan', 'var(--sky)', '우리 일정과 이어져요', '쪽마다 「📅 우리 일정에서」를 누르면 그 일정이 바로 열려요. 「▶ 유튜브」 단추로 관련 영상도 찾아봐요.'],
+    ['ticket', 'var(--mint)', 'PDF·전자책으로 받기', '「⋯」에서 PDF나 EPUB(전자책)으로 받아 두면 비행기 안에서도 읽을 수 있어요.']] },
+  { v: '5.1', d: '2026-11-26', title: '정산은 자녀 몫으로', items: [
+    ['plan', 'var(--sky)', '날마다 예상 금액', '일정 「하루씩」 날짜 아래에 그날 4명 예상 금액(원화로도)이 보여요. 스케줄표의 날짜 줄에도 4명 합계가 나와요.'],
+    ['money', 'var(--mint)', '1/n이 아니에요', '경비 → 정산에서 자녀(하은·하늘)가 낼 몫만 정해요. 나머지는 모두 우리 부부가 내요. 이번 오사카는 50만 원씩이에요.'],
+    ['wallet', 'var(--coral)', '먼저 낸 돈은 빼고', '하늘이가 숙소를 먼저 결제했으니 하늘이 몫에서 그만큼 빠지고 남은 돈만 보여요. 자녀가 보낸 돈은 「＋ 들어온 돈 적기」로 남겨요.']] },
   { v: '5.0', d: '2026-11-26', title: '그날 사진으로 바로', items: [
     ['talk', 'var(--sky)', '꼭 쓰는 말 듣기', '수첩의 「꼭 쓰는 말」마다 소리 단추가 생겼어요. 누르면 일본어 여성 음성으로 또박또박 들려줘요. 휴대폰 소리를 켜 두세요.'],
     ['camera', 'var(--coral)', '구글 포토 링크', '지난 여행을 열면 「그때 우리는」 아래에 날짜마다 「구글 포토」 단추가 있어요. 누르면 그날 찍은 사진이 구글 포토에서 바로 열려요.'],
