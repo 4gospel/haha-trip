@@ -431,7 +431,7 @@ details.more .f{margin-top:6px}
   .qgrid{grid-template-columns:repeat(3,1fr);gap:8px}.qgrid button{font-size:14px;padding:12px 4px}
   .conv{grid-template-columns:1fr auto 1fr;gap:6px}.big-num{font-size:22px}
   .seg button{font-size:14px;padding:6px}
-  .sync{display:none}
+  .sync{display:flex}
 }
 .conv>*{min-width:0}
 .conv input.in{width:100%;min-width:0}
@@ -1489,3 +1489,18 @@ html{word-break:keep-all;overflow-wrap:anywhere}
 h1,h2,h3,h4,.t,.tp-name b,.lb b,.sec-h b,.card b,.hero b{text-wrap:balance}
 p,.muted,.m,small,li{text-wrap:pretty}
 .in,textarea,input,.num,code{word-break:normal}
+
+/* 지금·다음 한 줄 · 도움 창 · 택시 카드 · 작은 단추 키우기 (전문가 검토 2026-11-26) */
+.nowline{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:15px;margin:0 2px 8px;color:var(--soft)}.nowline b{color:var(--ink)}.nowline em{font-style:normal;color:var(--coral-ink);font-weight:800}
+.sos-grid{display:grid;gap:8px}
+.sos-call{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:#fff;box-shadow:0 0 0 1px rgba(31,42,55,.10),var(--sh);text-decoration:none;color:var(--ink);min-height:60px}
+.sos-call.big{background:#FFF4F2;box-shadow:0 0 0 1.5px color-mix(in srgb,var(--warn-ink) 40%,transparent)}
+.sc-ic{font-size:28px;flex:none;width:36px;text-align:center}.sc-t{display:flex;flex-direction:column;flex:1;min-width:0}.sc-t b{font-size:17px}.sc-t small{font-size:13px;color:var(--soft)}
+.sc-n{font-size:20px;font-weight:900;color:var(--warn-ink);flex:none}
+.taxi-card{background:#fff;border-radius:20px;padding:20px 16px;box-shadow:0 0 0 1px rgba(31,42,55,.12);text-align:center}
+.taxi-ja{font-size:clamp(24px,7vw,32px);font-weight:900;color:#1d2433;line-height:1.3}.taxi-ko{font-size:15px;color:var(--soft);margin:2px 0 14px}
+.taxi-name{font-size:20px;font-weight:800}.taxi-addr{font-size:clamp(22px,6.6vw,30px);font-weight:800;line-height:1.35;margin-top:8px;word-break:normal;overflow-wrap:anywhere}
+.taxi-tel{font-size:20px;margin-top:10px}.taxi-tel a{font-weight:800}
+.go,.rec-chip{min-height:44px}
+@media (max-width:360px){.sync{font-size:0;gap:0}.sync.bad,.sync.wait{font-size:12px;gap:4px}}
+.tp-warn{background:#C62A2F;color:#fff;font-weight:900;font-size:16px;text-align:center;padding:8px 12px}
