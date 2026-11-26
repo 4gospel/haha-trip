@@ -870,7 +870,9 @@ const byTime = (a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') ||
 /** 일정 1인 비용 = 그 일정 값 + 「여기까지 가는 길」 차비(교통 일정은 값이 곧 차비라 더하지 않음) — 2026-11-26 차비가 예산에서 빠지던 것 */
 const itemCost = i => (Number(i.cost) || 0) + (i.cat !== '이동' && i.go && Number(i.go.fare) > 0 ? Number(i.go.fare) : 0);
 function planCost(t) { let s = 0; live('items', t.id).forEach(i => s += toWon(t, itemCost(i))); return s; }
-function spentWon(t, day) { let s = 0; live('spends', t.id).forEach(x => { if (!day || x.date === day) s += toWon(t, x.amount, x.cur); }); return s; }
+function spentWon(t, day) { let s = 0; const pre = preSpend(t); live('spends', t.id).forEach(x => { if (!day || (x.date === day && !pre(x))) s += toWon(t, x.amount, x.cur); }); return s; }
+/** 미리 낸 돈(출발 전·보험·여권·예약 값과 같은 결제) — 「오늘 쓴 돈」에서는 뺌(시뮬레이션 2026-11-27) */
+function preSpend(t) { const paidBk = live('bookings', t.id).map(b => Number(b.price) || 0).filter(Boolean); return s => (s.date || '') < t.start || s.cat === '준비' || paidBk.includes(Number(s.amount)); }
 const parkBooking = t => live('bookings', t.id).find(b => b.kind === '주차');
 const lastPark = t => live('parks', t.id).sort((a, b) => b.ts - a.ts)[0];
 const flights = t => live('bookings', t.id).filter(b => b.kind === '항공').sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -916,10 +918,12 @@ function todayTab(t) {
   h += agoCard(t);
   const warns = bookingWarnings(t);
   const pb = parkBooking(t), pk = lastPark(t);
+  // 비행기가 뜨기 전까지만 「차 세웠나요?」(시뮬레이션 2026-11-27: 일본에 내려서도 보이던 것)
+  const fl0 = flights(t).find(b => b.date === t.start), preFly = ph === 'first' && (!fl0 || !fl0.time || hm() < fl0.time);
   // 귀국 날·다녀온 뒤: 내 차 먼저
   if ((ph === 'last' || ph === 'after' && dayDiff(t.end, t0) <= 2) && (pb || pk)) h += '<div class="sec">' + carCard(t, true) + '</div>';
   // 출발 날: 주차 위치 찍기
-  if (ph === 'first' && pb && !pk) h += '<div class="sec"><button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('camera', 'var(--c-주차)') + '<span><b>차 세웠나요? 기둥을 찍어 두세요</b><span>층·구역 글자를 읽어 「내 차 어디?」에 남겨요</span></span></button></div>';
+  if (preFly && pb && !pk) h += '<div class="sec"><button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking">' + ib('camera', 'var(--c-주차)') + '<span><b>차 세웠나요? 기둥을 찍어 두세요</b><span>층·구역 글자를 읽어 「내 차 어디?」에 남겨요</span></span></button></div>';
   // 출발 전: 급한 일
   if (ph === 'before') {
     const urgent = live('checks', t.id).filter(x => !x.done && /예약|서류/.test(x.cat || '')).slice(0, 5);
@@ -951,7 +955,7 @@ function todayTab(t) {
   else if (!(longAgo(t) && !bk.length)) h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('ticket', 'var(--c-관광)', 1) + '티켓·예약</h3><button class="linkbtn" data-act="tab" data-v="wallet">모두 보기</button></div>' +
     (bk.length ? '<div class="wallet">' + bk.map(b => passCard(t, b, warns[b.id])).join('') + '</div>' : '<button class="alert" data-act="photo" data-v="booking">' + ib('camera', 'var(--sky)') + '<span><b>예약 화면을 찍어 넣어요</b><span>항공권·숙소·티켓·주차 예약</span></span></button>') + '</div>';
   // 내 차 (그 밖의 때)
-  if (!(ph === 'last' || ph === 'after') && (pb || pk) && ph !== 'before') h += '<div class="sec">' + carCard(t) + '</div>';
+  if (!(ph === 'last' || ph === 'after') && (pk || pb && preFly) && ph !== 'before') h += '<div class="sec">' + carCard(t) + '</div>';
   // 준비 (출발 전)
   if (ph === 'before') {
     const ck = live('checks', t.id), done = ck.filter(x => x.done).length, p = ck.length ? Math.round(done / ck.length * 100) : 0;
@@ -1001,6 +1005,7 @@ function passCard(t, b, warn) {
 }
 function carCard(t, top) {
   const pb = parkBooking(t), pk = lastPark(t);
+  if (!pk && top && pb) return '<button class="alert" style="--cc:var(--c-주차)" data-act="tab" data-v="car"><img class="alert-art" src="img/my-car.webp" alt=""><span><b>🚗 집에 가는 날 — ' + esc(pb.place || pb.title) + '</b><span>' + (pb.code ? '예약번호 ' + esc(pb.code) + ' · ' : '') + (pb.end ? '출차 ' + esc(String(pb.end).slice(-5)) + ' · ' : '') + '기둥 사진은 없어요 — 주차장 셔틀·안내소에 예약번호를 말해요</span></span></button>'; // 돌아오는 날엔 「찍어 두세요」 대신 예약 정보(시뮬레이션 2026-11-27)
   if (!pk) return '<button class="alert" style="--cc:var(--c-주차)" data-act="photo" data-v="parking"><img class="alert-art" src="img/my-car.webp" alt=""><span><b>내 차 어디?</b><span>' + (pb ? esc(pb.place || pb.title) + ' · ' : '') + '주차한 뒤 기둥을 찍어 두세요</span></span></button>';
   return '<button class="car" style="width:100%;text-align:left;display:block" data-act="tab" data-v="car">' + (safeImg(pk.thumb) ? '<img src="' + pk.thumb + '" alt="주차 위치 사진">' : '') +
     '<div class="cin"><div class="muted">' + (top ? '🚗 집에 가는 날 — 내 차는 여기' : '🚗 내 차 어디?') + '</div><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(pk.memo || '') + (pb ? ' · 출차 ' + esc(String(pb.end || '')) : '') + '</div></div></button>';
@@ -1068,6 +1073,7 @@ function tlItem(t, i, now) {
   return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '"><span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
     '<button class="body" data-act="item-view" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
     '<div class="meta"><span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
+    (i.go && i.go.t === 'taxi' ? '<span class="go taxi-go" role="button" data-act="taxi" data-v="' + esc(i.id) + '">🚕 기사님께 보여 주기</span>' : '') +
     (i.place ? (u => '<a class="go' + (/^(nmap|intent):/.test(u) ? ' nvapp' : '') + '" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + ' data-stop="1">' + ic('route') + '길찾기</a>')(goTo(t, i.place, i)) : '') + '</div></button>' +
     '<button class="chk ' + (i.done ? 'on' : '') + '" data-act="item-done" data-v="' + esc(i.id) + '" aria-label="다녀옴 표시">' + (i.done ? ic('check') : '') + '</button></div>';
 }
@@ -1876,7 +1882,10 @@ function tkTodayCard(t) {
     const rest = today_.filter(s => s !== cur);
     if (rest.length) h += '<div class="tk-more">' + rest.map(s => '<button data-act="tk-gate" data-v="' + esc(s.b.id) + '" data-label="' + esc(s.lb) + '" style="--wc:' + tkColor(s.b, s.lb) + '"><span>' + tkIcon(s.b, s.lb) + '</span><b>' + esc(s.lb) + '</b><small class="num">' + esc(s.when || '') + '</small></button>').join('') + '</div>';
   }
-  slots.filter(s => s.day === tm).forEach(s => { const have = s.l.filter(tkReady).length; h += '<button class="tk-tom" data-act="tk-gate" data-v="' + esc(s.b.id) + '" data-label="' + esc(s.lb) + '"><b>내일 ' + esc(s.lb) + ' · ' + esc(s.b.title) + '</b>' + tkStatus(have, s.l.length) + '</button>'; });
+  // 내일 티켓은 예약마다 한 줄로(시뮬레이션 2026-11-27: 같은 긴 이름이 세 번 되풀이되던 것)
+  const tmB = [...new Set(slots.filter(s => s.day === tm).map(s => s.b))];
+  tmB.forEach(b => { const ss = slots.filter(s => s.day === tm && s.b === b), have = ss.reduce((n, s) => n + s.l.filter(tkReady).length, 0), all = ss.reduce((n, s) => n + s.l.length, 0);
+    h += '<button class="tk-tom" data-act="tab" data-v="pass"><b>내일 쓸 티켓 ' + ss.length + '가지 · ' + esc(ss.map(s => s.lb).join(' · ')) + '</b><small>' + esc(b.title) + '</small>' + tkStatus(have, all) + '</button>'; });
   return h + '</div>';
 }
 const tkMin = s => { const m = String(s || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : 0; };
@@ -2989,7 +2998,7 @@ document.addEventListener('click', e => {
     'sos-go': () => sosOpen(t),
     offline: () => offlineOpen(),
     'sos-book': () => { closeSheet(); go(tripUrl(t.id, 'book')); setTimeout(() => { const x = document.getElementById('bk_sos'); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70 }); }, 300); },
-    taxi: () => taxiOpen(t),
+    taxi: () => taxiOpen(t, v ? D.items[v] : null),
     'taxi-ja': () => { const hb = live('bookings', t.id).find(b => b.kind === '숙소'); if (hb) askText('일본어 주소 (택시 기사님께 보여 줄 주소)', hb.jaAddr || '', v2 => { put('bookings', Object.assign({}, hb, { jaAddr: v2.trim() })); taxiOpen(t); }); },
     'taxi-copy': () => { const x = el.dataset.v; (navigator.clipboard ? navigator.clipboard.writeText(x) : Promise.reject()).then(() => toast('주소를 복사했어요'), () => toast(x)); },
     'book-jump': () => { const x = document.getElementById('bk_' + v); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70, behavior: 'smooth' }); },
@@ -3161,7 +3170,23 @@ function sosOpen(t) {
     '<div class="sheet-acts"><button class="btn" data-act="sos-book">수첩의 비상 연락 모두</button><button class="btn" data-act="sheet-close">닫기</button></div>';
   openSheet(h);
 }
-function taxiOpen(t) {
+/** 택시 타는 법 (팀장님 2026-11-27 「택시 이용은 어떻게? 우버?」) — 꼭 필요할 때만, 넷이 한 대 */
+const TAXI_HOW = '<details class="card taxi-how" style="margin-top:12px"><summary><b>🚕 택시 타는 법 (앱 · 길에서)</b></summary><ol>' +
+  '<li><b>카카오T 「해외차량호출」 (먼저 써요)</b> — 한국에서 쓰던 카카오T 그대로. 일본에서 앱을 열면 한국어로 목적지를 찾고, 한국에서 등록한 카드로 저절로 내요. 차는 일본 택시 앱 GO가 보내 줘요. 차가 오면 앱의 <b>탑승 확인번호</b>를 기사님께 보여 줘요. 부르기 전에 예상 요금도 보여요.</li>' +
+  '<li><b>우버</b> — 오사카에서는 우버로 「일반 택시」를 불러요(4명까지). 한국에서 쓰던 우버 계정·카드 그대로.</li>' +
+  '<li><b>길에서 잡기</b> — 앞 유리의 빨간 「空車」(빈 차) 불을 보고 손을 들어요. <b>뒷문은 저절로 열리고 닫혀요 — 손대지 마세요.</b> 역 앞 「タクシー乗り場」(택시 타는 곳)에서 줄 서도 돼요.</li>' +
+  '<li><b>탄 뒤</b> — 이 화면(일본어 주소)을 기사님께 보여 드려요. 넷이면 보통 택시 한 대(앞 1 · 뒤 3). 큰 가방은 트렁크.</li>' +
+  '<li><b>내기</b> — 카드(트래블카드 포함)·현금 모두 돼요. 팁은 없어요. 밤 10시~새벽 5시는 2할 더 붙어요. 영수증(領収書)을 받아 「🧾 영수증 찍기」로 남겨요.</li>' +
+  '</ol><div class="muted small">요금: 오사카 처음 1.2km 600엔, 231m마다 100엔(2025년 11월부터). 넷이 한 대면 짧은 거리는 전철 네 명 값과 비슷해요. 이 여행의 택시는 세 번 — 12/30 새벽 숙소 → 신이마미야, 12/30 밤 스파월드 → 숙소, 12/31 시치조역 → 기요미즈데라.</div></details>';
+function taxiOpen(t, it) {
+  // 일정의 택시 칸에서 열면 그 목적지(일본어 이름 go.ja)를, 아니면 숙소 주소를 크게(시뮬레이션 2026-11-27)
+  if (it && it.go && it.go.ja) {
+    const g = it.go, map = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(g.to || g.ja);
+    return openSheet('<div class="taxi-card"><div class="taxi-ja">ここまでお願いします</div><div class="taxi-ko">여기로 가 주세요</div>' +
+      '<div class="taxi-addr">' + esc(g.ja) + '</div><div class="taxi-name">' + esc(g.ko || it.title.replace(/^🚕\s*/, '')) + '</div></div>' +
+      (g.s ? '<div class="muted" style="margin-top:10px">' + esc(g.s) + '</div>' : '') + TAXI_HOW +
+      '<div class="sheet-acts"><button class="btn" data-act="taxi-copy" data-v="' + esc(g.ja) + '">복사</button><a class="btn" href="' + map + '" target="_blank" rel="noopener">지도</a><button class="btn pri" data-act="sheet-close">닫기</button></div>');
+  }
   const hb = hotelOf(t), addr = hotelAddr(hb), ja = hb && hb.jaAddr;
   if (!hb) return toast('숙소 예약이 없어요. 티켓·예약에 숙소를 넣어 주세요');
   const map = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr || hb.title);
@@ -3169,6 +3194,7 @@ function taxiOpen(t) {
     '<div class="taxi-name">' + esc(hb.title) + '</div><div class="taxi-addr">' + esc(addr || '주소가 아직 없어요') + '</div>' +
     (hb.phone ? '<div class="taxi-tel">☎ <a href="tel:' + esc(hb.phone) + '">' + esc(hb.phone) + '</a></div>' : '') + '</div>' +
     (!ja ? '<div class="alert" style="--cc:var(--sun);margin-top:10px"><span><b>일본어 주소를 넣어 두면 더 좋아요</b><span>예약 확인 메일·지도의 일본어 주소(大阪市西成区…)를 붙여 넣으면 기사님께 그대로 보여 드릴 수 있어요.</span></span></div><button class="btn" style="width:100%;margin-top:8px" data-act="taxi-ja">일본어 주소 넣기</button>' : '') +
+    TAXI_HOW +
     '<div class="sheet-acts"><button class="btn" data-act="taxi-copy" data-v="' + esc(addr) + '">주소 복사</button><a class="btn" href="' + map + '" target="_blank" rel="noopener">지도</a><button class="btn pri" data-act="sheet-close">닫기</button></div>');
 }
 
@@ -3245,9 +3271,14 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.6', d: '2026-11-27', title: '여행 날처럼 써 보고 고쳤어요', items: [
+    ['sos', 'var(--coral)', '택시는 「기사님께 보여 주기」', '일정의 택시 칸에서 누르면 갈 곳을 일본어 큰 글씨로 보여 줘요. 「택시 타는 법」에 카카오T 「해외차량호출」(한국어·한국 카드 그대로)·우버·길에서 잡는 법을 적었어요.'],
+    ['check', 'var(--mint)', '예약할 곳은 하나', '미리 예약할 곳은 12/31 저녁 우설집(리큐) 하나예요. 준비물 「12/31 저녁 식당 예약」에 순서와 전화할 때 쓸 일본어를 적었어요. 톤보리 유람선은 18:30 배로 고쳤어요(정각·30분에만 떠요).'],
+    ['ticket', 'var(--sky)', 'USJ는 기다림까지', '놀이기구마다 ⏳ 예상 대기와 ⭐ 순서를 달았어요. 겨울에 젖는 쥬라기 라이드는 빼고, 남매는 플라잉 다이너소어를 싱글라이더로.'],
+    ['plan', 'var(--lav)', '작은 고침', '「내일 쓸 티켓」은 한 줄로, 「오늘 쓴 돈」에는 미리 낸 돈을 빼고, 「차 세웠나요?」는 비행기 뜨기 전까지만 보여요.']] },
   { v: '6.5', d: '2026-11-27', title: '하루 동선 지도 · USJ 세부 일정', items: [
     ['globe', 'var(--sky)', '이날 동선', '일정 → 하루씩에서 그날 갈 곳을 번호와 점선으로 지도에 보여 줘요. 🚕·🚃 같은 탈것 그림도 붙어요. USJ 날은 「USJ 안 | 하루 전체」로 바꿔 볼 수 있어요.'],
-    ['ticket', 'var(--coral)', 'USJ 12/30 세부 일정', '오픈런 → 닌텐도(동키콩·마리오 카트) → 바우처 간식 → 죠스·쥬라기 → 워터월드 → 해리포터(랠리·금지된 여행·점심·마법 생물) → 16시 닌텐도 다시 → 나이트 쇼. 싱글라이더 되는 곳도 적었어요.'],
+    ['ticket', 'var(--coral)', 'USJ 12/30 세부 일정', '오픈런 → 닌텐도(동키콩·마리오 카트) → 바우처 간식 → 죠스·플라잉 다이너소어 → 워터월드 → 해리포터(랠리·금지된 여행·점심·마법 생물) → 16시 닌텐도 다시 → 나이트 쇼. 싱글라이더 되는 곳도 적었어요.'],
     ['sos', 'var(--warn)', '택시는 꼭 필요할 때만', '새벽 어두운 길(숙소 → 신이마미야), 한밤 귀가(스파월드 → 숙소), 기요미즈 오르막 세 번만 타요. 넷이 한 대면 전철값과 비슷해요.']] },
   { v: '6.4', d: '2026-11-27', title: '오프라인 준비가 저절로 돼요', items: [
     ['folder', 'var(--mint)', '저절로 받아 두기', '앱을 열고 인터넷이 되면 그림·일본어 소리·지도·티켓을 저절로 휴대폰에 받아 둬요. 따로 누르지 않아도 돼요. 설정 → 「여행 전 오프라인 준비」에서 ✅로 확인할 수 있어요.'],

@@ -1520,3 +1520,7 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .dpin{position:relative}
 .dpin i{position:absolute;right:-11px;top:-10px;font-style:normal;font-size:15px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 .dm-emo{font-style:normal;font-size:15px;margin-right:-2px}
+.taxi-how summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.taxi-how ol{margin:8px 0 8px 18px;padding:0;display:grid;gap:8px;font-size:15px;line-height:1.55}
+.tk-tom small{color:var(--muted,#6b7280);font-size:13px}
+.taxi-go{background:#FFF4D6;color:#7a4b00;border-color:#f3d48a}
