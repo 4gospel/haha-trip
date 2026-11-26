@@ -1323,3 +1323,4 @@ body.tk-on{overflow:hidden}
 .wl-link > span{display:flex;flex-direction:column;flex:1;min-width:0}.wl-link > span > span{font-size:13px;color:var(--sub)}.wl-link > svg{width:18px;height:18px;color:var(--sub)}
 .wl-acts{gap:8px;margin-top:14px}.wl-acts .btn{flex:1}
 .wl-go{font-style:normal;font-size:24px;color:var(--sub)}
+.hide{display:none!important}
