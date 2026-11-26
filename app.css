@@ -1527,3 +1527,7 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .alert .al-t{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:2px;background:none;border:0;padding:0;color:inherit;font:inherit}
 .alert .al-t span{font-size:14px;color:var(--muted,#6b7280)}
+.late-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(80px,100%),1fr));gap:8px;margin-top:12px}
+.late-fx{padding:4px 0;font-size:15px}
+.go-moved{font-style:normal;color:var(--warn-ink,#C62A2F);font-weight:600}
+.late-all{display:flex;gap:8px;align-items:center;margin-top:10px;min-height:44px;font-size:15px}.late-all input{width:22px;height:22px}

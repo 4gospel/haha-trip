@@ -944,7 +944,7 @@ function todayTab(t) {
     const mins = s2 => { const m = String(s2 || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
     const nx = next[0], left = nx && mins(nx.time) != null ? mins(nx.time) - mins(now) : null;
     const nowLine = (cur || nx) ? '<div class="nowline">' + (cur ? '<span>⏱ 지금 <b>' + esc(cur.title) + '</b></span>' : '') + (nx ? '<span>다음 <b>' + esc(nx.time + ' ' + nx.title) + '</b>' + (left != null && left >= 0 ? ' <em>' + (left >= 60 ? Math.floor(left / 60) + '시간 ' + (left % 60 ? left % 60 + '분 ' : '') : left + '분 ') + '뒤</em>' : '') + '</span>' : '') + '</div>' : '';
-    h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></div>' +
+    h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><span class="flex" style="gap:10px"><button class="linkbtn" data-act="late">⏱ 늦어졌어요</button><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></span></div>' +
       nowLine + (show.length ? tlList(t, show, true) : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
     h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
     if (hotelOf(t)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="taxi"><span class="sc-ic" style="font-size:26px">🚕</span><span><b>택시에 숙소 주소 보여 주기</b><span>' + esc(hotelOf(t).title) + '</span></span></button></div>';
@@ -1013,7 +1013,21 @@ function carCard(t, top) {
 
 /* 일정 사이 이동 — i.go = { t: walk|transit|taxi, s: 한 줄, min, fare, dep, from, to, steps:[{m,l,f,d,to,a,n,min}] } (구글 길찾기로 확인한 것) */
 const GO_IC = { walk: '🚶', transit: '🚃', taxi: '🚕', bus: '🚌' };
-const goLine = i => i.go && i.go.s ? '<div class="goline">' + (GO_IC[i.go.t] || '➜') + ' ' + esc(i.go.s) + '</div>' : '';
+/** 가는 길 한 줄 — 순서를 바꾸면 저절로 따라감(팀장님 2026-11-27 「순서를 바꾸면 동선과 내용도 바뀌나?」)
+ *  · 파크 안(zone)처럼 걸어서 가는 곳: 바로 앞 일정 좌표에서 걸음 분을 그때그때 셈
+ *  · 전철·택시처럼 적어 둔 길: 앞 일정이 바뀌었으면 「길찾기로 다시 보기」 알림 */
+const prevItem = i => { const l = live('items', i.trip).filter(x => x.date === i.date).sort(byTime), k = l.findIndex(x => x.id === i.id); return k > 0 ? l[k - 1] : null; };
+const walkMin = (a, b) => { const R = 6371e3, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r, h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2, m = 2 * R * Math.asin(Math.sqrt(h)) * 1.3; return { m, min: Math.max(1, Math.round(m / 70)) }; };
+const goLine = i => {
+  const p = i.date ? prevItem(i) : null, g = i.go || {};
+  if (p && i.zone && i.zone === p.zone && i.lat != null && p.lat != null && (!g.t || g.t === 'walk')) {
+    const w = walkMin(p, i);
+    return '<div class="goline">🚶 ' + esc(p.pin || planName(p)) + (w.m < 60 ? '에서 바로 옆' : '에서 걸어서 약 ' + w.min + '분') + '</div>';
+  }
+  if (!g.s) return '';
+  const moved = !!(p && g.after && p.id !== g.after); // go.after = 이 길을 적을 때 바로 앞 일정 — 순서가 바뀌면 알림
+  return '<div class="goline">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + (moved ? ' <em class="go-moved">· 앞 일정이 바뀌었어요 — 「길찾기」로 다시 봐요</em>' : '') + '</div>';
+};
 function goUrl(i) {
   const g = i.go; if (!g || !g.from || !g.to) return '';
   let data = '/data=!4m2!4m1!3e2';
@@ -2999,6 +3013,8 @@ document.addEventListener('click', e => {
     offline: () => offlineOpen(),
     'sos-book': () => { closeSheet(); go(tripUrl(t.id, 'book')); setTimeout(() => { const x = document.getElementById('bk_sos'); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70 }); }, 300); },
     taxi: () => taxiOpen(t, v ? D.items[v] : null),
+    late: () => lateOpen(t),
+    'late-go': () => lateGo(t, Number(v) || 15),
     'taxi-ja': () => { const hb = live('bookings', t.id).find(b => b.kind === '숙소'); if (hb) askText('일본어 주소 (택시 기사님께 보여 줄 주소)', hb.jaAddr || '', v2 => { put('bookings', Object.assign({}, hb, { jaAddr: v2.trim() })); taxiOpen(t); }); },
     'taxi-copy': () => { const x = el.dataset.v; (navigator.clipboard ? navigator.clipboard.writeText(x) : Promise.reject()).then(() => toast('주소를 복사했어요'), () => toast(x)); },
     'book-jump': () => { const x = document.getElementById('bk_' + v); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70, behavior: 'smooth' }); },
@@ -3142,6 +3158,37 @@ async function offlineAuto() {
 setTimeout(offlineAuto, 6000);
 setInterval(offlineAuto, 10 * 60000);
 window.addEventListener('online', () => setTimeout(offlineAuto, 3000));
+/* ---------- 늦어졌어요 — 남은 일정 한꺼번에 미루기 (팀장님 2026-11-27 「스케줄을 놓치거나 변경되었을 때는?」) ----------
+   정각 입장권·공연·배·비행기처럼 시간이 정해진 일정(fixed·「정각」)은 그대로 두고, 겹치면 알려 줌. 되돌리기 있음 */
+const isFixed = i => !!(i.fixed || /정각/.test(i.title || ''));
+const addMin = (s, n) => { const m = String(s).match(/(\d{1,2}):(\d{2})/); if (!m) return s; const v = Math.min(23 * 60 + 59, +m[1] * 60 + +m[2] + n); return String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0'); };
+function lateList(t) {
+  const t0 = today(), now = hm().slice(0, 5), l = live('items', t.id).filter(i => i.date === t0 && !i.done && i.time).sort(byTime);
+  const cur = l.filter(i => i.time < now).slice(-1)[0], from = cur ? cur.time : now;
+  return l.filter(i => i.time >= from);
+}
+/** 미룰 일정 — 기본은 다음 「시간 정해진 일정」 앞까지(그 자리에서 늦음을 흡수), all이면 남은 것 모두 */
+function latePick(t, all) {
+  const l = lateList(t), fx = l.filter(isFixed), f0 = fx[0];
+  return { mv: l.filter(i => !isFixed(i) && (all || !f0 || i.time < f0.time)), fx, f0 };
+}
+function lateOpen(t) {
+  const { mv, fx, f0 } = latePick(t, false), all = latePick(t, true).mv;
+  if (!all.length) return toast('오늘 남은 일정 중 미룰 것이 없어요');
+  openSheet('<h2>⏱ 늦어졌어요</h2><div class="muted">' + (f0 && mv.length ? '다음 시간 정해진 일정 <b>' + esc(f0.time + ' ' + planName(f0)) + '</b> 앞까지 ' + mv.length + '개를 뒤로 미뤄요.' : '남은 일정 ' + all.length + '개를 뒤로 미뤄요.') + ' 동선 지도·「지금 · 다음」도 따라 바뀌어요.</div>' +
+    (f0 && mv.length && all.length > mv.length ? '<label class="late-all"><input type="checkbox" id="late_all"> 그 뒤 일정까지 모두 (' + all.length + '개)</label>' : '') +
+    '<div class="late-btns">' + [15, 30, 45, 60, 90].map(n => '<button class="btn big" data-act="late-go" data-v="' + n + '">+' + n + '분</button>').join('') + '</div>' +
+    (fx.length ? '<div class="card" style="margin-top:12px"><b>시간이 정해진 일정은 그대로예요</b>' + fx.map(i => '<div class="late-fx"><b class="num">' + esc(i.time) + '</b> ' + esc(planName(i)) + '</div>').join('') + '<div class="muted small" style="margin-top:6px">미룬 일정이 이 시간과 겹치면 알려 드려요 — 그땐 하나를 건너뛰어요(동그라미를 눌러 「다녀옴」으로 두면 목록에서 비켜요).</div></div>' : '') +
+    '<div class="muted small" style="margin-top:10px">하나만 바꾸려면 그 일정을 눌러 시간을 고쳐요 — 순서·동선이 저절로 따라가요.</div>' +
+    '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
+}
+function lateGo(t, n) {
+  const box = $('#late_all'), p0 = latePick(t, false), { mv, fx } = latePick(t, (box && box.checked) || !p0.mv.length), back = mv.map(i => Object.assign({}, i));
+  mv.forEach(i => put('items', Object.assign({}, i, { time: addMin(i.time, n) }), true));
+  closeSheet(); render();
+  const clash = fx.filter(f => mv.some(i => { const nt = addMin(i.time, n); return i.time < f.time && nt >= f.time; }));
+  toast(mv.length + '개를 ' + n + '분 미뤘어요' + (clash.length ? ' · ⚠️ ' + '겹쳐요: ' + clash.map(f => f.time + ' ' + planName(f)).join(', ') + ' — 하나를 건너뛰어요' : ''), () => { back.forEach(b => put('items', b, true)); render(); });
+}
 /** 한 줄 적기 창 */
 function askText(title, val, cb) {
   openSheet('<h2>' + esc(title) + '</h2><textarea class="in" id="ask_v" rows="3">' + esc(val || '') + '</textarea><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="ask_ok">저장</button></div>', el => { const i = el.querySelector('#ask_v'); setTimeout(() => i.focus(), 50); el.querySelector('#ask_ok').onclick = () => { const v = i.value; closeSheet(); cb(v); }; });
@@ -3271,6 +3318,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.7', d: '2026-11-27', title: '늦어지거나 순서가 바뀌어도 따라가요', items: [
+    ['route', 'var(--coral)', '⏱ 늦어졌어요', '오늘 화면 「지금 · 다음 일정」의 「⏱ 늦어졌어요」를 누르고 +15·30·60분을 고르면, 다음 시간 정해진 일정(정각 입장권·공연·배·비행기) 앞까지 한꺼번에 미뤄요. 겹치면 알려 주고, 되돌리기도 돼요.'],
+    ['globe', 'var(--sky)', '순서를 바꾸면 동선도', '일정 시간을 고치면 순서·동선 지도·「지금 · 다음」이 저절로 바뀌어요. USJ 안 걸음 분은 바로 앞 일정에서 다시 셈해요. 전철·택시 길은 앞 일정이 바뀌면 「길찾기로 다시 봐요」라고 알려 줘요.']] },
   { v: '6.6', d: '2026-11-27', title: '여행 날처럼 써 보고 고쳤어요', items: [
     ['sos', 'var(--coral)', '택시는 「기사님께 보여 주기」', '일정의 택시 칸에서 누르면 갈 곳을 일본어 큰 글씨로 보여 줘요. 「택시 타는 법」에 카카오T 「해외차량호출」(한국어·한국 카드 그대로)·우버·길에서 잡는 법을 적었어요.'],
     ['check', 'var(--mint)', '예약할 곳은 하나', '미리 예약할 곳은 12/31 저녁 우설집(리큐) 하나예요. 준비물 「12/31 저녁 식당 예약」에 순서와 전화할 때 쓸 일본어를 적었어요. 톤보리 유람선은 18:30 배로 고쳤어요(정각·30분에만 떠요).'],
