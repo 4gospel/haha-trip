@@ -1782,6 +1782,9 @@ function bookTab(t) {
 /* ---------- 여행책 (book-<도시>.js) — 책처럼 넘겨 읽기 · PDF·EPUB 받기 ---------- */
 const bookFor = t => { const B = window.TRIPBOOK || {}; return Object.values(B).find(b => b && b.match && b.match.test((t.place || '') + ' ' + (t.title || '') + ' ' + t.id)) || null; };
 const RB_KEY = t => 'rb.' + t.id + '.' + ME;
+const RB_T10 = t => 'rb.t10.' + t.id + '.' + ME;
+const RB_FS = ['', 'l', 'xl'];
+const rbFs = () => { const v = LS.get('rb.fs', ''); return RB_FS.includes(v) ? v : ''; };
 let RB = null; // { t, b, P, chs, i, h }
 const RB_CAT = { 이동: '🚃', 관광: '📍', 식사: '🍽️', 간식: '🍡', 숙소: '🏨', 쇼핑: '🛍️', 주차: '🅿️', 기타: '•' };
 const rbItems = t => live('items', t.id).filter(i => i.title).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
@@ -1829,7 +1832,13 @@ function rbPaint(dir) {
   const sh = el.querySelector('.rb-sheet');
   sh.className = 'rb-sheet' + (wide ? ' spread' : '') + (dir ? ' in-' + dir : '');
   sh.innerHTML = pages.map(k => k < n ? '<div class="rb-leaf">' + rbPageHtml(R, R.t, R.b, k) + '</div>' : '<div class="rb-leaf blank"></div>').join('');
-  sh.querySelectorAll('.rb-leaf').forEach(l => { l.scrollTop = 0; });
+  const t10 = LS.get(RB_T10(R.t), []);
+  sh.querySelectorAll('.rb-leaf').forEach(l => {
+    l.scrollTop = 0;
+    l.querySelectorAll('.rb-top10 li').forEach((li, k) => { li.dataset.rb = 't10'; li.dataset.v = k; li.setAttribute('role', 'checkbox'); li.setAttribute('aria-checked', t10.includes(k)); li.classList.toggle('done', t10.includes(k)); });
+    const more = () => l.classList.toggle('more', l.scrollHeight - l.clientHeight - l.scrollTop > 24);
+    l.addEventListener('scroll', more, { passive: true }); setTimeout(more, 60);
+  });
   const x = R.P[R.i]; el.querySelector('.rb-ttl').textContent = x.c ? x.c.ic + ' ' + x.c.t : R.b.title;
   const last = Math.min(n, R.i + pages.length);
   el.querySelector('.rb-prog i').style.width = Math.round(last / n * 100) + '%';
@@ -1845,20 +1854,24 @@ function rbOpen(t, at) {
   const R = rbBuild(t, b), saved = LS.get(RB_KEY(t), 0);
   RB = Object.assign(R, { t, b, i: at != null ? at : (+saved || 0), h: false });
   const el = document.createElement('div'); el.id = 'reader'; el.className = 'rb'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', b.title);
-  el.innerHTML = '<div class="rb-top"><button class="rb-x" data-rb="close" aria-label="책 닫기">' + ic('back') + '</button><div class="rb-ttl"></div><button class="rb-tb" data-rb="go" data-v="1">차례</button><button class="rb-tb" data-act="rb-get" aria-label="PDF·EPUB 받기">⋯</button></div>' +
+  el.innerHTML = '<div class="rb-top"><button class="rb-x" data-rb="close" aria-label="책 닫기">' + ic('back') + '</button><div class="rb-ttl"></div><button class="rb-tb rb-fs" data-rb="fs" aria-label="글자 크기">가<small>가</small></button><button class="rb-tb" data-rb="go" data-v="1">차례</button><button class="rb-tb" data-act="rb-get" aria-label="PDF·EPUB 받기">⋯</button></div>' +
     '<div class="rb-stage"><div class="rb-sheet"></div></div>' +
     '<div class="rb-bot"><button class="rb-nb" data-rb="prev" aria-label="앞 쪽">‹</button><div class="rb-prog"><i></i><span class="num"></span></div><button class="rb-nb" data-rb="next" aria-label="다음 쪽">›</button></div>';
+  el.dataset.fs = rbFs();
   document.body.appendChild(el); document.body.classList.add('rb-on'); document.body.style.overflow = 'hidden';
   if (!POP_SKIP) { history.pushState({ rb: 1 }, ''); RB.h = true; }
   el.addEventListener('click', e => {
     const b2 = e.target.closest('[data-rb]'); if (!b2) return;
     const a = b2.dataset.rb;
+    if (a === 't10') { const k = +b2.dataset.v, cur = LS.get(RB_T10(RB.t), []), on = !cur.includes(k); LS.set(RB_T10(RB.t), on ? cur.concat(k) : cur.filter(x => x !== k)); b2.classList.toggle('done', on); b2.setAttribute('aria-checked', on); if (on) buzz(); return; }
+    if (a === 'fs') { const n = RB_FS[(RB_FS.indexOf(rbFs()) + 1) % RB_FS.length]; LS.set('rb.fs', n); el.dataset.fs = n; toast(['보통 글씨', '큰 글씨', '아주 큰 글씨'][RB_FS.indexOf(n)]); return; }
     if (a === 'close') rbClose(); else if (a === 'prev') rbTurn(-1); else if (a === 'next') rbTurn(1); else if (a === 'go') rbGo(+b2.dataset.v);
   });
   // 쓸어 넘기기 (옆으로) — 위아래는 쪽 안에서 스크롤
   const stage = el.querySelector('.rb-stage'); let sx = 0, sy = 0, dx = 0, on = false, lock = '';
   stage.addEventListener('touchstart', e => { const p = e.touches[0]; sx = p.clientX; sy = p.clientY; dx = 0; on = true; lock = ''; }, { passive: true });
   stage.addEventListener('touchmove', e => { if (!on) return; const p = e.touches[0]; const ddx = p.clientX - sx, ddy = p.clientY - sy; if (!lock && (Math.abs(ddx) > 10 || Math.abs(ddy) > 10)) lock = Math.abs(ddx) > Math.abs(ddy) * 1.2 ? 'x' : 'y'; if (lock === 'x') { dx = ddx; el.querySelector('.rb-sheet').style.transform = 'translateX(' + dx * .6 + 'px)'; } }, { passive: true });
+  stage.addEventListener('click', e => { if (lock === 'x' || e.target.closest('a,button,[data-rb],[data-act],summary,details,input')) return; const r = stage.getBoundingClientRect(), x = e.clientX - r.left; if (x < r.width * .16) rbTurn(-1); else if (x > r.width * .84) rbTurn(1); });
   stage.addEventListener('touchend', () => { if (!on) return; on = false; const sh = el.querySelector('.rb-sheet'); sh.style.transform = ''; if (lock === 'x' && Math.abs(dx) > 55) rbTurn(dx < 0 ? 1 : -1); });
   rbPaint('');
 }
@@ -1939,7 +1952,7 @@ async function toJpeg(src) {
   const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(bm, 0, 0, cv.width, cv.height);
   const jb = await new Promise(res => cv.toBlob(res, 'image/jpeg', .82)); return new Uint8Array(await jb.arrayBuffer());
 }
-const EPUB_CSS = 'body{font-family:serif;line-height:1.75;margin:0 4%;word-break:keep-all}h1{font-size:1.8em}h2{font-size:1.35em;margin:.4em 0 .6em}.rb-run{font-size:.75em;color:#8a7a66}.lead{font-size:1.08em;border-left:4px solid #e9a36b;padding-left:.7em}figure{margin:1em 0}figure img{max-width:100%}figcaption{font-size:.8em;color:#666}figcaption small{display:block}.rb-art.small img{width:30%;float:right;margin:0 0 .5em .8em}.rb-box{border:1px solid #e5d9c7;border-radius:8px;padding:.6em .9em;margin:1em 0;background:#fbf6ee}.rb-voice{background:#eef4fc}.rb-tip{background:#ecf8f3}.rb-box>b{display:block;margin-bottom:.3em}.rb-facts div{border-bottom:1px solid #eee;padding:.35em 0}.rb-facts span{display:block;font-size:.85em;color:#777}.rb-tl{padding-left:1.2em}.rb-tl em{font-style:normal;font-weight:bold;margin-right:.5em}.rb-chk{font-size:.75em;color:#9a6400}.rb-era span{display:inline-block;border:1px solid #ddd;border-radius:6px;padding:.2em .5em;margin:.15em}.rb-era small{display:block;font-size:.75em;color:#777}.rb-lines div{margin:.4em 0}.rb-lines i{display:inline-block;color:#fff;font-style:normal;font-weight:bold;padding:0 .4em;border-radius:4px;margin-right:.4em}.rb-lines b{margin-right:.4em}.rb-more{border-top:1px dashed #ccc;margin-top:1.2em;padding-top:.6em}.rb-more a{display:block;margin:.4em 0;color:#b4232a}.rb-more small{display:block;color:#777;font-size:.8em}.rb-more i{font-style:normal;margin-right:.4em}.rb-ours{font-size:.9em;color:#555}.rb-ours span{display:block}.rb-it{border-bottom:1px solid #eee;padding:.4em 0}.rb-it-t{display:inline-block;min-width:3.2em;font-weight:bold}.rb-it small{display:block;color:#777}.rb-pn{font-size:.8em;color:#8a7a66;margin-left:.5em}.rb-folio{text-align:center;color:#aaa;font-size:.8em;margin-top:1.5em}.rb-cover{text-align:center}.rb-cover img{max-width:100%}.rb-who span{margin:0 .3em}.rb-toc li,.rb-olist li{margin:.3em 0}.rb-toc i,.rb-olist i,.rb-toc em,.rb-olist em{font-style:normal;margin:0 .4em}.rb-map{width:100%;height:auto}.m-land{fill:#f6f1e7}.m-sea{fill:#cfe3f5}.m-river{fill:none;stroke:#9cc4ea;stroke-width:4}.m-line{fill:none;stroke-width:3}.m-pt{fill:#ff7a59;stroke:#fff;stroke-width:2}.m-pt.us{fill:#4c8df6}.m-tx{font-size:12px;fill:#333}.m-area{font-size:13px;fill:#8a7a66;font-weight:bold}.m-note,.m-lt{font-size:10px;fill:#999}.m-n path{fill:#555}.m-n text{font-size:10px}.rb-quiz .q{font-weight:bold;margin-bottom:0}.rb-ref img{width:40%}.rb-credits{font-size:.85em}.small-note{font-size:.85em;color:#777}.rb-oimg img{width:100%}.rb-top10 li{margin:.4em 0}.rb-top10 i{font-style:normal;margin-right:.4em}.rb-top10 small{display:block;color:#777;font-size:.8em}';
+const EPUB_CSS = 'body{font-family:serif;line-height:1.75;margin:0 4%;word-break:keep-all}h1{font-size:1.8em}h2{font-size:1.35em;margin:.4em 0 .6em}.rb-run{font-size:.75em;color:#8a7a66}.lead{font-size:1.08em;border-left:4px solid #e9a36b;padding-left:.7em}figure{margin:1em 0}figure img{max-width:100%}figcaption{font-size:.8em;color:#666}figcaption small{display:block}.rb-art.small img{width:30%;float:right;margin:0 0 .5em .8em}.rb-box{border:1px solid #e5d9c7;border-radius:8px;padding:.6em .9em;margin:1em 0;background:#fbf6ee}.rb-voice{background:#eef4fc}.rb-judge{background:#f3effc;border-left:4px solid #9b7bf2}.rb-tip{background:#ecf8f3}.rb-box>b{display:block;margin-bottom:.3em}.rb-facts div{border-bottom:1px solid #eee;padding:.35em 0}.rb-facts span{display:block;font-size:.85em;color:#777}.rb-tl{padding-left:1.2em}.rb-tl em{font-style:normal;font-weight:bold;margin-right:.5em}.rb-chk{font-size:.75em;color:#9a6400}.rb-era span{display:inline-block;border:1px solid #ddd;border-radius:6px;padding:.2em .5em;margin:.15em}.rb-era small{display:block;font-size:.75em;color:#777}.rb-lines div{margin:.4em 0}.rb-lines i{display:inline-block;color:#fff;font-style:normal;font-weight:bold;padding:0 .4em;border-radius:4px;margin-right:.4em}.rb-lines b{margin-right:.4em}.rb-more{border-top:1px dashed #ccc;margin-top:1.2em;padding-top:.6em}.rb-more a{display:block;margin:.4em 0;color:#b4232a}.rb-more small{display:block;color:#777;font-size:.8em}.rb-more i{font-style:normal;margin-right:.4em}.rb-ours{font-size:.9em;color:#555}.rb-ours span{display:block}.rb-it{border-bottom:1px solid #eee;padding:.4em 0}.rb-it-t{display:inline-block;min-width:3.2em;font-weight:bold}.rb-it small{display:block;color:#777}.rb-pn{font-size:.8em;color:#8a7a66;margin-left:.5em}.rb-folio{text-align:center;color:#aaa;font-size:.8em;margin-top:1.5em}.rb-cover{text-align:center}.rb-cover img{max-width:100%}.rb-who span{margin:0 .3em}.rb-toc li,.rb-olist li{margin:.3em 0}.rb-toc i,.rb-olist i,.rb-toc em,.rb-olist em{font-style:normal;margin:0 .4em}.rb-map{width:100%;height:auto}.m-land{fill:#f6f1e7}.m-sea{fill:#cfe3f5}.m-river{fill:none;stroke:#9cc4ea;stroke-width:4}.m-line{fill:none;stroke-width:3}.m-pt{fill:#ff7a59;stroke:#fff;stroke-width:2}.m-pt.us{fill:#4c8df6}.m-tx{font-size:12px;fill:#333}.m-area{font-size:13px;fill:#8a7a66;font-weight:bold}.m-note,.m-lt{font-size:10px;fill:#999}.m-n path{fill:#555}.m-n text{font-size:10px}.rb-quiz .q{font-weight:bold;margin-bottom:0}.rb-ref img{width:40%}.rb-credits{font-size:.85em}.small-note{font-size:.85em;color:#777}.rb-oimg img{width:100%}.rb-top10 li{margin:.4em 0}.rb-top10 i{font-style:normal;margin-right:.4em}.rb-top10 small{display:block;color:#777;font-size:.8em}';
 async function rbEpub(t) {
   closeSheet(); toast('전자책을 만들고 있어요…');
   try {
@@ -2615,6 +2628,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '5.4', d: '2026-11-26', title: '여행책을 전문가 눈으로 다듬었어요', items: [
+    ['check', 'var(--mint)', '사실을 한 번 더', '일본사·한국사·여행·국어 네 갈래로 점검해 틀린 연도와 설명을 고쳤어요. 오사카성 돌담은 히데요시가 아니라 도쿠가와 때 쌓은 것이라는 것도 새로 적었어요.'],
+    ['ticket', 'var(--coral)', '면세가 바뀌었어요', '11월부터 면세는 세금까지 먼저 내고 공항에서 돌려받는 방식이에요. 책 1장과 스파월드·쓰텐카쿠 주의할 점도 더했어요.'],
+    ['book', 'var(--sky)', '읽기 편하게', '책 위 「가가」로 글씨를 크게, 「꼭 해 볼 10가지」는 눌러서 ✓, 쪽 가장자리를 누르면 넘어가요. 여는 글과 「돌아와서 쓰는 쪽」도 생겼어요.']] },
   { v: '5.3', d: '2026-11-26', title: '여행책에 역사 이야기가 더해졌어요', items: [
     ['memory', 'var(--lav)', '오사카로 읽는 일본 역사', '나니와궁부터 오사카성, 오사카 전투(1614~15), 상인 문화와 분라쿠, 1970·2025 엑스포까지 열 쪽으로 깊어졌어요. 신세카이 옆 언덕이 400년 전 싸움터였다는 것도 알게 돼요.'],
     ['talk', 'var(--sky)', '한국과 일본 2천 년', '도래인과 백제, 왜구, 임진왜란과 귀무덤, 조선통신사, 일제강점기, 1965년 이후까지 — 좋은 일과 아픈 일을 사실과 평가로 나눠 새 장에 담았어요.'],

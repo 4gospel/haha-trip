@@ -1166,3 +1166,14 @@ body.rb-on{overflow:hidden}
 .rb-cin{padding-top:clamp(28px,8vh,64px)}
 #rb-print .rb-cin{bottom:auto;top:0}
 .rb-oimg{position:relative}.rb-oimg figcaption{position:absolute;right:8px;bottom:8px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.45);color:#fff}
+/* 여행책 디자인 점검 반영 — 글자 크기·체크·아래에 더 있음 */
+.rb-fs{font-size:15px;letter-spacing:-.04em;display:flex!important;align-items:baseline;justify-content:center;white-space:nowrap}.rb-fs small{font-size:11px;margin-left:1px}
+.rb[data-fs="l"] .rb-pg{font-size:18.5px}.rb[data-fs="l"] .rb-box,.rb[data-fs="l"] .rb-facts div,.rb[data-fs="l"] .rb-tl li{font-size:17px}
+.rb[data-fs="xl"] .rb-pg{font-size:20.5px}.rb[data-fs="xl"] .rb-box,.rb[data-fs="xl"] .rb-facts div,.rb[data-fs="xl"] .rb-tl li{font-size:19px}
+.rb[data-fs="xl"] .rb-pg h2{font-size:25px}
+.rb-top10 li[data-rb]{cursor:pointer;min-height:52px}
+.rb-top10 li.done{background:color-mix(in srgb,var(--mint) 18%,transparent)}
+.rb-top10 li.done::before{content:"✓";background:var(--mint)}
+.rb-top10 li.done b{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--rb-ink) 40%,transparent)}
+.rb-leaf{position:relative}
+.rb-leaf.more{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 56px),rgba(0,0,0,.25));mask-image:linear-gradient(180deg,#000 calc(100% - 56px),rgba(0,0,0,.25))}
