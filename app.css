@@ -1152,3 +1152,14 @@ body.rb-on{overflow:hidden}
 .daycost span{display:inline-flex;align-items:center;gap:4px;color:var(--soft);font-weight:700;font-size:13.5px}.daycost span .i{width:16px;height:16px}
 .daycost b{font-size:17px;font-weight:800}.daycost em{font-style:normal;color:var(--soft);font-size:14px}.daycost small{margin-left:auto;color:var(--soft);font-size:12.5px}
 .sched .dr-tot{font-weight:600;color:var(--soft);font-size:12.5px}
+.rb-top10{list-style:none;padding:0;margin:8px 0 12px;display:grid;gap:6px;counter-reset:t}
+.rb-top10 li{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:color-mix(in srgb,var(--rb-edge) 40%,transparent);counter-increment:t}
+.rb-top10 li::before{content:counter(t);flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--rb-acc);color:#fff;font-weight:800;font-size:13px}
+.rb-top10 i{font-style:normal;font-size:22px;flex:none}.rb-top10 b{display:block;font-size:15px;line-height:1.4}.rb-top10 small{display:block;font-size:12.5px;color:var(--rb-soft)}
+.rb-refs li{margin:6px 0}
+.rb-photo.tall img{max-height:min(62vh,480px);object-fit:contain;background:none}
+#rb-print .rb-photo.tall img{max-height:110mm}
+.rb-cover{justify-content:flex-start}
+.rb-cover::before{background:linear-gradient(180deg,rgba(8,16,40,.6),rgba(8,16,40,.15) 45%,rgba(8,16,40,0) 60%)}
+.rb-cin{padding-top:clamp(28px,8vh,64px)}
+#rb-print .rb-cin{bottom:auto;top:0}
