@@ -592,6 +592,7 @@ function render_() {
   else app.innerHTML = homeView();
   const s = $('#sync'); if (s) paintSync(s);
   if ($('#tmap')) mountMap();
+  if ($('#dmap')) mountDayMap();
 }
 const nightArt = () => partOfDay() === 'night' ? '<img class="night-art" src="img/night-sky.webp" alt="">' : '';
 function greeting() {
@@ -735,7 +736,7 @@ let LEAF = null;
 function leaflet() {
   if (window.L) return Promise.resolve(window.L);
   return LEAF || (LEAF = new Promise((ok, no) => {
-    const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'lib/leaflet/leaflet.css'; // 앱 안에 둠 — 인터넷이 끊겨도·배포처가 오염돼도 안전(보안·여행 앱 전문가) document.head.append(c);
+    const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'lib/leaflet/leaflet.css'; document.head.append(c); // 앱 안에 둠 — 인터넷이 끊겨도·배포처가 오염돼도 안전(보안·여행 앱 전문가)
     const sc = document.createElement('script'); sc.src = 'lib/leaflet/leaflet.js'; sc.onload = () => ok(window.L); sc.onerror = () => { LEAF = null; no(new Error('지도')); }; document.head.append(sc);
   }));
 }
@@ -773,6 +774,61 @@ async function mountMap(again) {
   else if (mk === 'kr') MAP.setView([36.2, 127.9], 6); else MAP.setView([30, 60], 1);
   setTimeout(() => MAP && MAP.invalidateSize(), 60);
   if (!again) geoFill(pins);
+}
+
+/* 하루 동선 지도 (팀장님 2026-11-27 「지도 포함 → 동선 마킹」): 그날 일정 좌표를 시간 순서대로 번호 핀 + 선. 일정에 zone(예: USJ)이 있으면 「USJ 안 | 하루 전체」 */
+function dayMapPts(t, d) {
+  const all = live('items', t.id).filter(i => i.date === d && i.lat != null && i.lng != null).sort(byTime);
+  const zones = [...new Set(all.map(i => i.zone).filter(Boolean))];
+  const z = UI.dmz === 'all' ? 'all' : zones.includes(UI.dmz) ? UI.dmz : zones[0] || 'all';
+  return { pts: z === 'all' ? all : all.filter(i => i.zone === z), zones, z };
+}
+function dayMapHtml(t, d) {
+  const { pts, zones, z } = dayMapPts(t, d); if (pts.length < 2) return '';
+  return '<div class="sec dmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + '이날 동선</h3>' +
+    (zones.length ? '<div class="seg mini">' + zones.map(x => '<button class="' + (z === x ? 'on' : '') + '" data-act="dmz" data-v="' + esc(x) + '">' + esc(x) + ' 안</button>').join('') + '<button class="' + (z === 'all' ? 'on' : '') + '" data-act="dmz" data-v="all">하루 전체</button></div>' : '') + '</div>' +
+    '<div class="tmap-wrap"><div id="dmap" class="tmap dmap" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
+    '<div class="dmap-leg">' + pts.map((i, k) => '<button data-act="item-view" data-v="' + esc(i.id) + '"' + (i.done ? ' class="done"' : '') + '><b class="num">' + (k + 1) + '</b><span class="num">' + esc(i.time || '') + '</span>' + (dmEmo(i) ? '<i class="dm-emo">' + dmEmo(i) + '</i>' : '') + esc(dmLab(i)) + '</button>').join('') + '</div></div>';
+}
+/** 동선에서 탈것 그림(팀장님 2026-11-27 「대중교통 항목엔 이모티콘」) */
+function dmEmo(i) {
+  const g = i.go || {}, tx = (i.title || '') + ' ' + (i.memo || '');
+  if (g.t === 'taxi' || /택시/.test(i.title || '')) return '🚕';
+  if (i.cat !== '이동' && g.t !== 'transit') return '';
+  if (/출발 \(|비행|항공|\b7C\d/.test(i.title || '')) return '✈️';
+  if (/페리|배로|선착장/.test(i.title || '')) return '⛴️';
+  const st = g.steps || [];
+  if (st.some(x => x.m === 'bus') || /셔틀버스|버스/.test(i.title || '')) return '🚌';
+  if (/주차/.test(i.title || '')) return '🅿️';
+  if (g.t === 'transit' || st.some(x => x.m === 'rail') || /선|철|JR|난카이|게이한|한큐|지하철/.test(tx)) return '🚃';
+  return '🚶';
+}
+const dmLab = i => String(i.pin || planName(i)).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
+let DMAP = null;
+async function mountDayMap() {
+  const el = $('#dmap'); if (!el) return;
+  const t = D.trips[el.dataset.trip]; if (!t) return;
+  const { pts } = dayMapPts(t, el.dataset.d);
+  let L; try { L = await leaflet(); } catch (e) { el.innerHTML = '<div class="tmap-wait">인터넷이 연결되면 지도가 보여요 · 아래 번호 순서대로 가요</div>'; return; }
+  if (!document.body.contains(el)) return;
+  if (DMAP && DMAP.getContainer() !== el) { DMAP.remove(); DMAP = null; }
+  if (!DMAP) {
+    el.innerHTML = '';
+    DMAP = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(DMAP);
+    DMAP._g = L.layerGroup().addTo(DMAP);
+  }
+  DMAP._g.clearLayers();
+  const ll = pts.map(i => [i.lat, i.lng]);
+  L.polyline(ll, { color: '#ffffff', weight: 8, opacity: .9 }).addTo(DMAP._g);
+  L.polyline(ll, { color: '#C2410C', weight: 4, opacity: .95, dashArray: '2 9', lineCap: 'round' }).addTo(DMAP._g);
+  pts.forEach((i, k) => {
+    const icon = L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+    L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc(mapUrl(i.lat + ',' + i.lng)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
+  });
+  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); DMAP.fitBounds(ll, { padding: [30, 30], maxZoom: 18 }); };
+  fit(); setTimeout(fit, 80); setTimeout(fit, 450);
+  if (window.ResizeObserver && !el._ro) { el._ro = new ResizeObserver(() => { clearTimeout(el._rt); el._rt = setTimeout(fit, 120); }); el._ro.observe(el); }
 }
 
 /* 여행 화면 */
@@ -1369,6 +1425,7 @@ function planTab(t) {
   }
   if (list.length) h += sunChip(t, sel);
   const nn = (t.members || []).length || 1, daySum = items.filter(i => i.date === sel).reduce((q, i) => q + itemCost(i), 0);
+  h += dayMapHtml(t, sel);
   if (daySum) h += '<div class="daycost num"><span>' + ic('wallet') + '이날 예상</span><b>' + nn + '명 ' + comma(daySum * nn) + unit(t.cur) + '</b>' + (t.cur !== 'KRW' ? '<em>≈ ' + manWon(toWon(t, daySum * nn)) + '</em>' : '') + '<small>1인 ' + comma(daySum) + unit(t.cur) + '</small></div>';
   h += list.length || past ? past + tlList(t, list) + '<div class="muted num" style="text-align:right;margin-top:10px">이날 예상 ' + nn + '명 ' + comma(daySum * nn) + unit(t.cur) + (t.cur !== 'KRW' ? ' (≈ ' + manWon(toWon(t, daySum * nn)) + ')' : '') + ' · 1인 ' + comma(daySum) + unit(t.cur) + '</div>'
     : '<div class="card empty"><div class="art">🗺️</div><b>이날 일정이 비어 있어요</b>「가고 싶은 곳」에서 골라 넣거나 ＋로 더해요.</div>';
@@ -2900,7 +2957,8 @@ document.addEventListener('click', e => {
       openSheet('<h2>우리가 가 본 곳</h2>' + pcatChips(all, c, 'pcat-s') + body + '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
     },
     'map-k': () => { UI.mapK = v; const el = $('#tmap'); if (el) { el.dataset.k = v; document.querySelectorAll('[data-act="map-k"]').forEach(b => b.classList.toggle('on', b.dataset.v === v)); mountMap(true); } },
-    'map-full': () => { const w = $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); if (on) history.pushState({ map: 1 }, ''); else if (history.state && history.state.map) history.back(); document.body.classList.toggle('map-open', on); setTimeout(() => MAP && MAP.invalidateSize(), 80); },
+    dmz: () => { UI.dmz = v; render(); },
+    'map-full': () => { const w = el.closest('.tmap-wrap') || $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); if (on) history.pushState({ map: 1 }, ''); else if (history.state && history.state.map) history.back(); document.body.classList.toggle('map-open', on); setTimeout(() => { MAP && MAP.invalidateSize(); DMAP && DMAP.invalidateSize(); }, 80); },
     'map-trip': () => { document.body.classList.remove('map-open'); MAP && MAP.closePopup(); A['open-trip'](); },
     'wallet-sort': () => { UI.walletSort = v; LS.set('walletSort', v); render(); },
     'memo-who': () => { UI.memoWho = v; render(); },
@@ -3187,6 +3245,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.5', d: '2026-11-27', title: '하루 동선 지도 · USJ 세부 일정', items: [
+    ['globe', 'var(--sky)', '이날 동선', '일정 → 하루씩에서 그날 갈 곳을 번호와 점선으로 지도에 보여 줘요. 🚕·🚃 같은 탈것 그림도 붙어요. USJ 날은 「USJ 안 | 하루 전체」로 바꿔 볼 수 있어요.'],
+    ['ticket', 'var(--coral)', 'USJ 12/30 세부 일정', '오픈런 → 닌텐도(동키콩·마리오 카트) → 바우처 간식 → 죠스·쥬라기 → 워터월드 → 해리포터(랠리·금지된 여행·점심·마법 생물) → 16시 닌텐도 다시 → 나이트 쇼. 싱글라이더 되는 곳도 적었어요.'],
+    ['sos', 'var(--warn)', '택시는 꼭 필요할 때만', '새벽 어두운 길(숙소 → 신이마미야), 한밤 귀가(스파월드 → 숙소), 기요미즈 오르막 세 번만 타요. 넷이 한 대면 전철값과 비슷해요.']] },
   { v: '6.4', d: '2026-11-27', title: '오프라인 준비가 저절로 돼요', items: [
     ['folder', 'var(--mint)', '저절로 받아 두기', '앱을 열고 인터넷이 되면 그림·일본어 소리·지도·티켓을 저절로 휴대폰에 받아 둬요. 따로 누르지 않아도 돼요. 설정 → 「여행 전 오프라인 준비」에서 ✅로 확인할 수 있어요.'],
     ['sos', 'var(--coral)', '택시 카드에 일본어 주소', '숙소 주소를 일본어(大阪市西成区花園南1丁目10-4)로 넣었어요. 「택시에 숙소 주소 보여 주기」를 기사님께 그대로 보여 드리면 돼요.'],

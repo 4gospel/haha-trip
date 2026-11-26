@@ -2,9 +2,9 @@
 // · 화면(HTML): 인터넷을 3초까지만 기다리고 늦으면 받아 둔 것 · 판 번호(?v=)가 붙은 파일·그림·라이브러리: 받아 둔 것 먼저
 // · 성공한 응답만 담음(404·와이파이 로그인 화면이 좋은 사본을 덮지 않게) · 스크립트 자리에 HTML을 주지 않음
 // · 「여행 전 준비」로 받은 haha-assets-* 는 새 판이 나와도 지우지 않음
-const C = 'haha-v63';
+const C = 'haha-v64';
 const ASSETS = 'haha-assets-v1';
-const SHELL = ['./', 'index.html', 'app.css?v=63', 'guide.js?v=63', 'book-osaka.js?v=63', 'app.js?v=63', 'favicon.png', 'manifest.webmanifest', 'assets.json', 'lib/qrcode.js', 'lib/jsbarcode.min.js', 'lib/zxing.min.js', 'lib/leaflet/leaflet.js', 'lib/leaflet/leaflet.css'];
+const SHELL = ['./', 'index.html', 'app.css?v=64', 'guide.js?v=64', 'book-osaka.js?v=64', 'app.js?v=64', 'favicon.png', 'manifest.webmanifest', 'assets.json', 'lib/qrcode.js', 'lib/jsbarcode.min.js', 'lib/zxing.min.js', 'lib/leaflet/leaflet.js', 'lib/leaflet/leaflet.css'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C && /^haha-v/.test(k)).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 const good = r => r && r.ok && !r.redirected && r.type === 'basic';

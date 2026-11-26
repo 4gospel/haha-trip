@@ -1504,3 +1504,19 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .go,.rec-chip{min-height:44px}
 @media (max-width:360px){.sync{font-size:0;gap:0}.sync.bad,.sync.wait{font-size:12px;gap:4px}}
 .tp-warn{background:#C62A2F;color:#fff;font-weight:900;font-size:16px;text-align:center;padding:8px 12px}
+
+/* 하루 동선 지도 (2026-11-27) */
+.dmap-sec .tmap{height:300px}
+.dpin-w{background:none;border:0}
+.dpin{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#C2410C;color:#fff;font:700 13px/1 var(--num-font,system-ui);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.dpin.done{background:#8a8f98}
+.dmap-leg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.dmap-leg button{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 10px 5px 5px;border-radius:999px;border:1px solid rgba(0,0,0,.08);background:var(--card,#fff);color:var(--ink);font-size:13px;text-align:left;max-width:100%}
+.dmap-leg button b{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:#C2410C;color:#fff;font-size:12px}
+.dmap-leg button span{color:var(--muted,#6b7280);font-size:12px}
+.dmap-leg button.done{opacity:.55}
+.dmap-leg button.done b{background:#8a8f98}
+@media (min-width:900px){.dmap-sec .tmap{height:420px}}
+.dpin{position:relative}
+.dpin i{position:absolute;right:-11px;top:-10px;font-style:normal;font-size:15px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.dm-emo{font-style:normal;font-size:15px;margin-right:-2px}
