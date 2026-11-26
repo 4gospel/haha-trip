@@ -1294,3 +1294,24 @@ body.tk-on{overflow:hidden}
 .te-f{display:flex;flex-wrap:wrap;gap:8px}.te-f .field{flex:1 1 calc(50% - 8px);min-width:130px;margin:0}
 .te-all{display:flex;gap:8px;align-items:center;margin:12px 0 4px;font-size:14px;color:var(--sub)}
 .tk-rowacts{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}.tk-rowacts .linkbtn{font-size:13px}
+
+/* 표 그림(팀장님 수채화) — 위 칸 배경: 왼쪽은 하늘빛 여백, 오른쪽에 그림. 글자는 짙은 먹색, 표마다 색은 포인트로 */
+.tpass.art .tp-top{background:var(--art) right center/cover no-repeat,#f4efe8;color:#1d2433;border-top:5px solid var(--wc)}
+.tpass.art .tp-top::after,.tpass.art .tp-top::before{display:none}
+.tpass.art .tp-ic{background:color-mix(in srgb,var(--wc) 16%,#fff);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tpass.art .tp-lb b{color:color-mix(in srgb,var(--wc) 82%,#000)}
+.tpass.art .tp-lb small,.tpass.art .tp-fields small,.tpass.art .tp-route small{opacity:1;color:#4a5466}
+.tpass.art .tp-date{background:rgba(255,255,255,.82);border-radius:12px;padding:4px 10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.tpass.art .tp-date small{opacity:1;color:#4a5466}
+.tpass.art .tp-route b,.tpass.art .tp-name b,.tpass.art .tp-fields b{text-shadow:0 0 8px rgba(255,255,255,.95),0 0 2px rgba(255,255,255,.9)}
+.tpass.art .tp-route b{color:color-mix(in srgb,var(--wc) 70%,#1d2433)}
+.tpass.art .tp-path::before,.tpass.art .tp-path::after{border-top-color:color-mix(in srgb,var(--wc) 60%,transparent)}
+.tpass.art .tp-fields{background:rgba(255,255,255,.55);border-radius:12px;padding:8px 10px;backdrop-filter:blur(2px)}
+.wl-card.art{background:var(--art) right center/cover no-repeat,#f4efe8;color:#1d2433;box-shadow:inset 5px 0 0 var(--wc),0 6px 18px rgba(0,0,0,.16)}
+.wl-card.art .wl-ic{background:color-mix(in srgb,var(--wc) 16%,#fff)}
+.wl-card.art .wl-lb b{color:color-mix(in srgb,var(--wc) 82%,#000)}
+.wl-card.art .wl-lb small,.wl-card.art .wl-f{opacity:1;color:#4a5466}
+.wl-card.art .wl-d{background:rgba(255,255,255,.82);border-radius:10px;padding:2px 8px}
+.wl-card.art .wl-d small{opacity:1;color:#4a5466}
+.wl-card.art .wl-d em{background:var(--wc);color:#fff}
+.wl-card.art .wl-b{background:linear-gradient(transparent,rgba(255,255,255,.7) 40%)}

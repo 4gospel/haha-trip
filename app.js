@@ -1556,7 +1556,7 @@ const tkLabel = (b, q) => q.label || (b.kind === '항공' ? '탑승권' : '입�
 const TK_SUGGEST = { 티켓: ['1일 입장권', '닌텐도 입장권', '푸드 바우처', '입장권', '익스프레스 패스'], 항공: ['탑승권'], 교통: ['승차권', '패스'], 기타: ['바우처'] };
 /** 표 색 — 이름으로 (애플 지갑처럼 표마다 색이 달라 한눈에) */
 /* 표 그림(배경) — 팀장님이 만들어 주시면 img/tk-<모양>.webp 로 넣고 여기에 이름을 더함 */
-const TK_ART = [];
+const TK_ART = ['flight', 'ship', 'rail', 'park', 'tower', 'food', 'show', 'etc']; // 팀장님이 만든 그림 2026-11-26
 const tkColor = (b, lb, tp) => /닌텐도|nintendo/i.test(lb) ? '#D7262E' : /익스프레스|express/i.test(lb) ? '#6A3FC2' : TK_TPL[tp || tkType(b, { label: lb })].col;
 const tkIcon = (b, lb, tp) => /닌텐도/.test(lb) ? '🍄' : /익스프레스/.test(lb) ? '⚡' : TK_TPL[tp || tkType(b, { label: lb })].ic;
 /* 표 모양(틀) — 상황마다 미리 만든 표: 칸 이름표 · 색 · 그림. q.type이 없으면 표 이름·예약 종류로 짐작(tkType) */
@@ -1632,7 +1632,8 @@ function tkPassHtml(e, codeHtml, mini) {
   const head = T.route && (f.from || f.to)
     ? '<div class="tp-route"><div><b>' + esc(f.from || '—') + '</b><small>' + esc(f.fromN || '') + '</small></div><span class="tp-path">' + T.ic + '</span><div><b>' + esc(f.to || '—') + '</b><small>' + esc(f.toN || '') + '</small></div></div>'
     : '<div class="tp-name"><b>' + esc(f.place && tp !== 'food' ? f.place : (b.place || '').replace(/\s*\(.*$/, '').length > 1 && (b.place || '').replace(/\s*\(.*$/, '').length < 28 ? b.place.replace(/\s*\(.*$/, '') : b.title.replace(/\s*\(\d+명\)\s*$/, '')) + '</b></div>';
-  return '<div class="tpass t-' + tp + (mini ? ' mini' : '') + '" style="--wc:' + col + '">' +
+  const art = TK_ART.includes(tp) ? ';--art:url(img/tk-' + tp + '.webp)' : '';
+  return '<div class="tpass t-' + tp + (art ? ' art' : '') + (mini ? ' mini' : '') + '" style="--wc:' + col + art + '">' +
     '<div class="tp-top"><div class="tp-row1"><span class="tp-ic">' + tkIcon(b, e.lb, tp) + '</span><span class="tp-lb"><b>' + esc(e.lb) + '</b><small>' + esc(b.provider || T.n) + '</small></span><span class="tp-date"><b class="num">' + esc(b.date ? md(b.date) : '') + '</b><small class="num">' + esc(f.slot || f.board || tkWhen(D.trips[b.trip] || { id: b.trip }, b, e.lb) || '') + '</small></span></div>' +
     head + '<div class="tp-fields"><div><small>이름</small><b>' + esc(q.who || '') + (fam_.role ? ' <i>' + esc(fam_.role) + '</i>' : '') + '</b></div>' + rows.map(([k, n]) => '<div><small>' + esc(n) + '</small><b>' + esc(f[k]) + '</b></div>').join('') + '</div></div>' +
     '<div class="tp-tear"></div><div class="tp-bot">' + (codeHtml || '') + (q.code ? '<div class="tp-code num">' + esc(q.code) + '</div>' : '') + '</div></div>';
@@ -1687,7 +1688,8 @@ function tkWallet(t) {
   const card = (e, k, n) => {
     const col = tkColor(e.b, e.lb), when = tkWhen(t, e.b, e.lb);
     const has = e.q && TK_HAVE.has(e.q.file);
-    return '<button class="wl-card' + (e.miss ? ' miss' : '') + (k === n - 1 ? ' last' : '') + '" style="--wc:' + col + '" ' + (e.miss ? 'data-act="tk-add" data-v="' + esc(e.b.id) + '"' : 'data-act="tk-me" data-v="' + esc(who) + '" data-file="' + esc(e.q.file) + '"') + '>' +
+    const tp = tkType(e.b, e.q || { label: e.lb }), art = !e.miss && TK_ART.includes(tp) ? ';--art:url(img/tk-' + tp + '.webp)' : '';
+    return '<button class="wl-card' + (e.miss ? ' miss' : '') + (art ? ' art' : '') + (k === n - 1 ? ' last' : '') + '" style="--wc:' + col + art + '" ' + (e.miss ? 'data-act="tk-add" data-v="' + esc(e.b.id) + '"' : 'data-act="tk-me" data-v="' + esc(who) + '" data-file="' + esc(e.q.file) + '"') + '>' +
       '<div class="wl-h"><span class="wl-ic">' + tkIcon(e.b, e.lb) + '</span><span class="wl-lb"><b>' + esc(e.lb) + '</b><small>' + esc(e.b.provider || e.b.kind || '') + '</small></span><span class="wl-d">' + (e.b.date === t0 ? '<em>오늘</em>' : '') + '<b class="num">' + esc(e.b.date ? md(e.b.date) : '') + '</b><small class="num">' + esc(when) + '</small></span></div>' +
       '<div class="wl-b"><div class="wl-t">' + esc(e.b.title) + '</div><div class="wl-f">' + (e.miss ? '<span>＋ 아직 없어요 · 눌러서 넣기</span>' : '<span>' + esc(tkNm(who)) + (e.q.code ? ' · <span class="num">' + esc(e.q.code) + '</span>' : '') + '</span><span>' + (has ? '✓ 저장됨' : '받는 중') + '</span>') + '</div></div></button>';
   };
@@ -2976,7 +2978,8 @@ const NEWS = [
   { v: '5.6', d: '2026-11-26', title: '사람마다 지갑이 생겼어요', items: [
     ['wallet', 'var(--c-관광)', '내 이름 지갑', '지갑에 임요한·장보정·임하은·임하늘 이름마다 표 모음이 있어요. 오늘 쓸 표가 맨 앞에 오고, 누르면 큰 표로 열려요. 옆으로 밀면 다음 표예요.'],
     ['ticket', 'var(--coral)', 'QR이 크고 또렷하게', 'A4 바우처를 찍어 넣으면 QR·바코드만 찾아 휴대폰에 맞는 멋진 표 모양으로 다시 그려요. 비행기·배·기차·놀이공원·전망대·식당·공연 표 모양이 있어요. 원본도 「원본」 단추로 볼 수 있어요.'],
-    ['check', 'var(--mint)', '인터넷이 없어도', '넣은 표는 휴대폰에 저장돼서 인터넷이 안 돼도 앱만 열면 보여요. USJ 날엔 오늘 화면에 「지금 쓸 표」가 뜨고, 「가족 모두」를 누르면 한 사람씩 차례로 보여 줘요.']] },
+    ['check', 'var(--mint)', '인터넷이 없어도', '넣은 표는 휴대폰에 저장돼서 인터넷이 안 돼도 앱만 열면 보여요. USJ 날엔 오늘 화면에 「지금 쓸 표」가 뜨고, 「가족 모두」를 누르면 한 사람씩 차례로 보여 줘요.'],
+    ['star', 'var(--sun)', '아빠가 만든 표 그림', '비행기·배·기차·놀이공원·전망대·식당·공연 표마다 아빠가 만든 수채화 그림이 들어갔어요.']] },
   { v: '5.5', d: '2026-11-26', title: '예약 화면을 더 잘 읽어요', items: [
     ['camera', 'var(--coral)', '앱 예약 화면도 척척', '클룩 같은 예약 앱 화면을 찍어 넣으면 금액·표 이름·예약번호·사람 수를 제대로 읽어요. 예약번호 숫자를 금액으로, 휴대폰 맨 위 시계 줄을 가게 이름으로 잘못 읽던 것을 고쳤어요.'],
     ['receipt', 'var(--mint)', '쓴 돈을 더 자세히', '「무엇에 썼나」에 선물·기념품, 유심·와이파이, 보험·여권·준비가 새로 생겼어요. 경비 화면에서 어디에 돈이 많이 들었는지 더 또렷이 보여요.'],
