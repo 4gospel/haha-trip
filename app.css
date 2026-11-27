@@ -1730,3 +1730,33 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .wl-card.miss{background:#fff;color:var(--ink);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--wc) 40%,transparent),0 6px 16px rgba(60,40,20,.08)}
 .wl-card.miss .wl-t{color:color-mix(in srgb,var(--wc) 80%,#000)}
 .wl-card::after{background:linear-gradient(115deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,0) 30%)}
+/* 수첩도 같은 흰 유리 카드 느낌(2026-11-27 팀장님) — 줄 공책·손글씨 제목·분홍 왼쪽 줄은 걷음 */
+:root[data-tab="book"] body{background:transparent}
+.flow-book .sec-h h3,.flow-book .book-cover b{font-family:var(--font);font-size:18px;font-weight:800;letter-spacing:-.02em}
+.flow-book .card{background:var(--glass-regular);background-image:none;border-left:0;border-radius:18px;box-shadow:var(--glass-edge-sm)}
+.flow-book .book-cover{background:radial-gradient(120% 90% at 100% 0%,rgba(255,194,61,.16),transparent 60%),var(--glass-regular);box-shadow:var(--glass-edge-sm)}
+.flow-book .book-cover .ring{background:conic-gradient(var(--mint) calc(var(--p)*1%),#EEF1F5 0)}
+.flow-book .alert{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);border-left:0;border-radius:18px}
+.flow-book .outfit{background:#fff;box-shadow:0 0 0 1px rgba(31,42,55,.08)}
+.flow-book .readchk{background:#fff;box-shadow:0 0 0 1px rgba(31,42,55,.1)}
+.flow-book .readchk.on{background:var(--mint);color:#fff;box-shadow:none}
+.flow-book .book-cover .ring{background:conic-gradient(var(--mint) calc(var(--p)*1%),#DCE3EA 0)}
+.flow-book .book-cover .ring span{background:#fff}
+.flow-book .card .btn:not(.pri){background:#fff;box-shadow:0 0 0 1px rgba(31,42,55,.1),0 2px 6px rgba(60,40,20,.06)}
+/* 꼭 쓰는 말 — 베이지 칸·큰 네모 대신 줄로 나눈 목록 · 파란 소리 단추 · 동그란 외움 표시 */
+.phrases{gap:0}
+.phrase{align-items:center;gap:6px;padding:2px 0}
+.phrase+.phrase{border-top:1px solid rgba(31,42,55,.07)}
+.ph-face,.phrase.got .ph-face{background:none;padding:8px 2px;min-height:50px;border-radius:10px}
+.ph-face:active{background:rgba(31,42,55,.035)}
+.ph-face .jp{font-size:17px}
+.ph-face .ko{font-size:14px;color:var(--coral-ink)}
+.ph-say{width:40px;height:40px;border:0;border-radius:12px;background:color-mix(in srgb,var(--sky) 12%,#fff);color:#2F66C9;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--sky) 18%,transparent);flex:none}
+.ph-say.on{background:linear-gradient(180deg,#5B9BFF,#3A78E6);color:#fff;border:0}
+.ph-say .i{width:19px;height:19px}
+.ph-got{width:44px;height:44px;flex:none;border:0;border-radius:50%;position:relative;background:none;color:#fff;font-size:14px;display:grid;place-items:center}
+.ph-got::before{content:"";position:absolute;inset:11px;border-radius:50%;border:2px solid #C9D0D8;background:#fff;z-index:-1}
+.ph-got{isolation:isolate}
+.phrase.got .ph-got{background:none}
+.phrase.got .ph-got::before{background:var(--mint);border-color:var(--mint)}
+.phrase.got .ph-face .jp{color:var(--soft)}
