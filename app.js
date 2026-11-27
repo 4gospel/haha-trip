@@ -801,7 +801,7 @@ async function mountMap(again) {
   if (!MAP) {
     el.innerHTML = '';
     MAP = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true, worldCopyJump: true });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(MAP);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: 'anonymous' }).addTo(MAP);
     MAP._pins = L.layerGroup().addTo(MAP);
   }
   MAP._pins.clearLayers();
@@ -880,7 +880,7 @@ async function mountDayMap() {
   if (!DMAP) {
     el.innerHTML = '';
     DMAP = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true, zoomSnap: 0.25, zoomDelta: 0.5 }); // 잘게 맞춰 한 단계 덜 확대되던 것을 줄임
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(DMAP);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: 'anonymous' }).addTo(DMAP);
     DMAP._g = L.layerGroup().addTo(DMAP);
   }
   DMAP._g.clearLayers(); DMAP._mk = [];
@@ -1004,6 +1004,7 @@ function todayTab(t) {
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
   h += tkTodayCard(t);
+  h += bringCard(t, t0);
   if (ph === 'before' && dayDiff(t0, t.start) <= 3 && !LS.get('offlineAt', 0)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="offline"><span><b>📦 오프라인 준비가 아직 덜 끝났어요</b><span>인터넷이 되면 저절로 받아요 · 눌러서 지금 받기</span></span></button></div>';
   if (!longAgo(t)) h += '<div class="sec sos-row"><button class="sos-btn" data-act="sos-go">' + ic('sos') + '<span><b>도움이 필요해요</b><span>비상 연락 · 영사콜센터 · 숙소 주소 · 보험</span></span></button><button class="sos-tr" data-act="tr-open">🗣️<span>번역기</span></button></div>';
   if (ph === 'after') h += storyCard(t);
@@ -1991,6 +1992,13 @@ function tkStrip(t, b) {
     '<button class="tk-edit" data-act="tk-add" data-v="' + esc(b.id) + '" aria-label="티켓 넣기·고치기">' + ic('pen') + '</button></div>';
 }
 /* 오늘 화면 — 지금 쓸 티켓 (애플 지갑이 때맞춰 표를 띄우듯) */
+/** 오늘 챙길 것 · 흩어지면 만날 곳(2026-11-27) — 여행 칸 bring {날짜: {items:[…], meet:'…'}} · 저녁 6시부터는 내일 것도 */
+function bringCard(t, t0) {
+  const B = t.bring || {}, tm = ymd(new Date(new Date(t0 + 'T12:00:00').getTime() + 864e5)), eve = hm() >= '18:00';
+  const one = (d, lb) => { const b = B[d]; if (!b) return ''; return '<div class="bring-day"><b>' + lb + '</b><div class="bring-chips">' + (b.items || []).map(x => '<span>' + esc(x) + '</span>').join('') + '</div>' + (b.meet ? '<div class="bring-meet">🧭 흩어지면 <b>' + esc(b.meet) + '</b></div>' : '') + '</div>'; };
+  const a = one(t0, '🎒 오늘 챙길 것'), b = eve ? one(tm, '🌙 내일 챙길 것 (자기 전에)') : '';
+  return a || b ? '<div class="sec"><div class="card bring">' + (eve ? b + a : a) + '</div></div>' : ''; // 저녁엔 내일 것부터
+}
 function tkTodayCard(t) {
   const t0 = tkDay(), tm = ymd(new Date(new Date(t0 + 'T12:00:00').getTime() + 864e5)), nowHM = hm();
   const slots = [];
@@ -3242,7 +3250,7 @@ async function offlineStatus() {
 }
 async function offlineOpen() {
   openSheet('<h2>📦 여행 전 오프라인 준비</h2><div class="muted">인터넷이 되면 앱이 <b>저절로</b> 받아 둬요. 일본에서 인터넷이 끊겨도 앱·티켓·그림·일본어 소리가 열려요. 아래 칸이 모두 ✅면 끝이에요.</div><div id="of_st" class="card" style="margin-top:12px">확인 중…</div>' +
-    '<button class="btn big" id="of_go" style="width:100%;margin-top:12px">지금 한 번 더 받기</button><div class="muted small" style="margin-top:10px">지도 바탕 그림은 미리 받지 않아요(지도 회사 규칙). 구글 지도 앱에서 오사카·교토 「오프라인 지도」를 받아 두세요. 아이폰은 사파리와 「홈 화면 앱」의 저장 칸이 따로라, 여행 중 쓸 홈 화면 앱을 한 번 열어 두면 그 안에도 저절로 받아요.</div>' +
+    '<button class="btn big" id="of_go" style="width:100%;margin-top:12px">지금 한 번 더 받기</button><div class="muted small" style="margin-top:10px">동선 지도는 <b>한 번 열어 본 곳만</b> 인터넷 없이 보여요(지도 회사 규칙상 미리 왕창 받지 않아요) — 출발 전에 일정 → 네 날 「이날 동선」을 구역마다 한 번씩 눌러 두세요. 구글 지도 앱에서도 오사카·교토 「오프라인 지도」를 받아 두면 좋아요. 아이폰은 사파리와 「홈 화면 앱」의 저장 칸이 따로라, 여행 중 쓸 홈 화면 앱을 한 번 열어 두면 그 안에도 저절로 받아요.</div>' +
     '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>', async el => {
     const paint = st => { const ok = (a, b) => a >= b && b > 0 ? '✅' : '⬜'; el.querySelector('#of_st').innerHTML =
       '<div class="facts"><div><span>' + ok(st.have, st.files) + ' 그림·소리·지도 파일</span><b class="num">' + st.have + ' / ' + st.files + '</b></div>' +
@@ -3469,6 +3477,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.5', d: '2026-11-27', title: '오늘 챙길 것 · 인터넷 없이 지도', items: [
+    ['prep', 'var(--mint)', '🎒 오늘 챙길 것', '오늘 화면에 그날 꼭 챙길 것(USJ 날 핫팩·티켓, 교토 날 현금·수건 등)과 「흩어지면 만날 곳」을 보여 줘요. 저녁 6시부터는 내일 것이 먼저 나와요.'],
+    ['globe', 'var(--sky)', '지도도 인터넷 없이', '한 번 본 동선 지도는 휴대폰에 담아 두어 일본에서 인터넷이 끊겨도 보여요. 출발 전에 네 날 「이날 동선」을 구역마다 한 번씩 눌러 두세요.']] },
   { v: '7.4', d: '2026-11-27', title: '택시는 앱으로 바로 · 지도에 내 위치', items: [
     ['sos', 'var(--coral)', '택시 앱 바로 열기', '택시 카드에서 ① 디디(오사카에서 가장 빨리 잡혀요) ② 카카오T 「해외차량호출」 ③ 우버(목적지 저절로)를 바로 열어요. 출발 전에 준비물 「택시 앱 미리 깔고 가입·카드 등록」을 꼭 해 두세요.'],
     ['globe', 'var(--sky)', '지도에 📍 내 위치', '동선 지도 위 「📍 내 위치」를 누르면 지금 있는 곳이 파란 점으로 보여요. 오늘 지도에서는 다음에 갈 일정 핀이 반짝이고, 핀을 누르면 「여기로 길찾기」가 열려요. 도톤보리는 크게, 신사이바시는 따로 나눴어요.']] },
