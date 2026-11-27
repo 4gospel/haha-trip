@@ -1656,3 +1656,4 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .ny-card{display:grid;gap:8px;background:linear-gradient(135deg,#1F2D63,#3B4C8C);color:#fff}.ny-card b{font-size:19px}.ny-card span{opacity:.9;font-size:14px}.ny-card.new{background:linear-gradient(135deg,#C2410C,#E8562A)}.ny-card .say-chip{background:rgba(255,255,255,.18);color:#fff}.ny-card .say-chip small{color:rgba(255,255,255,.85)}
 .phrase{min-width:0}.ph-face{min-width:0}.ph-face .jp{word-break:normal;line-break:strict;overflow-wrap:anywhere} /* 글씨 크게에서 긴 일본어 문장이 화면 밖으로 밀던 것 */
 .tmap-wrap.full .dm-loc{top:calc(12px + env(safe-area-inset-top));right:auto;left:58px} /* 크게 본 지도: 「크게·닫기」 단추와 겹치지 않게 */
+.tl-card.skip:has(.opt-tag){opacity:.75}.tl-card.skip:has(.opt-tag) .t{text-decoration:none}.opt-tag{--cc:#B07A00}
