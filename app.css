@@ -1558,3 +1558,4 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .sec-h{flex-wrap:wrap;row-gap:4px}
 .sec-h .linkbtn,.sec-h .flex .linkbtn{white-space:nowrap}
 .daycost span{white-space:nowrap}
+.tmap-wrap{isolation:isolate} /* 지도 단추·레이어가 창(시트) 위로 뜨지 않게 */

@@ -793,7 +793,7 @@ async function mountMap(again) {
 function dayMapPts(t, d) {
   const all = live('items', t.id).filter(i => i.date === d && !i.skip && i.lat != null && i.lng != null).sort(byTime);
   const zones = [...new Set(all.map(i => i.zone).filter(Boolean))];
-  const z = UI.dmz === 'all' ? 'all' : zones.includes(UI.dmz) ? UI.dmz : zones[0] || 'all';
+  const z = UI.dmz === 'all' ? 'all' : zones.includes(UI.dmz) ? UI.dmz : zones.length === 1 ? zones[0] : 'all'; // 구역이 하나(USJ)면 그 안, 여럿(교토)이면 하루 전체부터
   return { pts: z === 'all' ? all : all.filter(i => i.zone === z), zones, z };
 }
 function dayMapHtml(t, d) {
@@ -848,7 +848,7 @@ async function mountDayMap() {
     const icon = L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
     L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc(mapUrl(i.lat + ',' + i.lng)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
   });
-  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); DMAP.fitBounds(ll, { padding: [30, 30], maxZoom: 18 }); };
+  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); DMAP.fitBounds(ll, { paddingTopLeft: [52, 36], paddingBottomRight: [36, 52], maxZoom: 18 }); }; // 왼쪽 위 ＋− 단추·오른쪽 아래 「크게」에 핀이 가리지 않게
   fit(); setTimeout(fit, 80); setTimeout(fit, 450);
   if (window.ResizeObserver && !el._ro) { el._ro = new ResizeObserver(() => { clearTimeout(el._rt); el._rt = setTimeout(fit, 120); }); el._ro.observe(el); }
 }
@@ -1049,7 +1049,7 @@ const goLine = i => {
   if (!g.s) return '';
   const moved = !!(p && g.after && p.id !== g.after); // go.after = 이 길을 적을 때 바로 앞 일정 — 순서가 바뀌면 알림
   const dm = s2 => { const m = String(s2 || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
-  const late = g.t === 'transit' && dm(g.dep) != null && dm(i.time) != null && Math.abs(dm(i.time) - dm(g.dep)) > 10; // 일정 시각이 적어 둔 열차와 10분 넘게 다르면
+  const late = g.t === 'transit' && dm(g.dep) != null && dm(i.time) != null && (dm(i.time) > dm(g.dep) + (i.cat === '이동' ? 0 : Number(g.min) || 0) + 10 || dm(i.time) < dm(g.dep) - 30); // 적어 둔 열차를 놓칠 만큼 늦거나, 30분 넘게 이르면(다른 열차)
   if (late && !moved) return '<div class="goline">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + ' <em class="go-moved">· 시간이 바뀌었어요 — 「길찾기」로 다음 열차를 봐요</em></div>';
   return '<div class="goline">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + (moved ? ' <em class="go-moved">· 앞 일정이 바뀌었어요 — 「길찾기」로 다시 봐요</em>' : '') + '</div>';
 };
@@ -2640,6 +2640,7 @@ let SHEET = null;
 function openSheet(html, onMount) {
   if (!SHEET_H && !POP_SKIP) { history.pushState({ sheet: 1 }, ''); SHEET_H = true; }
   $('#sheet-body').innerHTML = html; $('#sheet').hidden = false; try { fixOrphans($('#sheet-body')); } catch (e) {}
+  const card = $('.sheet-card'); if (card) card.scrollTop = 0; // 새 창은 늘 맨 위부터(앞 창의 스크롤 자리가 남아 중간부터 보이던 것, 2026-11-27)
   document.body.style.overflow = 'hidden'; document.body.classList.add('sheet-open');
   if (onMount) onMount($('#sheet-body'));
 }
@@ -2984,7 +2985,7 @@ document.addEventListener('click', e => {
       // 일정 카드의 동그라미는 꾹 눌러야 도장(실수로 눌리지 않게, 2026-11-27). 일정 창의 「다녀옴」 단추는 그대로 한 번에
       if (el.closest('.tl-card') && el.dataset.held !== '1') { if (Date.now() - LAST_HOLD < 1200) return; toast(D.items[v] && D.items[v].done ? '꾹 누르고 있으면 도장을 지워요' : '꾹 누르고 있으면 도장이 찍혀요'); el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); return; }
       el.dataset.held = '';
-      const i = D.items[v]; buzz(); if (!i.done) JUST_DONE = i.id; setTimeout(() => { JUST_DONE = ''; }, 1500); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done || x.skip)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } else if (el.closest('.tl-card')) { const back = Object.assign({}, i); toast(i.done ? '도장을 지웠어요' : (i.zone === 'USJ' ? 'CLEAR! ' : '다녀옴! ') + planName(i), () => put('items', back)); } if ($('#sheet .iv-head')) itemView(t, D.items[v]); },
+      const i = D.items[v]; buzz(); if (!i.done) JUST_DONE = i.id; setTimeout(() => { JUST_DONE = ''; }, 1500); put('items', Object.assign({}, i, { done: !i.done })); const di = live('items', t.id).filter(x => x.date === i.date); if (!i.done && di.every(x => x.done || x.skip)) { confetti(); toast(md(i.date) + ' 일정을 다 다녀왔어요!'); } else if (el.closest('.tl-card')) { const back = Object.assign({}, i); toast(i.done ? '도장을 지웠어요' : (i.zone === 'USJ' ? 'CLEAR! ' : '다녀옴! ') + planName(i), () => put('items', back)); } if ($('#sheet .iv-head')) { const sc = $('.sheet-card').scrollTop; itemView(t, D.items[v]); $('.sheet-card').scrollTop = sc; } },
     'booking-new': () => editRec('booking', t, { kind: '숙소', date: t.start }),
     'booking-edit': () => editRec('booking', t, D.bookings[v]),
     'tk-gate': () => tkGate(v, el.dataset.label),
@@ -3359,6 +3360,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '6.9', d: '2026-11-27', title: '교토 하루를 세밀하게', items: [
+    ['torii', 'var(--coral)', '12/31 교토 세부 일정', '기요미즈(인왕문 → 본당 무대 → 오쿠노인 전망 → 오토와 폭포 → 산넨자카 → 니넨자카 → 야사카 탑), 후시미(누문·본전 → 센본 도리이 → 오쿠샤 소원 돌 → 네자메야 점심), 니시키(덴만구 → 먹거리 걷기 → 서쪽 끝 한큐 가라스마역), 아라시야마(도게쓰쿄 → 온천)로 나눴어요.'],
+    ['globe', 'var(--sky)', '구역마다 동선 지도', '「이날 동선」에서 「기요미즈 안 · 후시미 안 · 니시키 안 · 아라시야마 안 · 하루 전체」로 골라 봐요. 욧쓰지 전망·대나무숲은 「선택」으로 회색으로 넣어 두었어요 — 눌러 「다시 넣기」.'],
+    ['check', 'var(--mint)', '고친 것', '일정을 눌렀을 때 창이 중간부터 보이던 것, 지도 「크게」 단추가 창 위에 뜨던 것을 고쳤어요.']] },
   { v: '6.8', d: '2026-11-27', title: '꾹 눌러 찍는 완료 도장', items: [
     ['check', 'var(--coral)', '완료 도장', '일정 카드 오른쪽 동그라미를 0.7초 꾹 누르면 도장이 찍혀요(살짝 누르면 안 찍혀요 — 실수 막기). USJ 안은 파란 「USJ CLEAR!」, 다른 일정은 우리 「하하가족」 도장이에요. 지우려면 다시 꾹.'],
     ['route', 'var(--sky)', '바뀌었나요?', '일정을 눌러 열면 −15·+15·+30·+60분으로 바로 옮기거나 「이번엔 건너뛰기」를 할 수 있어요. 건너뛴 일정은 회색으로 남고 동선·예산·「지금 · 다음」에서만 빠져요. 전철 시간이 달라지면 「다음 열차를 봐요」라고 알려 줘요.'],
