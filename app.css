@@ -1719,18 +1719,6 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .tk-hero .tk-ok{color:var(--ok);opacity:1}.tk-hero .tk-no{color:var(--warn-ink);opacity:1}
 .tk-more button,.flow-pass .tk-more button,.tk-tom,.flow-pass .tk-tom{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);border-radius:14px}
 .wl-who button,.flow-pass .wl-who button{background:var(--glass-regular);box-shadow:var(--glass-edge-sm)}
-/* 지갑 속 카드 — 겹친 지갑 모양은 그대로, 바탕은 흰 유리 + 티켓 색 옅게 */
-.wl-card,.wl-card.art{background:linear-gradient(160deg,color-mix(in srgb,var(--wc) 9%,#fff),#fff 62%);color:var(--ink);box-shadow:0 0 0 1px rgba(31,42,55,.09),0 -2px 10px rgba(60,40,20,.06),0 6px 16px rgba(60,40,20,.08)}
-.wl-card .wl-ic,.wl-card.art .wl-ic{background:color-mix(in srgb,var(--wc) 13%,#fff);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--wc) 16%,transparent)}
-.wl-card .wl-lb b,.wl-card.art .wl-lb b{color:color-mix(in srgb,var(--wc) 80%,#000)}
-.wl-card .wl-lb small,.wl-card .wl-f,.wl-card .wl-d small,.wl-card.art .wl-lb small,.wl-card.art .wl-f,.wl-card.art .wl-d small{opacity:1;color:var(--soft)}
-.wl-card .wl-d,.wl-card.art .wl-d{background:#fff;border-radius:10px;padding:2px 8px;box-shadow:0 0 0 1px rgba(31,42,55,.07)}
-.wl-card .wl-d em{background:var(--wc);color:#fff}
-.wl-card .wl-b,.wl-card.art .wl-b{background:none}
-.wl-card .wl-t{opacity:1;color:var(--ink)}
-.wl-card.miss{background:#fff;color:var(--ink);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--wc) 40%,transparent),0 6px 16px rgba(60,40,20,.08)}
-.wl-card.miss .wl-t{color:color-mix(in srgb,var(--wc) 80%,#000)}
-.wl-card::after{background:linear-gradient(115deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,0) 30%)}
 /* 수첩도 같은 흰 유리 카드 느낌(2026-11-27 팀장님) — 줄 공책·손글씨 제목·분홍 왼쪽 줄은 걷음 */
 :root[data-tab="book"] body{background:transparent}
 .flow-book .sec-h h3,.flow-book .book-cover b{font-family:var(--font);font-size:18px;font-weight:800;letter-spacing:-.02em}
@@ -1774,3 +1762,40 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .row,.facts div,.cau{border-bottom-color:rgba(31,42,55,.08)}
 .in{background:#F7F8FA;border-color:#E1E5EB}.in:focus{background:#fff;border-color:color-mix(in srgb,var(--sky) 55%,#fff);box-shadow:0 0 0 3px color-mix(in srgb,var(--sky) 16%,transparent)}
 .iv-rows .tip b{color:#8F5B00} /* 노란 팁 글씨가 옅은 칸 위에서 대비 2.2:1이던 것 → 약 5.5:1 */
+
+/* 지갑 = 애플 지갑 모양(2026-11-28 팀장님) — 단색 카드·흰 글씨·작은 칸 이름 위 큰 값, 겹치면 머리 줄(62px)만, 맨 앞 카드는 QR 상자까지 */
+.wl-stack{padding:4px 0 6px}
+.wl-stack .wl-card.aw{height:340px;border-radius:16px;color:#fff;padding:0;overflow:hidden;
+  background:linear-gradient(175deg,color-mix(in srgb,var(--wc) 90%,#000),color-mix(in srgb,var(--wc) 70%,#000));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 -1px 6px rgba(0,0,0,.10),0 10px 24px rgba(0,0,0,.18);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.wl-stack .wl-card.aw+.wl-card.aw{margin-top:-278px}
+.wl-stack .wl-card.aw::after{background:linear-gradient(180deg,rgba(255,255,255,.10),transparent 40%);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18)}
+.wl-stack .wl-card.aw:not(.last):hover,.wl-stack .wl-card.aw:not(.last):focus-visible{transform:translateY(-18px)}
+.aw-h{display:flex;align-items:center;gap:10px;height:62px;padding:0 16px;flex:none}
+.aw-ic{font-size:24px;line-height:1;width:30px;text-align:center;flex:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.aw-lb{flex:1;min-width:0;font-size:17px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aw-d{display:flex;flex-direction:column;align-items:flex-end;flex:none;line-height:1.15;position:relative}
+.aw-d small,.aw-fs small,.aw-pf small{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.72}
+.aw-d b{font-size:16px;font-weight:700}
+.aw-today{flex:none;font-style:normal;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;background:#fff;color:color-mix(in srgb,var(--wc) 80%,#000);white-space:nowrap}
+.aw-strip{height:76px;flex:none;background:var(--art) center/cover no-repeat;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
+.aw-pf{padding:12px 16px 0;display:flex;flex-direction:column;gap:2px;min-width:0}
+.aw-pf b{font-size:17px;font-weight:700;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wl-card.aw:not(.art) .aw-pf{padding-top:6px}.wl-card.aw:not(.art) .aw-pf b{font-size:21px;-webkit-line-clamp:3}
+.aw-fs{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:18px;padding:10px 16px 0}
+.aw-fs>span{display:flex;flex-direction:column;min-width:0;line-height:1.2;overflow:hidden}
+.aw-fs>span:last-child{align-items:flex-end;text-align:right}
+.aw-fs b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.aw-qr{margin:12px auto 16px;margin-top:auto;display:flex;align-items:center;gap:10px;background:#fff;color:#1F2A37;border-radius:12px;padding:8px 14px 8px 8px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.aw-qr i{width:40px;height:40px;display:grid;place-items:center}.aw-qr svg{width:34px;height:34px}
+.aw-qr span{font-size:13.5px;font-weight:700}
+.aw-miss{padding:6px 4px}
+.wl-stack .wl-card.aw.miss{background:linear-gradient(175deg,color-mix(in srgb,var(--wc) 55%,#4a4f57),color-mix(in srgb,var(--wc) 40%,#30343a));box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35),0 10px 24px rgba(0,0,0,.16)}
+.wl-stack .wl-card.aw.miss .aw-qr{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);border-radius:12px;padding:8px 14px}
+.wl-past .wl-card.aw{filter:saturate(.25) brightness(.95);opacity:.85}
+@media (max-width:360px){.aw-h{padding:0 12px}.aw-pf,.aw-fs{padding-left:12px;padding-right:12px}.aw-today{padding:2px 6px}}
+
+/* 일정 카드 시각 아래 날씨(2026-11-28) */
+.tm-wx{display:flex;flex-direction:column;align-items:center;gap:0;margin-top:2px;font-size:12.5px;font-weight:800;color:var(--soft);line-height:1.1}
+.tm-wx .wxi{width:20px;height:20px;display:block}
+.tm-wx em{font-style:normal;font-size:10.5px;font-weight:800;color:#2F66C9}

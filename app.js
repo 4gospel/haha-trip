@@ -478,6 +478,7 @@ async function loadInfo(t) {
       }
     }
   } catch (e) { INFO[key].wxErr = 1; }
+  wxItemsLoad(t);
   const cur = t.cur || (COUNTRY[t.country] || {}).cur;
   if (cur && cur !== 'KRW') {
     try {
@@ -487,6 +488,38 @@ async function loadInfo(t) {
   }
   render();
 }
+/* 일정 카드 시각 아래 날씨(팀장님 2026-11-28) — 일정 자리마다(0.1도 칸 ≈ 10km: 오사카·교토·아라시야마·공항이 따로) 그 시각의 예보
+   Open-Meteo 한 번 부름에 여러 자리 · 30분마다 새로 · 여행 날짜 몫만 이 기기에 남겨 인터넷이 끊겨도 보임 · 예보가 없는 날(16일 밖)은 안 보임 */
+const WXH = {};
+const wxCell = i => i.lat != null && i.lng != null && i.lat !== '' ? (Math.round(i.lat * 10) / 10).toFixed(1) + ',' + (Math.round(i.lng * 10) / 10).toFixed(1) : '';
+async function wxItemsLoad(t) {
+  const k = 'wxh.' + t.id; let c = WXH[t.id] || (WXH[t.id] = LS.get(k, null) || { at: 0, g: {} });
+  if (Date.now() - (c.at || 0) < 30 * 60 * 1000 || c.busy) return;
+  const t0 = today(), last = ymd(new Date(pd(t0).getTime() + 15 * 864e5));
+  if (t.end < t0 || t.start > last) return;
+  const cells = [...new Set(live('items', t.id).filter(i => i.date >= t0 && i.date <= last).map(wxCell).filter(Boolean))];
+  if (!cells.length) return;
+  c.busy = 1;
+  try {
+    const tz = ((INFO[t.id] || {}).geo || {}).tz || 'auto';
+    const r = await (await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + cells.map(x => x.split(',')[0]).join(',') + '&longitude=' + cells.map(x => x.split(',')[1]).join(',') + '&hourly=temperature_2m,weather_code,precipitation_probability&forecast_days=16&timezone=' + encodeURIComponent(tz))).json();
+    const arr = Array.isArray(r) ? r : [r], g = {};
+    arr.forEach((w, n) => { const h = w && w.hourly; if (!h) return; const keep = h.time.map((tm, j) => [tm, j]).filter(([tm]) => tm.slice(0, 10) >= t.start && tm.slice(0, 10) <= t.end);
+      g[cells[n]] = { s: keep.length ? keep[0][0] : '', tc: keep.map(([, j]) => Math.round(h.temperature_2m[j])), c: keep.map(([, j]) => h.weather_code[j]), p: keep.map(([, j]) => h.precipitation_probability ? h.precipitation_probability[j] : null) }; });
+    if (Object.keys(g).length) { c = WXH[t.id] = { at: Date.now(), g }; LS.set(k, c); render(); }
+  } catch (e) {} finally { delete c.busy; }
+}
+/** 그 일정 시각의 날씨 { c: 날씨 번호, tc: 기온, p: 비 올 확률 } — 없으면 null */
+function wxAt(t, i) {
+  if (!i.date || !/^\d{1,2}:\d\d/.test(i.time || '')) return null;
+  const [hh, mm] = i.time.split(':').map(Number), H = Math.min(23, hh + (mm >= 30 ? 1 : 0)), key = i.date + 'T' + String(H).padStart(2, '0') + ':00';
+  const c = WXH[t.id] || (WXH[t.id] = LS.get('wxh.' + t.id, null) || { at: 0, g: {} }), cell = c.g[wxCell(i)];
+  if (cell && cell.s) { const n = Math.round((pd(key.slice(0, 10)).getTime() + H * 3600e3 - pd(cell.s.slice(0, 10)).getTime() - Number(cell.s.slice(11, 13)) * 3600e3) / 3600e3); if (n >= 0 && n < cell.c.length && cell.c[n] != null) return { c: cell.c[n], tc: cell.tc[n], p: cell.p[n] }; }
+  const w = (INFO[t.id] || {}).wx, h = w && w.hourly; // 자리를 모르면 도시 예보로
+  if (h) { const j = h.time.indexOf(key); if (j >= 0 && h.weather_code[j] != null) return { c: h.weather_code[j], tc: Math.round(h.temperature_2m[j]), p: h.precipitation_probability ? h.precipitation_probability[j] : null }; }
+  return null;
+}
+const tmWx = (t, i) => { if (i.done || i.skip) return ''; const w = wxAt(t, i); return w ? '<span class="tm-wx" title="' + esc(WMO(w.c)[1] + (w.p != null ? ' · 비 올 확률 ' + w.p + '%' : '')) + '">' + wxi(w.c, 18) + '<span class="num">' + w.tc + '°</span>' + (w.p != null && w.p >= 40 ? '<em class="num">💧' + w.p + '%</em>' : '') + '</span>' : ''; };
 const countryOf = t => COUNTRY[t.country] || COUNTRY[((INFO[t.id] || {}).geo || {}).cc] || null;
 /* 국내여행 · 해외여행 — 나라가 한국이면 국내 (나라를 안 적었으면 지명으로 짐작) */
 const KR_RE = /제주|서귀포|서울|부산|인제|곡성|강릉|속초|양양|경주|전주|여수|순천|군산|대구|광주|대전|인천|강원|전남|전북|경남|경북|충남|충북|가평|남해|통영|거제|포항|안동|단양|태안|보령|울릉|섬진강/;
@@ -1225,7 +1258,7 @@ function tlSoon(i, now) {
 }
 function tlItem(t, i, now) {
   const [icn, col] = itemIcon(i), sv = sunVars(t, i), open = TL_OPEN.has(i.id) || (!tlOnToday() && tlSoon(i, now)), long = String(i.memo || '').length > 40 || !!i.tip;
-  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + (long && !open ? ' fold' : '') + '" data-id="' + esc(i.id) + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
+  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + (long && !open ? ' fold' : '') + '" data-id="' + esc(i.id) + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b>' + tmWx(t, i) + '</span>' +
     '<button class="body" data-act="tl-tap" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + '<div class="tl-x">' + (i.memo ? '<div class="m tl-memo">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m tl-tip" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') + '</div>' + (long ? '<div class="tl-hint">' + (i.tip ? '💡 주의 사항 · ' : '') + '눌러서 자세히 ▾</div>' : '') +
     '<div class="meta">' + (i.skip ? (/^\(선택\)/.test(i.title || '') ? '<span class="tag opt-tag">💡 선택 — 눌러서 「다시 넣기」</span>' : '<span class="tag skip-tag">⏭ 이번엔 건너뜀</span>') : '') + '<span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.go && i.go.t === 'taxi' ? '<span class="go taxi-go" role="button" data-act="taxi" data-v="' + esc(i.id) + '">🚕 기사님께 보여 주기</span>' : '') +
@@ -2019,9 +2052,14 @@ function tkWallet(t, page) {
     const col = tkColor(e.b, e.lb), when = tkWhen(t, e.b, e.lb);
     const has = tkReady(e.q);
     const tp = tkType(e.b, e.q || { label: e.lb }), art = !e.miss && TK_ART.includes(tp) ? ';--art:url(img/tk-' + tp + '.webp)' : '';
-    return '<button class="wl-card' + (e.miss ? ' miss' : '') + (art ? ' art' : '') + (k === n - 1 ? ' last' : '') + '" style="--wc:' + col + art + '" ' + (e.miss ? 'data-act="tk-add" data-v="' + esc(e.b.id) + '"' : 'data-act="tk-me" data-v="' + esc(who) + '" data-file="' + esc(e.q.file) + '"') + '>' +
-      '<div class="wl-h"><span class="wl-ic">' + tkIcon(e.b, e.lb) + '</span><span class="wl-lb"><b>' + esc(e.lb) + '</b><small>' + esc(e.b.provider || e.b.kind || '') + '</small></span><span class="wl-d">' + (e.b.date === t0 ? '<em>오늘</em>' : '') + '<b class="num">' + esc(e.b.date ? md(e.b.date) : '') + '</b><small class="num">' + esc(when) + '</small></span></div>' +
-      '<div class="wl-b"><div class="wl-t">' + esc(e.b.title) + '</div><div class="wl-f">' + (e.miss ? '<span>' + (e.b.tkWait ? '⏳ 발급 전 · ' + esc(e.b.tkWait) : '＋ 아직 없어요 · 눌러서 넣기') + '</span>' : '<span>' + esc(tkNm(who)) + (e.q.code ? ' · <span class="num">' + esc(e.q.code) + '</span>' : '') + '</span><span>' + (has ? '✓ 저장됨' : '받는 중') + '</span>') + '</div></div></button>';
+    // 애플 지갑 모양(팀장님 2026-11-28) — 단색 카드·흰 글씨 · 머리 줄(이름·날짜)만 겹쳐 보이고, 맨 앞 카드는 칸·그림 띠·QR 상자까지
+    const fld = (k2, v2) => '<span><small>' + k2 + '</small><b>' + v2 + '</b></span>';
+    return '<button class="wl-card aw' + (e.miss ? ' miss' : '') + (art ? ' art' : '') + (k === n - 1 ? ' last' : '') + '" style="--wc:' + col + art + '" ' + (e.miss ? 'data-act="tk-add" data-v="' + esc(e.b.id) + '"' : 'data-act="tk-me" data-v="' + esc(who) + '" data-file="' + esc(e.q.file) + '"') + '>' +
+      '<div class="aw-h"><span class="aw-ic">' + tkIcon(e.b, e.lb) + '</span><b class="aw-lb">' + esc(e.lb) + '</b>' + (e.b.date === t0 ? '<em class="aw-today">오늘</em>' : '') + '<span class="aw-d"><small>날짜</small><b class="num">' + esc(e.b.date ? md(e.b.date) : '') + '</b></span></div>' +
+      (art ? '<div class="aw-strip"></div>' : '') +
+      '<div class="aw-pf"><small>' + esc(e.b.provider || e.b.kind || '') + '</small><b>' + esc(e.b.title) + '</b></div>' +
+      '<div class="aw-fs">' + fld('이름', esc(tkNm(who))) + fld('시간', '<span class="num">' + esc(when || '—') + '</span>') + (e.miss ? fld('상태', e.b.tkWait ? '발급 전' : '아직 없음') : e.q.code ? fld('번호', '<span class="num">' + esc(e.q.code) + '</span>') : fld('상태', has ? '저장됨' : '받는 중')) + '</div>' +
+      '<div class="aw-qr">' + (e.miss ? '<span class="aw-miss">' + (e.b.tkWait ? '⏳ ' + esc(e.b.tkWait) : '＋ 눌러서 티켓 넣기') + '</span>' : '<i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5.5 5.5h2v2h-2zM16.5 5.5h2v2h-2zM5.5 16.5h2v2h-2zM14 14h3v3h-3zM18 18h3v3h-3zM18 14h3v2h-3zM14 18h2v3h-2z" fill="currentColor"/></svg></i><span>' + (has ? '눌러서 크게 보기' : '받는 중이에요') + '</span>') + '</div></button>';
   };
   let h = '<div class="sec wl"><div class="sec-h"><h3 class="ih">' + ib('wallet', 'var(--c-관광)', 1) + esc(tkNm(who)) + ' 지갑' + '</h3><span class="muted small">인터넷 없이도 열려요</span></div>' +
     (!tkAll() ? '' : '<div class="wl-who">' + mem.map(m => '<button class="' + (m === who ? 'on' : '') + '" data-act="tk-who" data-v="' + esc(m) + '">' + av(m, 28) + '<span>' + esc(tkNm(m)) + '</span><em class="num">' + all.filter(e => e.q.who === m && !tkPast(e)).length + '</em></button>').join('') + '</div>');
@@ -3592,6 +3630,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '8.2', d: '2026-11-28', title: '지갑과 일정 날씨', items: [
+    ['wallet', 'var(--sky)', '애플 지갑 같은 티켓', '지갑의 티켓이 아이폰 지갑처럼 색 카드로 겹쳐 있어요. 맨 앞 카드에는 이름·시간·번호가 보이고, 누르면 QR이 크게 열려요.'],
+    ['sun', 'var(--sun)', '일정마다 그 시각 날씨', '일정 카드의 시각 아래에 그 자리·그 시각의 날씨와 기온이 보여요. 비 올 확률이 높으면 💧로 알려 줘요. 여행 16일 전(12/13쯤)부터 나와요.']] },
   { v: '8.1', d: '2026-11-27', title: '화면이 새 옷을 입었어요', items: [
     ['today', 'var(--coral)', '깔끔한 흰 카드', '오늘·일정·지갑·수첩·준비물 화면이 모두 같은 하얀 카드 모양이 됐어요. 글씨는 그대로고, 더 차분하고 또렷하게 보여요.'],
     ['check', 'var(--mint)', '동그란 체크', '할 일·준비물의 체크 칸이 동그라미가 됐어요. 누르면 민트색 ✓로 바뀌어요.'],
