@@ -2006,9 +2006,10 @@ function tkWallet(t, page) {
   const anyTk = live('bookings', t.id).some(b => tkList(b).length || (b.tkNeed || []).length);
   if (!anyTk) return page ? '<div class="card empty">' + art('empty-receipt') + '<b>지갑이 비어 있어요</b>입장권·탑승권 같은 티켓 화면을 찍어 넣으면 사람마다 지갑에 모여요. 인터넷이 없어도 열려요.</div>' : '';
   const who = tkAll() ? (mem.includes(UI.tkWho) ? UI.tkWho : mem.includes(ME) ? ME : mem[0]) : ME;
-  const mine = tkEntries(t, who), now = mine.filter(e => !tkPast(e)), past = mine.filter(tkPast);
+  const mine = tkEntries(t, who), used = e => e.b.date === tkDay() && (w => w && tkMin(w) < tkMin(hm()) - 180)(tkWhen(t, e.b, e.lb)), now = mine.filter(e => !tkPast(e) && !used(e)), past = mine.filter(e => tkPast(e) || used(e)); // 오늘 쓴 티켓도 세 시간 지나면 「지난 티켓」으로(아침 비행기 탑승권이 낮에도 맨 위에 있던 것, 2026-11-27)
   const t0 = today();
-  now.sort((x, y) => (x.b.date === t0 ? 0 : 1) - (y.b.date === t0 ? 0 : 1)); // 오늘 쓸 표가 맨 앞 (애플 지갑처럼)
+  const wk = e => (e.b.date || '9') + ' ' + (tkWhen(t, e.b, e.lb) || '99:99');
+  now.sort((x, y) => (x.b.date === t0 ? 0 : 1) - (y.b.date === t0 ? 0 : 1) || wk(x).localeCompare(wk(y))); // 쓰는 시각 순(입장권 06:30 → 푸드 09:35 → 닌텐도 16:00) // 오늘 쓸 표가 맨 앞 (애플 지갑처럼)
   const card = (e, k, n) => {
     const col = tkColor(e.b, e.lb), when = tkWhen(t, e.b, e.lb);
     const has = tkReady(e.q);
