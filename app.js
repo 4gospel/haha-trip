@@ -2666,6 +2666,8 @@ function openSheet(html, onMount) {
   document.body.style.overflow = 'hidden'; document.body.classList.add('sheet-open');
   if (onMount) onMount($('#sheet-body'));
 }
+// 일정 창 제목 줄이기(내리면 작아지며 위에 붙음) — 경계에서 떨리지 않게 48px에서 작아지고 16px에서 커짐
+(fn => document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', fn) : fn())(() => { const card = $('.sheet-card'); if (!card) return; card.addEventListener('scroll', () => { const h = card.querySelector('.iv-head'); if (!h) return; const y = card.scrollTop; if (y > 48) h.classList.add('compact'); else if (y < 16) h.classList.remove('compact'); }, { passive: true }); });
 function closeSheet(fromNav) {
   if (SHEET_H) { SHEET_H = false; if (!fromNav) { POP_SKIP = true; history.back(); } }
   $('#sheet').hidden = true; $('#sheet-body').innerHTML = ''; SHEET = null; document.body.style.overflow = ''; document.body.classList.remove('sheet-open'); }
@@ -3383,6 +3385,8 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.1', d: '2026-11-27', title: '일정 창 제목이 위에 붙어 있어요', items: [
+    ['plan', 'var(--sky)', '내리면 작아지는 제목', '일정을 눌러 연 창을 아래로 내리면 제목이 부드럽게 작아지며 창 맨 위에 붙어 있어요. 어떤 일정을 보고 있는지 늘 보여요.']] },
   { v: '7.0', d: '2026-11-27', title: '모든 날을 세밀하게 · 카드는 접어서', items: [
     ['plan', 'var(--coral)', '네 날 모두 세부 일정', '12/29 인천공항·간사이공항·난바·오사카성·도톤보리, 12/30 USJ·신세카이, 12/31 교토 네 곳, 1/1 간사이공항(면세 환급·체크인·출국)까지 구역마다 나눴어요. 꼭 필요한 정보(게이트·면세 환급·쿠시카쓰 소스 규칙 등)만 골라 넣었어요.'],
     ['check', 'var(--mint)', '카드는 평소 접혀요', '메모 첫 줄만 보이고 💡 주의 사항은 접혀요. 지금·90분 안 일정은 저절로 펼쳐지고, 접힌 카드는 한 번 누르면 펼침 · 한 번 더 누르면 자세히 · 화면 가운데에 잠깐 두면 저절로 펼쳐져요.'],
