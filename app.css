@@ -1584,3 +1584,9 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .iv-head.compact .pill{display:none}
 html.solid .iv-head{background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none}
 @media (prefers-reduced-motion:reduce){.iv-head,.iv-head *{transition:none!important}}
+/* 창 아래 단추 크기 다듬기(팀장님 2026-11-27 「좀 큰 것 같아」) — 누르기 좋은 44px 이상, 주 단추는 조금 더 넓게 */
+.sheet-acts{gap:8px;margin-top:16px}
+.sheet-acts .btn{min-height:46px;font-size:15.5px;border-radius:13px;padding:0 12px}
+.sheet-acts .btn.pri{flex:1.35}
+.sheet-acts .btn .i{width:18px;height:18px}
+html.big .sheet-acts .btn{min-height:52px;font-size:17px}
