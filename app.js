@@ -1021,6 +1021,7 @@ function todayTab(t) {
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
   h += newYearCard(t0);
+  h += flightEveCard(t, t0);
   if (hm() >= '20:00' && !live('notes', t.id).some(n => (n.date || '') === t0)) h += '<div class="sec"><button class="alert" style="--cc:var(--pink)" data-act="note-new">' + ib('pen', 'var(--pink)') + '<span><b>📔 오늘 하루 한 줄 남기기</b><span>가장 좋았던 것 하나 · 사진 한 장 — 나중에 「추억」에서 다시 봐요</span></span></button></div>'; // 밤 8시부터, 오늘 일기가 아직 없을 때
   h += tkTodayCard(t);
   h += bringCard(t, t0);
@@ -2029,6 +2030,18 @@ function tkStrip(t, b) {
     '<button class="tk-edit" data-act="tk-add" data-v="' + esc(b.id) + '" aria-label="티켓 넣기·고치기">' + ic('pen') + '</button></div>';
 }
 /* 오늘 화면 — 지금 쓸 티켓 (애플 지갑이 때맞춰 표를 띄우듯) */
+/** 비행기 전날 할 일 — 내일 비행기가 있으면(출발 전날은 하루 종일, 귀국 전날은 오후 4시부터) */
+function flightEveCard(t, t0) {
+  const tm = ymd(new Date(new Date(t0 + 'T12:00:00').getTime() + 864e5)), fl = flights(t).find(b => b.date === tm);
+  if (!fl) return '';
+  const home = tm === t.end, now = hm();
+  if (home && now < '16:00') return '';
+  const fi = flightInfo(fl) || {}, bp = (fl.qr || []).length || tkList(fl).length;
+  const todo = home ? ['📱 온라인 체크인(열리면) → 탑승권 4장 지갑에', '🧳 짐 싸기 — 면세품·영수증은 따로(내일 세관에 보여 줘요)', '🔋 휴대폰·보조배터리 충전(보조배터리는 기내 가방)', '💴 남은 엔화로 내일 아침거리', (() => { const L3 = live('items', t.id).filter(i => i.date === tm).sort(byTime), co = L3.find(i => /체크아웃/.test(i.title || '')), go = L3.find(i => /^숙소 →/.test(i.title || '')); return '⏰ 내일 ' + [co && co.time + ' 짐 정리', go && go.time + ' 숙소 출발'].filter(Boolean).join(' · ') + ' — 알람 맞추기'; })()]
+    : ['📱 온라인 체크인(열리면 보통 출발 하루 전) → 탑승권 4장 지갑에', '🛂 여권 4개 · Visit Japan Web QR 캡처', '🔋 휴대폰·보조배터리 충전 · eSIM 켜는 법 확인', '🚗 주차 예약 문자 · 집 가스·창문', '⏰ 내일 새벽 출발 — 알람 맞추기'];
+  return '<div class="sec"><div class="card flight-eve"><b>✈️ 내일 비행기 ' + esc((fi.air || '') + ' ' + (fi.fn || '')) + ' · ' + esc(fl.time || '') + '</b>' + (bp ? '<span class="muted small">탑승권 ' + bp + '장이 지갑에 있어요 ✓</span>' : '') +
+    '<ul>' + todo.filter(x => !/undefined/.test(x)).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul><button class="btn" data-act="tab" data-v="pass">지갑 열기</button></div></div>';
+}
 /** 그믐밤 새해 카운트다운 · 1/1 새해 인사(일본어 소리 단추) — 12/31 18시부터, 1/1 정오까지 */
 function newYearCard(t0) {
   const now = new Date(), md0 = t0.slice(5);
@@ -3569,6 +3582,8 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '8.0', d: '2026-11-27', title: '비행기 전날 챙김', items: [
+    ['plane', 'var(--lav)', '✈️ 내일 비행기', '비행기 타기 전날 오늘 화면에 「내일 비행기」 카드가 떠요. 온라인 체크인·여권·충전·알람 시각까지 한눈에, 돌아오는 날 전날엔 면세품 따로 싸기와 숙소 나가는 시각도요.']] },
   { v: '7.9', d: '2026-11-27', title: 'USJ 앱 바로 · 하루 한 줄', items: [
     ['ticket', 'var(--sky)', '🎢 USJ 공식 앱 열기', 'USJ 날 일정 창에서 공식 앱을 바로 열어 지금 대기 시간·정리권·공연 시간을 봐요.'],
     ['pen', 'var(--pink)', '📔 오늘 하루 한 줄', '밤 8시가 지나면 오늘 화면에 「오늘 하루 한 줄 남기기」가 떠요. 가장 좋았던 것 하나와 사진 한 장 — 「추억」에 모여요.']] },

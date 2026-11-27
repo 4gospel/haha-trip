@@ -1657,3 +1657,4 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .phrase{min-width:0}.ph-face{min-width:0}.ph-face .jp{word-break:normal;line-break:strict;overflow-wrap:anywhere} /* 글씨 크게에서 긴 일본어 문장이 화면 밖으로 밀던 것 */
 .tmap-wrap.full .dm-loc{top:calc(12px + env(safe-area-inset-top));right:auto;left:58px} /* 크게 본 지도: 「크게·닫기」 단추와 겹치지 않게 */
 .tl-card.skip:has(.opt-tag){opacity:.75}.tl-card.skip:has(.opt-tag) .t{text-decoration:none}.opt-tag{--cc:#B07A00}
+.flight-eve{display:grid;gap:8px;border-left:5px solid var(--sky,#2F80ED)}.flight-eve b{font-size:17px}.flight-eve ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:15px}.flight-eve .btn{justify-self:start}
