@@ -491,15 +491,17 @@ const abroad = t => t.country ? t.country !== 'KR' : !KR_RE.test((t.place || '')
 const COUPLE = ['임요한', '장보정'];
 const couple = t => t.kind === 'couple' || (t.kind !== 'family' && t.kind !== 'culture' && (t.members || []).length === 2 && COUPLE.every(n => (t.members || []).includes(n)));
 const kindOf = t => t.kind === 'culture' ? 'cu' : couple(t) ? 'cp' : abroad(t) ? 'out' : 'in';
-const KIND = { out: ['해외여행', 'kind-abroad', 'plane'], in: ['국내여행', 'kind-korea', 'rentcar'], cp: ['부부여행', 'kind-couple', 'photo'], cu: ['문화 체험', 'kind-culture', 'museum'] };
+const KIND = { out: ['해외여행', 'it-plane', 'plane'], in: ['국내여행', 'it-rentcar', 'rentcar'], cp: ['부부여행', 'it-photo', 'photo'], cu: ['문화 체험', 'it-museum', 'museum'] }; // 갈래 그림은 있는 그림으로(없는 kind-*.webp를 늘 찾던 것, 2026-11-27)
 const kindImg = (k, cls) => '<img class="' + (cls || 'kind-art') + '" src="img/' + KIND[k][1] + '.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-' + KIND[k][2] + '.webp\'">';
 const CITY_IMG = [[/오사카|osaka/i, 'osaka'], [/교토|kyoto/i, 'kyoto'], [/도쿄|tokyo/i, 'tokyo'], [/후쿠오카/, 'fukuoka'], [/제주|서귀포/, 'jeju'], [/인제|자작나무/, 'inje'], [/곡성|섬진강/, 'gokseong'], [/타이베이|대만|타이완|taipei/i, 'taipei'], [/파리|paris/i, 'paris'], [/프라하|prague/i, 'prague'], [/스위스|체르마트|알프스/i, 'swiss'], [/남프랑스|니스|마르세유|아비뇽/i, 'provence']];
+const COVER_PARTS = { osaka: ['dawn', 'day', 'dusk', 'night'], kyoto: ['dawn', 'dusk'] }; // img/cover-<도시>[-<때>].webp 가 실제로 있는 것
 function coverImg(t) {
   if (safeImg(t.cover)) return '<img class="cover" src="' + t.cover + '" alt="">';
   const hit = CITY_IMG.find(([re]) => re.test((t.place || '') + ' ' + (t.title || '')));
   if (!hit) return '';
-  const k = hit[1];
-  return '<img class="cover" src="img/cover-' + k + '-' + partOfDay() + '.webp" alt="" onerror="if(!this.dataset.f){this.dataset.f=1;this.src=\'img/cover-' + k + '.webp\'}else this.remove()">';
+  const k = hit[1], parts = COVER_PARTS[k]; if (!parts) return ''; // 그림이 있는 도시만(없는 파일을 두 번씩 찾던 것, 2026-11-27)
+  const pd = partOfDay(), f = parts.includes(pd) ? 'cover-' + k + '-' + pd : 'cover-' + k;
+  return '<img class="cover" src="img/' + f + '.webp" alt="" onerror="this.remove()">';
 }
 /** 몇 년 전 오늘 — 지난 여행 가운데 오늘과 같은 달·날 */
 function agoCard(cur) {
@@ -510,7 +512,7 @@ function agoCard(cur) {
   if (!hits.length) return '';
   const [t, d] = hits[0], n = +t0.slice(0, 4) - +d.slice(0, 4);
   const its = live('items', t.id).filter(i => i.date === d && (/관광|쇼핑|간식/.test(i.cat || '') || /—/.test(i.title || ''))).sort(byTime).map(i => String(i.title).split(/\s*[·(/]\s*/)[0]).filter(Boolean).slice(0, 4);
-  return '<div class="sec"><button class="ago" data-act="open-trip" data-v="' + esc(t.id) + '"><img class="ago-art" src="img/memory-ago.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-photo.webp\'">' +
+  return '<div class="sec"><button class="ago" data-act="open-trip" data-v="' + esc(t.id) + '"><img class="ago-art" src="img/family.webp" alt="" onerror="this.onerror=null;this.src=\'img/it-photo.webp\'">' +
     '<span class="ago-b"><small><b class="num">' + n + '년 전</b> 오늘, 우리는</small><b>' + esc(t.title) + '</b><span>' + esc(its.length ? its.join(' · ') : t.place || '') + '</span></span>' + (hits.length > 1 ? '<span class="pill">+' + (hits.length - 1) + '</span>' : '') + '</button></div>';
 }
 /** 지난 여행 카드 (연표) */
