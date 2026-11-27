@@ -1064,7 +1064,8 @@ function todayTab(t) {
       h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(sp0) + (plan0 ? ' <small class="muted">/ 예산 약 ' + manWon(plan0) + '</small>' : '') + '</b>' +
         (plan0 ? '<span class="day-bar"><i style="width:' + Math.min(100, pc) + '%;' + (pc > 100 ? 'background:var(--warn-ink,#C62A2F)' : '') + '"></i></span><span>' + (pc > 100 ? '예산보다 ' + manWon(sp0 - plan0) + ' 더 썼어요' : '예산의 ' + pc + '% · 영수증을 찍으면 바로 적혀요') + '</span>' : '<span>영수증을 찍으면 바로 적혀요</span>') + '</span></button></div>';
     }
-    if (hotelOf(t)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="taxi"><span class="sc-ic" style="font-size:26px">🚕</span><span><b>택시에 숙소 주소 보여 주기</b><span>' + esc(hotelOf(t).title) + '</span></span></button></div>';
+    const leftHotel = t0 === t.end && (lv => hm() >= ((lv.find(i => i.date === t0 && /^숙소 →/.test(i.title || '')) || {}).time || '10:00'))(live('items', t.id)); // 귀국 날 숙소를 나선 뒤엔 숙소 주소 카드를 감춤(시뮬레이션 2026-11-27)
+    if (hotelOf(t) && !leftHotel) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="taxi"><span class="sc-ic" style="font-size:26px">🚕</span><span><b>택시에 숙소 주소 보여 주기</b><span>' + esc(hotelOf(t).title) + '</span></span></button></div>';
   }
   // 티켓 지갑
   const bk = live('bookings', t.id).sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
@@ -1138,7 +1139,7 @@ const prevItem = i => { const l = live('items', i.trip).filter(x => x.date === i
 const walkMin = (a, b) => { const R = 6371e3, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r, h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2, m = 2 * R * Math.asin(Math.sqrt(h)) * 1.3; return { m, min: Math.max(1, Math.round(m / 70)) }; };
 const goLine = i => {
   const p = i.date ? prevItem(i) : null, g = i.go || {};
-  if (p && i.zone && i.zone === p.zone && i.lat != null && p.lat != null && (!g.t || g.t === 'walk')) {
+  if (p && i.zone && i.zone === p.zone && i.lat != null && p.lat != null && (!g.t || g.t === 'walk') && !g.keep) { // g.keep = 셔틀·비행기처럼 앞 일정 자리에서 걸어 셈하면 틀리는 곳은 적어 둔 길 그대로
     const w = walkMin(p, i);
     return '<div class="goline">🚶 ' + esc(p.pin || planName(p)) + (w.m < 60 ? '에서 바로 옆' : '에서 걸어서 약 ' + w.min + '분') + '</div>';
   }
