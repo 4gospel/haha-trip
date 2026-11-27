@@ -348,14 +348,17 @@ async function pull() {
   try { adopt(await call('load')); setStatus(Q.length ? 'wait' : 'ok'); if (Q.length) kick(); setTimeout(tkSync, 300); }
   catch (e) { if (e.code === 'pass') relock(); else setStatus('bad'); }
 }
-async function poll() {
+let POLL_AT = 0; // 앱으로 돌아올 때마다 묻되 5초 안에는 다시 묻지 않음(서버·전지 아끼기, 2026-11-27)
+async function poll(force) {
   if (!PASS || document.hidden || flying) return;
+  if (!force && Date.now() - POLL_AT < 5000) return;
+  POLL_AT = Date.now();
   if (Q.length) return kick(0);
   try { const r = await call('rev'); if (r !== D.rev) pull(); else if (status === 'bad') setStatus('ok'); } catch (e) { setStatus('bad'); }
 }
-setInterval(poll, 15000);
+setInterval(() => poll(true), 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
-window.addEventListener('online', () => poll());
+window.addEventListener('online', () => poll(true));
 function relock() { PASS = ''; LS.del('pass'); toast('가족 암호를 다시 넣어 주세요'); render(); }
 
 /* ---------- 표지 그림 (코드로 그린 하늘·해·구름·도시) ---------- */
