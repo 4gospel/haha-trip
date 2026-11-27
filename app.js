@@ -606,11 +606,26 @@ function tlFold(c) {
   if (x) { clearTimeout(x._t); x.style.maxHeight = x.scrollHeight + 'px'; void x.offsetHeight; x.style.maxHeight = TL_FOLD_H + 'px'; }
   c.classList.add('fold');
 }
-let TL_IDLE = 0, TL_FOCUS = 0;
+let TL_IDLE = 0, TL_FOCUS = 0, TL_HOVER = null, TL_HT = 0;
+// PC: 마우스를 올린 카드를 0.5초 뒤 먼저 펼침(화면 가운데보다 우선), 떠나면 0.6초 뒤 다시 접힘(팀장님 2026-11-27)
+const TL_CARDS = '.tl-card, .sfc';
+document.addEventListener('pointerover', e => {
+  if (e.pointerType && e.pointerType !== 'mouse') return;
+  const c = e.target.closest && e.target.closest(TL_CARDS); if (c === TL_HOVER) return;
+  TL_HOVER = c || null; clearTimeout(TL_HT);
+  if (c && c.classList.contains('fold')) TL_HT = setTimeout(() => { if (TL_HOVER === c && document.body.contains(c) && c.classList.contains('fold')) { clearTimeout(TL_FOCUS); document.querySelectorAll('.tl-card.dwell:not(.fold), .sfc.dwell:not(.fold)').forEach(x => { if (x !== c) tlFold(x); }); c.classList.add('dwell'); tlUnfold(c); } }, 500);
+});
+document.addEventListener('pointerout', e => {
+  if (e.pointerType && e.pointerType !== 'mouse') return;
+  const c = e.target.closest && e.target.closest(TL_CARDS); if (!c || (e.relatedTarget && c.contains(e.relatedTarget))) return;
+  if (TL_HOVER === c) TL_HOVER = null; clearTimeout(TL_HT);
+  setTimeout(() => { if (TL_HOVER !== c && c.classList.contains('dwell') && !c.classList.contains('fold')) tlFold(c); }, 600);
+});
 function tlScroll() {
   clearTimeout(TL_IDLE); clearTimeout(TL_FOCUS);
   document.querySelectorAll('.tl-card.dwell:not(.fold), .sfc.dwell:not(.fold)').forEach(c => { if (c.getBoundingClientRect().top >= 0) tlFold(c); }); // 움직이면 「읽던」 카드는 다시 접기 — 윗부분이 화면 위로 지나간 카드는 그대로(접으면 화면이 튐)
-  TL_IDLE = setTimeout(() => { // 멈추면 가운데 카드를 조금 더 보고 있을 때 펼치기
+  TL_IDLE = setTimeout(() => { // 멈추면 가운데 카드를 조금 더 보고 있을 때 펼치기 — 마우스가 카드 위에 있으면 그 카드가 먼저(위 pointerover)
+    if (TL_HOVER && document.body.contains(TL_HOVER)) return;
     const mid = innerHeight / 2; let best = null, bd = 1e9;
     document.querySelectorAll('.tl-card.fold, .sfc.fold').forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom < 80 || r.top > innerHeight - 90) return; const d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < bd) { bd = d; best = c; } });
     if (best && bd < innerHeight * 0.3) TL_FOCUS = setTimeout(() => { if (document.body.contains(best) && best.classList.contains('fold')) { best.classList.add('dwell'); tlUnfold(best); } }, 500);
@@ -3146,6 +3161,7 @@ document.addEventListener('click', e => {
     'book-read': () => { const k = BKEY(t, v); const on = !LS.get(k, false); LS.set(k, on); if (on) buzz(); render(); },
     'sos-go': () => sosOpen(t),
     offline: () => offlineOpen(),
+    ics: () => icsDownload(t),
     'sos-book': () => { closeSheet(); go(tripUrl(t.id, 'book')); setTimeout(() => { const x = document.getElementById('bk_sos'); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70 }); }, 300); },
     taxi: () => taxiOpen(t, v ? D.items[v] : null),
     late: () => lateOpen(t),
@@ -3326,6 +3342,26 @@ function lateGo(t, n) {
   const clash = fx.filter(f => mv.some(i => { const nt = addMin(i.time, n); return i.time < f.time && nt >= f.time; }));
   toast(mv.length + '개를 ' + n + '분 미뤘어요' + (clash.length ? ' · ⚠️ ' + '겹쳐요: ' + clash.map(f => f.time + ' ' + planName(f)).join(', ') + ' — 하나를 건너뛰어요' : ''), () => { back.forEach(b => put('items', b, true)); render(); });
 }
+/* ---------- 휴대폰 달력 알림(.ics) — 놓치면 안 되는 일정만, 인터넷·앱 없이도 휴대폰이 울림(2026-11-27) ---------- */
+function icsItems(t) { return live('items', t.id).filter(i => i.date && i.time && !i.skip && (isFixed(i) || /출발 \(|택시로|오픈런|체크아웃|체크인 ·|입차|🔖 예약/.test(i.title || ''))).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)); }
+function icsDownload(t) {
+  const L2 = icsItems(t); if (!L2.length) return toast('달력에 넣을 시간 정해진 일정이 없어요');
+  const p2 = n => String(n).padStart(2, '0'), stamp = d => d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + p2(d.getUTCMinutes()) + '00Z';
+  const tz = t.country === 'KR' || t.country === 'JP' ? '+09:00' : '+09:00'; // 한국·일본 모두 UTC+9
+  const fold = x => x.replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const ev = L2.map(i => {
+    const st = new Date(i.date + 'T' + i.time + ':00' + tz), en = new Date(st.getTime() + 30 * 60000);
+    const pre = /출발 \(/.test(i.title) ? 180 : /정각/.test(i.title) ? 40 : 20; // 비행기 3시간 전 · 정각 입장 40분 전 · 그 밖 20분 전
+    return ['BEGIN:VEVENT', 'UID:' + i.id + '@haha-trip', 'DTSTAMP:' + stamp(new Date()), 'DTSTART:' + stamp(st), 'DTEND:' + stamp(en), 'SUMMARY:' + fold(String(i.title).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '')),
+      'DESCRIPTION:' + fold(String(i.memo || '').slice(0, 300)), 'LOCATION:' + fold(i.place || ''),
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + fold(String(i.title).slice(0, 60)), 'TRIGGER:-PT' + pre + 'M', 'END:VALARM', 'END:VEVENT'].join('\r\n');
+  });
+  const txt = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//haha-trip//KO', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:' + fold(t.title)].concat(ev, ['END:VCALENDAR']).join('\r\n');
+  const blob = new Blob([txt], { type: 'text/calendar;charset=utf-8' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = (t.title || 'trip').replace(/[^\p{L}\p{N}]+/gu, '-') + '-알림.ics'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  openSheet('<h2>📅 달력 알림 ' + L2.length + '개</h2><div class="muted">받은 파일을 열면 휴대폰 달력에 들어가요. 아이폰은 「모두 추가」, 갤럭시는 「캘린더」로 열기 → 저장.</div><div class="card" style="margin-top:12px">' + L2.map(i => '<div class="late-fx"><b class="num">' + esc(md(i.date) + ' ' + i.time) + '</b> ' + esc(String(i.title).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '').slice(0, 40)) + '</div>').join('') + '</div><div class="muted small" style="margin-top:8px">비행기는 3시간 전, 정각 입장은 40분 전, 그 밖은 20분 전에 울려요. 일정이 바뀌면 달력에서 지우고 다시 넣어요.</div><div class="sheet-acts"><button class="btn pri" data-act="sheet-close">확인</button></div>');
+}
 /** 한 줄 적기 창 */
 function askText(title, val, cb) {
   openSheet('<h2>' + esc(title) + '</h2><textarea class="in" id="ask_v" rows="3">' + esc(val || '') + '</textarea><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="ask_ok">저장</button></div>', el => { const i = el.querySelector('#ask_v'); setTimeout(() => i.focus(), 50); el.querySelector('#ask_ok').onclick = () => { const v = i.value; closeSheet(); cb(v); }; });
@@ -3416,6 +3452,7 @@ function settings() {
     '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>구글 드라이브 폴더<small>4gospel 「하하가족여행」 — 원본·사진·기록 문서·백업 (저절로 저장)</small></span></button>' +
     '<button data-act="notion-edit">' + ib('notion', 'var(--ink)', 1) + '<span>노션 연결<small>「하하가족여행」 정리함으로 보내기</small></span></button>' +
 
+    (curTrip() ? '<button data-act="ics">' + ib('plan', 'var(--coral)', 1) + '<span>📅 휴대폰 달력에 알림 넣기<small>정각 입장·공연·배·비행기 — 앱을 안 열어도 미리 울려요</small></span></button>' : '') +
     '<button data-act="offline">' + ib('download' in ICON ? 'download' : 'folder', 'var(--mint)', 1) + '<span>여행 전 오프라인 준비<small>' + (LS.get('offlineAt', 0) ? '✅ 받아 둠 · ' + new Date(LS.get('offlineAt', 0)).toLocaleDateString('ko-KR') : '인터넷이 되면 저절로 받아요') + '</small></span></button>' +
     '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
     '<button data-act="install">' + ib('phone', 'var(--sky)', 1) + '<span>홈 화면에 앱처럼 두기</span></button>' +
@@ -3477,6 +3514,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.6', d: '2026-11-27', title: '달력 알림 · 마우스로 펼치기', items: [
+    ['plan', 'var(--coral)', '📅 휴대폰 달력에 알림', '설정 → 「휴대폰 달력에 알림 넣기」를 누르면 놓치면 안 되는 일정(비행기·닌텐도 16시 정각·유람선 18:30·나이트 쇼·택시 등)이 휴대폰 달력에 들어가요. 앱을 안 열어도, 인터넷이 없어도 미리 울려요.'],
+    ['check', 'var(--sky)', 'PC에선 마우스로', '카드에 마우스를 올리면 잠시 뒤 그 카드가 먼저 펼쳐지고, 떠나면 다시 접혀요.']] },
   { v: '7.5', d: '2026-11-27', title: '오늘 챙길 것 · 인터넷 없이 지도', items: [
     ['prep', 'var(--mint)', '🎒 오늘 챙길 것', '오늘 화면에 그날 꼭 챙길 것(USJ 날 핫팩·티켓, 교토 날 현금·수건 등)과 「흩어지면 만날 곳」을 보여 줘요. 저녁 6시부터는 내일 것이 먼저 나와요.'],
     ['globe', 'var(--sky)', '지도도 인터넷 없이', '한 번 본 동선 지도는 휴대폰에 담아 두어 일본에서 인터넷이 끊겨도 보여요. 출발 전에 네 날 「이날 동선」을 구역마다 한 번씩 눌러 두세요.']] },
