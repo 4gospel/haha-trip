@@ -593,17 +593,31 @@ function fixOrphans(root) {
     if (m && m[1].length >= 6) last.nodeValue = m[1] + '\u00A0' + m[2];
   });
 }
-let TL_IO = null;
-function tlWatch() {
-  if (!window.IntersectionObserver) return;
-  if (TL_IO) TL_IO.disconnect();
-  TL_IO = new IntersectionObserver(es => es.forEach(e => {
-    const c = e.target;
-    if (e.isIntersecting) c._tlT = setTimeout(() => { if (c.classList.contains('fold') && document.body.contains(c)) { TL_OPEN.add(c.dataset.id); c.classList.remove('fold'); c.classList.add('unfold'); } }, 1500);
-    else clearTimeout(c._tlT);
-  }), { rootMargin: '-38% 0px -38% 0px' }); // 화면 가운데 띠에 1.5초 머물면
-  document.querySelectorAll('.tl-card.fold').forEach(c => TL_IO.observe(c));
+/* 스크롤하면 스르륵 접히고, 멈춰서 읽으면 스르륵 펼쳐짐(팀장님 2026-11-27) — 누른 카드·지금/90분 안 일정은 늘 펼친 채 */
+const TL_FOLD_H = 22; // 접혔을 때 보이는 메모 한 줄 높이
+function tlUnfold(c) {
+  const x = c.querySelector('.tl-x'); c.classList.remove('fold');
+  if (!x) return;
+  x.style.maxHeight = TL_FOLD_H + 'px'; void x.offsetHeight; x.style.maxHeight = x.scrollHeight + 'px';
+  clearTimeout(x._t); x._t = setTimeout(() => { if (!c.classList.contains('fold')) x.style.maxHeight = 'none'; }, 480);
 }
+function tlFold(c) {
+  const x = c.querySelector('.tl-x');
+  if (x) { clearTimeout(x._t); x.style.maxHeight = x.scrollHeight + 'px'; void x.offsetHeight; x.style.maxHeight = TL_FOLD_H + 'px'; }
+  c.classList.add('fold');
+}
+let TL_IDLE = 0, TL_FOCUS = 0;
+function tlScroll() {
+  clearTimeout(TL_IDLE); clearTimeout(TL_FOCUS);
+  document.querySelectorAll('.tl-card.dwell:not(.fold)').forEach(c => { if (c.getBoundingClientRect().top >= 0) tlFold(c); }); // 움직이면 「읽던」 카드는 다시 접기 — 윗부분이 화면 위로 지나간 카드는 그대로(접으면 화면이 튐)
+  TL_IDLE = setTimeout(() => { // 멈추면 가운데 카드를 조금 더 보고 있을 때 펼치기
+    const mid = innerHeight / 2; let best = null, bd = 1e9;
+    document.querySelectorAll('.tl-card.fold').forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom < 80 || r.top > innerHeight - 90) return; const d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < bd) { bd = d; best = c; } });
+    if (best && bd < innerHeight * 0.3) TL_FOCUS = setTimeout(() => { if (document.body.contains(best) && best.classList.contains('fold')) { best.classList.add('dwell'); tlUnfold(best); } }, 500);
+  }, 600);
+}
+addEventListener('scroll', tlScroll, { passive: true });
+function tlWatch() { document.querySelectorAll('.tl-card.fold .tl-x').forEach(x => { x.style.maxHeight = TL_FOLD_H + 'px'; }); tlScroll(); }
 function render() {
   try { render_(); fixOrphans($('#app')); tlWatch(); } catch (e) {
     console.error(e);
@@ -1137,7 +1151,7 @@ function tlSoon(i, now) {
 function tlItem(t, i, now) {
   const [icn, col] = itemIcon(i), sv = sunVars(t, i), open = TL_OPEN.has(i.id) || tlSoon(i, now), long = String(i.memo || '').length > 40 || !!i.tip;
   return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + (long && !open ? ' fold' : '') + '" data-id="' + esc(i.id) + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
-    '<button class="body" data-act="tl-tap" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m tl-memo">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m tl-tip" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') + (long ? '<div class="tl-hint">' + (i.tip ? '💡 주의 사항 · ' : '') + '눌러서 자세히 ▾</div>' : '') +
+    '<button class="body" data-act="tl-tap" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + '<div class="tl-x">' + (i.memo ? '<div class="m tl-memo">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m tl-tip" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') + '</div>' + (long ? '<div class="tl-hint">' + (i.tip ? '💡 주의 사항 · ' : '') + '눌러서 자세히 ▾</div>' : '') +
     '<div class="meta">' + (i.skip ? '<span class="tag skip-tag">⏭ 이번엔 건너뜀</span>' : '') + '<span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.go && i.go.t === 'taxi' ? '<span class="go taxi-go" role="button" data-act="taxi" data-v="' + esc(i.id) + '">🚕 기사님께 보여 주기</span>' : '') +
     (i.place ? (u => '<a class="go' + (/^(nmap|intent):/.test(u) ? ' nvapp' : '') + '" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + ' data-stop="1">' + ic('route') + '길찾기</a>')(goTo(t, i.place, i)) : '') + '</div></button>' +
@@ -2986,7 +3000,7 @@ document.addEventListener('click', e => {
     'trip-scan-add': () => scanFlow(t),
     'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
     'item-view': () => itemView(t, D.items[v]),
-    'tl-tap': () => { const card = el.closest('.tl-card'); if (card && card.classList.contains('fold')) { TL_OPEN.add(v); card.classList.remove('fold'); card.classList.add('unfold'); return; } itemView(t, D.items[v]); },
+    'tl-tap': () => { const card = el.closest('.tl-card'); if (card && card.classList.contains('fold')) { TL_OPEN.add(v); card.classList.remove('dwell'); tlUnfold(card); return; } itemView(t, D.items[v]); },
     'rb-open': () => rbOpen(t, v != null ? +v : null),
     'rb-get': () => rbGetSheet(t),
     'rb-pdf': () => rbPdf(t),
@@ -3390,6 +3404,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.2', d: '2026-11-27', title: '읽을 때만 스르륵 펼쳐져요', items: [
+    ['plan', 'var(--coral)', '일정 카드', '스크롤하는 동안엔 접혀 있다가, 멈춰서 화면 가운데 카드를 보고 있으면 스르륵 펼쳐지고, 다시 스크롤하면 스르륵 접혀요. 직접 누른 카드와 지금·곧 시작할 일정은 늘 펼쳐 둬요.'],
+    ['globe', 'var(--sky)', '예쁜 단추 그림', '길찾기 단추에 색 네모 이모티콘(🗺️🚶🚕🍜🏪🎡)을 넣고, 창 아래 단추 크기를 알맞게 줄였어요.']] },
   { v: '7.1', d: '2026-11-27', title: '일정 창 제목이 위에 붙어 있어요', items: [
     ['plan', 'var(--sky)', '내리면 작아지는 제목', '일정을 눌러 연 창을 아래로 내리면 제목이 부드럽게 작아지며 창 맨 위에 붙어 있어요. 어떤 일정을 보고 있는지 늘 보여요.']] },
   { v: '7.0', d: '2026-11-27', title: '모든 날을 세밀하게 · 카드는 접어서', items: [
