@@ -846,16 +846,15 @@ document.addEventListener('pointerdown', e => {
 document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.tl-card .chk')) e.preventDefault(); });
 /** 동선에서 탈것 그림(팀장님 2026-11-27 「대중교통 항목엔 이모티콘」) */
 function dmEmo(i) {
-  const g = i.go || {}, tx = (i.title || '') + ' ' + (i.memo || '');
-  if (g.t === 'taxi' || /택시/.test(i.title || '')) return '🚕';
-  if (i.cat !== '이동' && g.t !== 'transit') return '';
-  if (/출발 \(|비행|항공|\b7C\d/.test(i.title || '')) return '✈️';
-  if (/페리|배로|선착장/.test(i.title || '')) return '⛴️';
-  const st = g.steps || [];
-  if (st.some(x => x.m === 'bus') || /셔틀버스|버스/.test(i.title || '')) return '🚌';
-  if (/주차/.test(i.title || '')) return '🅿️';
-  if (g.t === 'transit' || st.some(x => x.m === 'rail') || /선|철|JR|난카이|게이한|한큐|지하철/.test(tx)) return '🚃';
-  return '🚶';
+  const g = i.go || {}, t = i.title || '';
+  if (g.t === 'taxi' || /택시로/.test(t)) return '🚕';
+  if (/(인천|간사이) 출발|출발 \(7C/.test(t)) return '✈️'; // 비행기는 「○○ 출발」 일정만(체크인 등 공항 안 일은 빼고)
+  if (/도착/.test(t) && /공항|인천|간사이/.test(t) && !/체크인/.test(t)) return '🛬'; // 비행기에서 내린 때만(공항 가서 체크인하는 일정은 빼고)
+  if (g.t === 'bus' || /셔틀버스|버스/.test(t)) return '🚌';
+  if (/페리|배로 /.test(t)) return '⛴️';
+  if (g.t === 'transit') return '🚃';
+  if (g.t === 'walk' && i.cat === '이동') return '🚶';
+  return '';
 }
 const dmLab = i => String(i.pin || planName(i)).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 let DMAP = null;
@@ -876,8 +875,10 @@ async function mountDayMap() {
   const ll = pts.map(i => [i.lat, i.lng]);
   L.polyline(ll, { color: '#ffffff', weight: 8, opacity: .9 }).addTo(DMAP._g);
   L.polyline(ll, { color: '#C2410C', weight: 4, opacity: .95, dashArray: '2 9', lineCap: 'round' }).addTo(DMAP._g);
+  const same = {}; // 같은 자리(예: 2터미널 안 면세·체크인·출국)는 핀을 동그랗게 비켜 놓아 번호가 다 보이게
   pts.forEach((i, k) => {
-    const icon = L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+    const key = i.lat.toFixed(4) + ',' + i.lng.toFixed(4), n = same[key] = (same[key] || 0) + 1, a = (n - 1) * 1.1, r = n > 1 ? 15 + 3 * n : 0, dx = Math.round(Math.cos(a) * r), dy = Math.round(Math.sin(a) * r);
+    const icon = L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14 - dx, 14 - dy], popupAnchor: [dx, dy - 14] });
     L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc(mapUrl(i.lat + ',' + i.lng)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
   });
   const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); DMAP.fitBounds(ll, { paddingTopLeft: [52, 36], paddingBottomRight: [36, 52], maxZoom: 18 }); }; // 왼쪽 위 ＋− 단추·오른쪽 아래 「크게」에 핀이 가리지 않게
