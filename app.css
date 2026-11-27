@@ -1561,11 +1561,11 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .tmap-wrap{isolation:isolate} /* 지도 단추·레이어가 창(시트) 위로 뜨지 않게 */
 /* 일정 카드 접기 — 높이를 스르륵(2026-11-27) */
 .tl-x{overflow:hidden;transition:max-height .45s cubic-bezier(.25,.8,.25,1)}
-.tl-card.fold .tl-x{-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
+.tl-card.fold .tl-x,.sfc.fold .tl-x{-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
 .tl-card .tl-tip{transition:opacity .35s ease .08s}
 .tl-card.fold .tl-tip{opacity:0}
 .tl-hint{font-size:13px;font-weight:700;color:var(--coral-ink,#C2410C);margin-top:4px;max-height:0;opacity:0;overflow:hidden;transition:max-height .3s ease,opacity .3s ease}
-.tl-card.fold .tl-hint{max-height:22px;opacity:1}
+.tl-card.fold .tl-hint,.sfc.fold .tl-hint{max-height:22px;opacity:1}
 @media (prefers-reduced-motion:reduce){.tl-x,.tl-hint,.tl-card .tl-tip{transition:none}}
 /* 동선 구역 단추 줄: 휴대폰 폭을 넘으면 옆으로 밀어서(화면 전체가 밀리지 않게, 2026-11-27) */
 .dmap-sec .sec-h{flex-wrap:wrap}
@@ -1595,3 +1595,7 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .eb{display:inline-grid;place-items:center;flex:none;width:26px;height:26px;border-radius:8px;background:var(--eb,#eee);font-size:16px;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
 .btn .eb{margin-left:-2px}
 .eb{width:22px;height:22px;border-radius:6px;font-size:14px}
+
+.sfc .tl-x{overflow:hidden}
+.row.sfc{cursor:pointer}
+.pass.sfc .m{display:block;-webkit-line-clamp:unset;overflow:visible}

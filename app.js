@@ -609,15 +609,15 @@ function tlFold(c) {
 let TL_IDLE = 0, TL_FOCUS = 0;
 function tlScroll() {
   clearTimeout(TL_IDLE); clearTimeout(TL_FOCUS);
-  document.querySelectorAll('.tl-card.dwell:not(.fold)').forEach(c => { if (c.getBoundingClientRect().top >= 0) tlFold(c); }); // 움직이면 「읽던」 카드는 다시 접기 — 윗부분이 화면 위로 지나간 카드는 그대로(접으면 화면이 튐)
+  document.querySelectorAll('.tl-card.dwell:not(.fold), .sfc.dwell:not(.fold)').forEach(c => { if (c.getBoundingClientRect().top >= 0) tlFold(c); }); // 움직이면 「읽던」 카드는 다시 접기 — 윗부분이 화면 위로 지나간 카드는 그대로(접으면 화면이 튐)
   TL_IDLE = setTimeout(() => { // 멈추면 가운데 카드를 조금 더 보고 있을 때 펼치기
     const mid = innerHeight / 2; let best = null, bd = 1e9;
-    document.querySelectorAll('.tl-card.fold').forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom < 80 || r.top > innerHeight - 90) return; const d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < bd) { bd = d; best = c; } });
+    document.querySelectorAll('.tl-card.fold, .sfc.fold').forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom < 80 || r.top > innerHeight - 90) return; const d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < bd) { bd = d; best = c; } });
     if (best && bd < innerHeight * 0.3) TL_FOCUS = setTimeout(() => { if (document.body.contains(best) && best.classList.contains('fold')) { best.classList.add('dwell'); tlUnfold(best); } }, 500);
   }, 600);
 }
 addEventListener('scroll', tlScroll, { passive: true });
-function tlWatch() { document.querySelectorAll('.tl-card.fold .tl-x').forEach(x => { x.style.maxHeight = TL_FOLD_H + 'px'; }); tlScroll(); }
+function tlWatch() { document.querySelectorAll('.tl-card.fold .tl-x, .sfc.fold .tl-x').forEach(x => { x.style.maxHeight = TL_FOLD_H + 'px'; }); tlScroll(); }
 function render() {
   try { render_(); fixOrphans($('#app')); tlWatch(); } catch (e) {
     console.error(e);
@@ -1051,8 +1051,9 @@ function passCard(t, b, warn) {
   const endS = String(b.end || '');
   const sideTop = b.kind === '주차' && endS.length > 5 ? '출차 ' + md(endS.slice(0, 10)) : (b.date ? md(b.date) : '날짜 미정');
   const sideBig = b.kind === '주차' && endS.length > 5 ? endS.slice(11) : (b.time || '—');
-  return '<button class="pass' + (warn ? ' warn' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + itPic({ 항공: 'plane', 숙소: 'bed', 티켓: 'ticket', 교통: 'train' }[b.kind] || icn, col, 1) + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
-    '<div class="t">' + esc(b.title) + '</div>' + (b.kind === '주차' ? '<div class="m">' + esc([b.date && ('입차 ' + md(b.date) + ' ' + (b.time || '')), b.car && ('🚗 ' + b.car)].filter(Boolean).join(' · ')) + '</div>' + (Number(b.grace) ? '<span class="pill" style="align-self:flex-start">앞뒤 ' + Number(b.grace) + '시간 여유</span>' : '') : (b.memo ? '<div class="m">' + esc(b.memo) + '</div>' : '')) +
+  const sf = b.kind !== '주차' && String(b.memo || '').length > 50; // 긴 메모는 스르륵 접기(2026-11-27)
+  return '<button class="pass' + (warn ? ' warn' : '') + (sf ? ' sfc fold' : '') + '" style="--cc:' + col + '" data-act="booking-edit" data-v="' + esc(b.id) + '"><div class="main"><div class="k">' + itPic({ 항공: 'plane', 숙소: 'bed', 티켓: 'ticket', 교통: 'train' }[b.kind] || icn, col, 1) + esc(b.kind) + (b.provider ? ' · ' + esc(b.provider) : '') + '</div>' +
+    '<div class="t">' + esc(b.title) + '</div>' + (b.kind === '주차' ? '<div class="m">' + esc([b.date && ('입차 ' + md(b.date) + ' ' + (b.time || '')), b.car && ('🚗 ' + b.car)].filter(Boolean).join(' · ')) + '</div>' + (Number(b.grace) ? '<span class="pill" style="align-self:flex-start">앞뒤 ' + Number(b.grace) + '시간 여유</span>' : '') : (b.memo ? (sf ? '<div class="tl-x"><div class="m">' + esc(b.memo) + '</div></div>' : '<div class="m">' + esc(b.memo) + '</div>') : '')) +
     (b.code ? '<span class="code">' + esc(b.code) + '</span>' : '') + (warn ? '<div class="warnline">⚠️ 시간 확인</div>' : '') + '</div>' +
     '<div class="side"><small>' + esc(sideTop) + '</small><b class="num">' + esc(sideBig) + '</b>' + (b.kind !== '주차' && endS ? '<small class="num">→ ' + esc(endS.length > 5 ? md(endS.slice(0, 10)) + ' ' + endS.slice(11) : endS) + '</small>' : '') + '</div>' +
     (safeImg(b.thumb) ? '<img class="ph" src="' + b.thumb + '" alt="">' : '') + '</button>';
@@ -1142,6 +1143,8 @@ function tlList(t, list, nowFirst) {
 /* 일정 카드 접기(팀장님 2026-11-27 「글이 너무 많아 — 평소엔 접고, 누르거나 오래 보면 펼치기」 · 「그 시간이 되거나 이전에 자세히 보니 거기에 맞춰」)
    펼침: ① 오늘 「지금」 일정·90분 안에 시작할 일정 ② 누른 카드(한 번 더 누르면 자세히 보기 창) ③ 화면 가운데에 1.5초 머문 카드 */
 const TL_OPEN = new Set();
+// 오늘 화면의 카드도 스크롤하면 접히고 멈춰 읽으면 펼침(팀장님 2026-11-27) — 「지금 · 다음」 카드를 미리 펼쳐 두지 않음
+const tlOnToday = () => { const r = route(); return r.view === 'trip' && (r.tab || 'today') === 'today'; };
 function tlSoon(i, now) {
   if (now) return true;
   if (!i.date || i.date !== today() || i.done || i.skip || !i.time) return false;
@@ -1149,7 +1152,7 @@ function tlSoon(i, now) {
   return d <= 90 && d >= -60;
 }
 function tlItem(t, i, now) {
-  const [icn, col] = itemIcon(i), sv = sunVars(t, i), open = TL_OPEN.has(i.id) || tlSoon(i, now), long = String(i.memo || '').length > 40 || !!i.tip;
+  const [icn, col] = itemIcon(i), sv = sunVars(t, i), open = TL_OPEN.has(i.id) || (!tlOnToday() && tlSoon(i, now)), long = String(i.memo || '').length > 40 || !!i.tip;
   return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + (long && !open ? ' fold' : '') + '" data-id="' + esc(i.id) + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
     '<button class="body" data-act="tl-tap" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + '<div class="tl-x">' + (i.memo ? '<div class="m tl-memo">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m tl-tip" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') + '</div>' + (long ? '<div class="tl-hint">' + (i.tip ? '💡 주의 사항 · ' : '') + '눌러서 자세히 ▾</div>' : '') +
     '<div class="meta">' + (i.skip ? '<span class="tag skip-tag">⏭ 이번엔 건너뜀</span>' : '') + '<span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
@@ -1551,9 +1554,9 @@ function wantView(t) {
   h += list.length ? '<div class="stack">' + list.map(r => {
     const col = cc(RECC[r.kind] || '기타');
     const fa = foodArt(r);
-    return '<div class="rec"><div class="top">' + (fa ? '<img class="rec-art" src="img/' + fa + '.webp" alt="">' : ib(RC_IC[r.kind] || 'recs', col)) + '<div style="flex:1;min-width:0"><h4>' + esc(r.name) + '</h4><div class="area">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + '</div></div>' +
+    return '<div class="rec' + (String(r.desc || '').length > 70 ? ' sfc fold' : '') + '"><div class="top">' + (fa ? '<img class="rec-art" src="img/' + fa + '.webp" alt="">' : ib(RC_IC[r.kind] || 'recs', col)) + '<div style="flex:1;min-width:0"><h4>' + esc(r.name) + '</h4><div class="area">' + esc(r.kind) + (r.area ? ' · ' + esc(r.area) : '') + '</div></div>' +
       (inPlan.has(r.id) ? '<span class="pill hot">일정에 있음</span>' : '') + '</div>' +
-      (r.desc ? '<p>' + esc(r.desc) + '</p>' : '') +
+      (r.desc ? (String(r.desc).length > 70 ? '<div class="tl-x" data-act="sf-tap"><p>' + esc(r.desc) + '</p></div><div class="tl-hint" data-act="sf-tap">눌러서 자세히 ▾</div>' : '<p>' + esc(r.desc) + '</p>') : '') +
       ((r.price || r.hours) ? '<div class="info">' + (r.price ? '<span>' + esc(r.price) + '</span>' : '') + (r.hours ? '<span>🕘 ' + esc(r.hours) + '</span>' : '') + '</div>' : '') +
       '<div class="acts">' + (r.kind !== '팁' ? '<button class="btn navy" data-act="rec-add" data-v="' + esc(r.id) + '">' + ic('plus') + '일정에 넣기</button><a class="btn" href="' + esc(mapUrl(r.map || r.name)) + '" target="_blank" rel="noopener">' + ic('pin') + '지도</a>' + nvA(nvPlace(r.name + (isKR(t) ? '' : ' ' + cityOf(t))), 'btn nv-o', '<span class="nvlogo">N</span>네이버') : '') +
       (safeUrl(r.link) ? '<a class="btn" href="' + esc(r.link) + '" target="_blank" rel="noopener">' + ic('link') + '누리집</a>' : '') +
@@ -2267,7 +2270,7 @@ function infoPage(t) {
     (hb.place ? '<div style="font-size:18px;margin-top:6px">' + esc(hb.place) + '</div>' : '') + '<div class="acts flex" style="margin-top:12px;flex-wrap:wrap">' + (hb.place ? nvA(goTo(t, hb.place, hb), 'btn navy', ic('route') + (isKR(t, hb) ? '네이버 길찾기' : '길찾기')) + (isKR(t, hb) ? '' : nvA(nvPlace(hb.place), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도')) : '') + '<button class="btn" data-act="booking-edit" data-v="' + esc(hb.id) + '">' + ic('pen') + '주소 고치기</button></div>' +
     '<div class="muted small" style="margin-top:8px">예약 확인서의 일본어 주소로 바꿔 두면 택시 기사에게 그대로 보여 줄 수 있어요.</div></div></div>';
   const tips = live('recs', t.id).filter(r => r.kind === '팁');
-  if (tips.length) h += '<div class="sec"><div class="sec-h"><h3>알아 둘 것</h3></div><div class="card">' + tips.map(r => '<div class="row"><span class="body"><div class="t">' + esc(r.name) + '</div><div class="m">' + esc(r.desc) + '</div></span></div>').join('') + '</div></div>';
+  if (tips.length) h += '<div class="sec"><div class="sec-h"><h3>알아 둘 것</h3></div><div class="card">' + tips.map(r => String(r.desc || '').length > 60 ? '<div class="row sfc fold" data-act="sf-tap"><span class="body"><div class="t">' + esc(r.name) + '</div><div class="tl-x"><div class="m">' + esc(r.desc) + '</div></div><div class="tl-hint">눌러서 자세히 ▾</div></span></div>' : '<div class="row"><span class="body"><div class="t">' + esc(r.name) + '</div><div class="m">' + esc(r.desc) + '</div></span></div>').join('') + '</div></div>';
   return h;
 }
 
@@ -3000,6 +3003,7 @@ document.addEventListener('click', e => {
     'trip-scan-add': () => scanFlow(t),
     'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
     'item-view': () => itemView(t, D.items[v]),
+    'sf-tap': () => { const c = el.closest('.sfc'); if (!c) return; if (c.classList.contains('fold')) { c.classList.remove('dwell'); c.dataset.keep = '1'; tlUnfold(c); } else { delete c.dataset.keep; tlFold(c); } },
     'tl-tap': () => { const card = el.closest('.tl-card'); if (card && card.classList.contains('fold')) { TL_OPEN.add(v); card.classList.remove('dwell'); tlUnfold(card); return; } itemView(t, D.items[v]); },
     'rb-open': () => rbOpen(t, v != null ? +v : null),
     'rb-get': () => rbGetSheet(t),
@@ -3405,7 +3409,7 @@ async function aiEdit() {
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
   { v: '7.2', d: '2026-11-27', title: '읽을 때만 스르륵 펼쳐져요', items: [
-    ['plan', 'var(--coral)', '일정 카드', '스크롤하는 동안엔 접혀 있다가, 멈춰서 화면 가운데 카드를 보고 있으면 스르륵 펼쳐지고, 다시 스크롤하면 스르륵 접혀요. 직접 누른 카드와 지금·곧 시작할 일정은 늘 펼쳐 둬요.'],
+    ['plan', 'var(--coral)', '카드가 스르륵', '일정·오늘 화면·예약 모두·여행 정보 「알아 둘 것」·가고 싶은 곳의 긴 글은 스크롤하는 동안 접혀 있다가, 멈춰서 화면 가운데 카드를 보고 있으면 스르륵 펼쳐지고, 다시 스크롤하면 스르륵 접혀요. 눌러서 펼친 카드는 그대로 둬요.'],
     ['globe', 'var(--sky)', '예쁜 단추 그림', '길찾기 단추에 색 네모 이모티콘(🗺️🚶🚕🍜🏪🎡)을 넣고, 창 아래 단추 크기를 알맞게 줄였어요.']] },
   { v: '7.1', d: '2026-11-27', title: '일정 창 제목이 위에 붙어 있어요', items: [
     ['plan', 'var(--sky)', '내리면 작아지는 제목', '일정을 눌러 연 창을 아래로 내리면 제목이 부드럽게 작아지며 창 맨 위에 붙어 있어요. 어떤 일정을 보고 있는지 늘 보여요.']] },
