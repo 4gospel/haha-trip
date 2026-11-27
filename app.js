@@ -130,6 +130,9 @@ const ICON = {
   recs: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
   prep: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17"/>',
   pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  walk: '<circle cx="13.5" cy="4.5" r="1.9"/><path d="M12.8 8.2 10.6 13l2.9 2.6 1.2 5.4M10.6 13 7.5 15M12.8 8.2l3 2.8 2.7-.4M10.4 17.2 8 21"/>', // 걸어서(사람이 걷는 모습)
+  landmark: '<path d="M6 21V3.5M6 4h11l-2.3 3.8L17 11.5H6"/><path d="M3.5 21h6"/>', // 주변 볼거리(깃발)
+  star: '<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/>',
   route: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>',
   plane: '<path d="M2.5 12h19M14 12l-4.5-7h-2l2.5 7M14 12l-4.5 7h-2l2.5-7M5 12L3.5 9H5l2 3M5 12l-1.5 3H5l2-3"/>',
   bed: '<path d="M3 18V7M3 13h18v5M21 18v-3a3 3 0 0 0-3-3h-8v1"/><circle cx="7" cy="10.5" r="1.8"/>',
@@ -1079,7 +1082,7 @@ function goHtml(i) {
   const g = i.go; if (!g || !g.s) return '';
   const st = (g.steps || []).map(x => '<li>' + (x.m === 'walk' ? '🚶 걸어서 ' + x.min + '분' + (x.to ? ' → ' + esc(x.to) : '') : (x.m === 'bus' ? '🚌 ' : '🚃 ') + '<b class="num">' + esc(x.d || '') + '</b> ' + esc(x.l || '') + ' <span class="muted">' + esc(x.f || '') + ' → ' + esc(x.to || '') + '</span> <b class="num">' + esc(x.a || '') + '</b>' + (x.n ? ' <span class="muted small">(' + x.n + '정거장)</span>' : '')) + '</li>').join('');
   return '<div class="iv-sec iv-go-sec"><b>' + ic('route') + '여기까지 가는 길</b><div class="goline big">' + (GO_IC[g.t] || '➜') + ' ' + esc(g.s) + '</div>' + (st ? '<ol class="gosteps">' + st + '</ol>' : '') +
-    (g.note ? '<div class="muted small">' + esc(g.note) + '</div>' : '') + (goUrl(i) ? '<a class="btn" href="' + esc(goUrl(i)) + '" target="_blank" rel="noopener">' + ic('route') + '구글 지도에서 ' + (g.t === 'walk' ? '걷는 길' : '이 시각 경로') + ' 보기</a>' : '') + '</div>';
+    (g.note ? '<div class="muted small">' + esc(g.note) + '</div>' : '') + (goUrl(i) ? '<a class="btn" href="' + esc(goUrl(i)) + '" target="_blank" rel="noopener">' + ic(g.t === 'walk' ? 'walk' : 'route') + '구글 지도에서 ' + (g.t === 'walk' ? '걷는 길' : '이 시각 경로') + ' 보기</a>' : '') + '</div>';
 }
 /* 해 뜨고 지는 때 — 날짜·위치로 계산(근사, ±2분). 카드 배경에 해·노을·달을 은은하게 */
 function sunRS(ds, lat, lng, tz) {
@@ -1436,11 +1439,11 @@ function itemView(t, i) {
   if (q.trim()) {
     h += '<div class="iv-map"><iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="지도" src="https://www.google.com/maps?q=' + encodeURIComponent(q) + '&hl=ko&z=15&output=embed"></iframe></div>';
     const kr = isKR(t, i), fromR = fromIt && fromIt.lat != null ? { lat: fromIt.lat, lng: fromIt.lng, name: fromIt.place } : null, nq = i.place || i.title || q;
-    const gBtns = '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서</a>' +
+    const gBtns = '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + ic('walk') + '걸어서</a>' +
       '<a class="btn" href="' + esc(dirTo(q, 'driving', from)) + '" target="_blank" rel="noopener">' + ic('taxi') + '차·택시</a>';
     const near = '<a class="btn" href="' + esc(mapUrl('맛집 near ' + q)) + '" target="_blank" rel="noopener">' + ic('bowl') + '주변 맛집</a>' +
       '<a class="btn" href="' + esc(mapUrl('편의점 near ' + q)) + '" target="_blank" rel="noopener">' + ic('basket') + '주변 편의점</a>' +
-      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + ic('camera') + '주변 볼거리</a>';
+      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + ic('landmark') + '주변 볼거리</a>';
     if (kr) h += '<div class="iv-go">' + (i.lat != null ?
       nvA(nvRoute(nq, i.lat, i.lng, 'public', fromR), 'btn pri nv', '<span class="nvlogo">N</span>네이버 길찾기' + (fromR ? ' (앞 일정에서)' : '')) +
       nvA(nvPlace(nq, i.lat, i.lng), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도') +
@@ -2200,7 +2203,7 @@ function carPage(t) {
     h += '<div class="car">' + (safeImg(pk.thumb) ? '<button data-act="view-photo" data-c="parks" data-v="' + esc(pk.id) + '" style="display:block;width:100%"><img src="' + pk.thumb + '" alt="주차 위치 사진"></button>' : '') +
       '<div class="cin"><div class="spot">' + esc(pk.spot || '주차 위치') + '</div><div class="muted">' + esc(md(pk.date)) + ' ' + esc(pk.time || '') + ' 세움' + (hours ? ' · ' + Math.floor(hours / 24) + '일 ' + (hours % 24) + '시간째' : '') + (pk.by ? ' · ' + esc(pk.by) + ' 기록' : '') + '</div>' +
       (pk.memo ? '<p style="margin:8px 0 0">' + esc(pk.memo) + '</p>' : '') + (pk.keyBy ? '<p class="muted" style="margin:6px 0 0">🔑 차 키: ' + esc(pk.keyBy) + '</p>' : '') + (pk.left ? '<p class="muted" style="margin:4px 0 0">차에 둔 것: ' + esc(pk.left) + '</p>' : '') +
-      '<div class="acts">' + (pk.lat ? (inKR(pk.lat, pk.lng) ? nvA(nvRoute(pk.spot || '내 차', pk.lat, pk.lng, 'walk'), 'btn navy', ic('route') + '걸어서 길찾기 (네이버)') : '<a class="btn navy" href="' + esc('https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + pk.lat + ',' + pk.lng) + '" target="_blank" rel="noopener">' + ic('route') + '걸어서 길찾기</a>') : '') +
+      '<div class="acts">' + (pk.lat ? (inKR(pk.lat, pk.lng) ? nvA(nvRoute(pk.spot || '내 차', pk.lat, pk.lng, 'walk'), 'btn navy', ic('walk') + '걸어서 길찾기 (네이버)') : '<a class="btn navy" href="' + esc('https://www.google.com/maps/dir/?api=1&travelmode=walking&destination=' + pk.lat + ',' + pk.lng) + '" target="_blank" rel="noopener">' + ic('walk') + '걸어서 길찾기</a>') : '') +
       '<button class="btn" data-act="photo" data-v="parking">' + ic('camera') + '사진 더 찍기</button><button class="btn" data-act="park-edit" data-v="' + esc(pk.id) + '">' + ic('pen') + '고치기</button>' +
       (safeUrl(pk.photoUrl) ? '<a class="btn" href="' + esc(pk.photoUrl) + '" target="_blank" rel="noopener">' + ic('link') + '원본 사진</a>' : '') + '</div></div></div>';
   } else h += '<div class="card empty">' + art('my-car') + '<b>주차한 뒤 기둥을 찍어 두세요</b>층·구역 글자를 읽어 여기 크게 보여 줘요</div><button class="btn pri big wide" style="margin-top:12px" data-act="photo" data-v="parking">' + ic('camera') + '주차 위치 사진 찍기</button>';
