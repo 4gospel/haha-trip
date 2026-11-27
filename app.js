@@ -1019,6 +1019,7 @@ function todayTab(t) {
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
   h += newYearCard(t0);
+  if (hm() >= '20:00' && !live('notes', t.id).some(n => (n.date || '') === t0)) h += '<div class="sec"><button class="alert" style="--cc:var(--pink)" data-act="note-new">' + ib('pen', 'var(--pink)') + '<span><b>📔 오늘 하루 한 줄 남기기</b><span>가장 좋았던 것 하나 · 사진 한 장 — 나중에 「추억」에서 다시 봐요</span></span></button></div>'; // 밤 8시부터, 오늘 일기가 아직 없을 때
   h += tkTodayCard(t);
   h += bringCard(t, t0);
   if (ph === 'before' && dayDiff(t0, t.start) <= 3 && !LS.get('offlineAt', 0)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="offline"><span><b>📦 오프라인 준비가 아직 덜 끝났어요</b><span>인터넷이 되면 저절로 받아요 · 눌러서 지금 받기</span></span></button></div>';
@@ -1550,6 +1551,7 @@ function itemView(t, i) {
   }
   if (rel.length) h += '<div class="iv-sec"><b>' + ic('star') + '함께 알아 둘 곳</b>' + rel.map(r => '<div class="iv-rec"><b>' + esc(r.name) + '</b>' + (r.area ? ' <span class="muted">' + esc(r.area) + '</span>' : '') + '<div>' + esc(r.desc || '') + '</div>' + (r.hours ? '<div class="muted small">🕘 ' + esc(r.hours) + '</div>' : '') + (r.price ? '<div class="muted small">💴 ' + esc(r.price) + '</div>' : '') + '</div>').join('') + '</div>';
   if (bk.length) h += '<div class="iv-sec"><b>' + ic('ticket') + '이 일정의 예약</b>' + bk.map(b => '<button class="iv-rec" data-act="booking-edit" data-v="' + esc(b.id) + '"><b>' + esc(b.title) + '</b>' + (b.code ? ' <span class="num muted">' + esc(b.code) + '</span>' : '') + '</button>').join('') + '</div>';
+  if (i.zone === 'USJ') { const u = taxiAppUrl('usj'); h += '<div class="iv-sec"><a class="btn ta-btn" href="' + esc(u) + '"' + (/^intent:/.test(u) ? '' : ' target="_blank" rel="noopener"') + '>' + eb('🎢', '#E3EEFF') + '<span><b>USJ 공식 앱 열기</b><small>지금 대기 시간 · 정리권 · 오늘 공연 시간</small></span></a></div>'; }
   // 그 자리에서 쓸 일본어 한마디(누르면 받아 둔 음성 — 인터넷 없이도)
   if (t.country === 'JP') { const P = ivPhrases(i); if (P.length) h += '<div class="iv-sec iv-say"><b>🗣️ 여기서 쓸 일본어 <small class="muted">누르면 소리가 나요</small></b><div class="say-chips">' + P.map(q => '<button class="say-chip" data-act="ph-say" data-v="' + esc(q[0]) + '" data-l="ja-JP"><b>' + esc(q[2]) + '</b><small>' + esc(q[1]) + '</small></button>').join('') + '</div></div>'; }
   // 늦어지거나 바뀌었을 때 그 자리에서(팀장님 2026-11-27 「다른 일정도 늦어지거나 삭제·변경에 대처」)
@@ -3446,7 +3448,8 @@ const TAXI_APPS = {
   didi: { n: '디디(DiDi)', e: '🟠', bg: '#FFE9D6', pkg: 'com.didiglobal.passenger', ios: '1362398401', sub: '오사카에서 가장 빨리 잡혀요' },
   kakao: { n: '카카오T', e: '🟡', bg: '#FFF6C4', pkg: 'com.kakao.taxi', ios: '981110422', sub: '「해외차량호출」 · 한국어·한국 카드' },
   go: { n: 'GO', e: '⚫', bg: '#E8EAEE', pkg: 'com.dena.automotive.taxibell', ios: '1254341709', sub: '일본 1위 택시 앱' },
-  uber: { n: '우버', e: '⬛', bg: '#E8EAEE', pkg: 'com.ubercab', ios: '368677368', sub: '목적지를 저절로 넣어 줘요' }
+  uber: { n: '우버', e: '⬛', bg: '#E8EAEE', pkg: 'com.ubercab', ios: '368677368', sub: '목적지를 저절로 넣어 줘요' },
+  usj: { n: 'USJ 공식 앱', e: '🎢', bg: '#E3EEFF', pkg: 'com.universalstudios.japanresort', ios: '532097000', sub: '대기 시간·정리권·공연 시간' } // 2026-11-27 스토어에서 확인
 };
 function taxiAppUrl(k, dest) {
   const a = TAXI_APPS[k], ua = navigator.userAgent || '';
@@ -3564,6 +3567,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.9', d: '2026-11-27', title: 'USJ 앱 바로 · 하루 한 줄', items: [
+    ['ticket', 'var(--sky)', '🎢 USJ 공식 앱 열기', 'USJ 날 일정 창에서 공식 앱을 바로 열어 지금 대기 시간·정리권·공연 시간을 봐요.'],
+    ['pen', 'var(--pink)', '📔 오늘 하루 한 줄', '밤 8시가 지나면 오늘 화면에 「오늘 하루 한 줄 남기기」가 떠요. 가장 좋았던 것 하나와 사진 한 장 — 「추억」에 모여요.']] },
   { v: '7.8', d: '2026-11-27', title: '날씨 챙김 · 오늘 예산 · 종이 일정표', items: [
     ['sun', 'var(--sky)', '날씨에 맞춰 챙길 것', '여행 날 예보가 나오면(출발 16일 전부터) 「오늘 챙길 것」에 ☔ 우산, 🧤 장갑·핫팩이 저절로 붙어요.'],
     ['money', 'var(--coral)', '오늘 예산과 견주기', '오늘 화면 「오늘 쓴 돈」에 그날 예산과 막대가 보여요. 예산보다 더 쓰면 빨갛게 알려 줘요.'],
