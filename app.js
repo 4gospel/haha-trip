@@ -601,6 +601,7 @@ function fixOrphans(root) {
 }
 /* 스크롤하면 스르륵 접히고, 멈춰서 읽으면 스르륵 펼쳐짐(팀장님 2026-11-27) — 누른 카드·지금/90분 안 일정은 늘 펼친 채 */
 const TL_FOLD_H = 22; // 접혔을 때 보이는 메모 한 줄 높이
+const TL_FOCUS_Y = 0.38; // 이 높이(화면 위에서 38%)에 가장 가까운 카드를 펼침 — 가운데(0.5)는 낮다(팀장님 2026-11-27)
 function tlUnfold(c) {
   const x = c.querySelector('.tl-x'); c.classList.remove('fold');
   if (!x) return;
@@ -632,7 +633,7 @@ function tlScroll() {
   document.querySelectorAll('.tl-card.dwell:not(.fold), .sfc.dwell:not(.fold)').forEach(c => { if (c.getBoundingClientRect().top >= 0) tlFold(c); }); // 움직이면 「읽던」 카드는 다시 접기 — 윗부분이 화면 위로 지나간 카드는 그대로(접으면 화면이 튐)
   TL_IDLE = setTimeout(() => { // 멈추면 가운데 카드를 조금 더 보고 있을 때 펼치기 — 마우스가 카드 위에 있으면 그 카드가 먼저(위 pointerover)
     if (TL_HOVER && document.body.contains(TL_HOVER)) return;
-    const mid = innerHeight / 2; let best = null, bd = 1e9;
+    const mid = innerHeight * TL_FOCUS_Y; let best = null, bd = 1e9;
     document.querySelectorAll('.tl-card.fold, .sfc.fold').forEach(c => { const r = c.getBoundingClientRect(); if (r.bottom < 80 || r.top > innerHeight - 90) return; const d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < bd) { bd = d; best = c; } });
     if (best && bd < innerHeight * 0.3) TL_FOCUS = setTimeout(() => { if (document.body.contains(best) && best.classList.contains('fold')) { best.classList.add('dwell'); tlUnfold(best); } }, 500);
   }, 600);
@@ -1046,7 +1047,7 @@ function todayTab(t) {
     const urgent = live('checks', t.id).filter(x => !x.done && /예약|서류/.test(x.cat || '')).slice(0, 5);
     const wl = Object.keys(warns);
     if (urgent.length || wl.length) {
-      h += '<div class="sec"><div class="sec-h"><h3 class="ih">' + ib('sos', 'var(--warn)', 1) + '먼저 챙길 것</h3><button class="linkbtn" data-act="tab" data-v="prep">준비물 모두</button></div><div class="stack">';
+      h += '<div class="sec"><div class="sec-h"><h3 class="ih"><span class="urg-hic">' + ic('sos') + '</span>먼저 챙길 것<span class="urg-n num">' + (wl.length + urgent.length) + '</span></h3><button class="linkbtn" data-act="tab" data-v="prep">준비물 모두</button></div><div class="stack urg-list">';
       wl.forEach(id => { h += '<button class="alert" style="--cc:var(--warn)" data-act="booking-edit" data-v="' + esc(id) + '">' + ib('sos', 'var(--warn)') + '<span><b>' + esc(D.bookings[id].title) + '</b><span>' + esc(warns[id]) + '</span></span></button>'; });
       urgent.forEach(x => { h += '<div class="alert" style="--cc:var(--sun)"><button class="chk" data-act="check-done" data-v="' + esc(x.id) + '" aria-label="끝 표시"></button>' + pic(prepIcon(x), 36) + '<button class="al-t" data-act="check-edit" data-v="' + esc(x.id) + '"><b>' + esc(x.text) + '</b><span class="clamp2">' + esc(String(x.memo || x.cat || '').split('\n')[0]) + (x.who ? ' · ' + esc(x.who) : '') + '</span></button></div>'; }); // 긴 메모는 두 줄만 — PC에서 화면을 꽉 채우던 것(2026-11-27)
       h += '</div></div>';
