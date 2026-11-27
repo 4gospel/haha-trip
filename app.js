@@ -1018,6 +1018,7 @@ function todayTab(t) {
   const c = countryOf(t);
   let h = '<div class="greet">' + nightArt() + greeting() + ' · <b>' + (ph === 'before' ? esc(t.place.split('·')[0].replace(/^일본\s*/, '').trim() || t.title) + '까지 ' + dayDiff(t0, t.start) + '일' : ph === 'after' ? '즐거운 추억이 됐어요' : '여행 ' + (dayDiff(t.start, t0) + 1) + '일째') + '</b></div>';
   h += heroCard(t, ph === 'before' ? '' : 'mini');
+  h += newYearCard(t0);
   h += tkTodayCard(t);
   h += bringCard(t, t0);
   if (ph === 'before' && dayDiff(t0, t.start) <= 3 && !LS.get('offlineAt', 0)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="offline"><span><b>📦 오프라인 준비가 아직 덜 끝났어요</b><span>인터넷이 되면 저절로 받아요 · 눌러서 지금 받기</span></span></button></div>';
@@ -1054,7 +1055,11 @@ function todayTab(t) {
     const nowLine = (cur || nx) ? '<div class="nowline">' + (cur ? '<span>⏱ 지금 <b>' + esc(cur.title) + '</b></span>' : '') + (nx ? '<span>다음 <b>' + esc(nx.time + ' ' + nx.title) + '</b>' + (left != null && left >= 0 ? ' <em>' + (left >= 60 ? Math.floor(left / 60) + '시간 ' + (left % 60 ? left % 60 + '분 ' : '') : left + '분 ') + '뒤</em>' : '') + '</span>' : '') + '</div>' : '';
     h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><span class="flex" style="gap:10px"><button class="linkbtn" data-act="late">⏱ 늦어졌어요</button><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></span></div>' +
       nowLine + (nx && nx.place ? (u => '<a class="btn pri nx-go" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + '>🧭 다음 「' + esc(nx.pin || planName(nx)) + '」까지 길찾기</a>')(goTo(t, nx.place, nx)) : '') + (show.length ? tlList(t, show, true) : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
-    h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
+    { // 오늘 쓴 돈을 이날 예산(일정 값 × 사람 수)과 견줘 보기(2026-11-27)
+      const nn0 = (t.members || []).length || 1, plan0 = toWon(t, live('items', t.id).filter(i => i.date === t0).reduce((q, i) => q + itemCost(i), 0) * nn0), sp0 = spentWon(t, t0), pc = plan0 ? Math.round(sp0 / plan0 * 100) : 0;
+      h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(sp0) + (plan0 ? ' <small class="muted">/ 예산 약 ' + manWon(plan0) + '</small>' : '') + '</b>' +
+        (plan0 ? '<span class="day-bar"><i style="width:' + Math.min(100, pc) + '%;' + (pc > 100 ? 'background:var(--warn-ink,#C62A2F)' : '') + '"></i></span><span>' + (pc > 100 ? '예산보다 ' + manWon(sp0 - plan0) + ' 더 썼어요' : '예산의 ' + pc + '% · 영수증을 찍으면 바로 적혀요') + '</span>' : '<span>영수증을 찍으면 바로 적혀요</span>') + '</span></button></div>';
+    }
     if (hotelOf(t)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="taxi"><span class="sc-ic" style="font-size:26px">🚕</span><span><b>택시에 숙소 주소 보여 주기</b><span>' + esc(hotelOf(t).title) + '</span></span></button></div>';
   }
   // 티켓 지갑
@@ -2020,10 +2025,26 @@ function tkStrip(t, b) {
     '<button class="tk-edit" data-act="tk-add" data-v="' + esc(b.id) + '" aria-label="티켓 넣기·고치기">' + ic('pen') + '</button></div>';
 }
 /* 오늘 화면 — 지금 쓸 티켓 (애플 지갑이 때맞춰 표를 띄우듯) */
+/** 그믐밤 새해 카운트다운 · 1/1 새해 인사(일본어 소리 단추) — 12/31 18시부터, 1/1 정오까지 */
+function newYearCard(t0) {
+  const now = new Date(), md0 = t0.slice(5);
+  if (md0 === '12-31' && now.getHours() >= 18) {
+    const ny = new Date((+t0.slice(0, 4) + 1) + '-01-01T00:00:00+09:00'), m = Math.max(0, Math.round((ny - now) / 60000));
+    return '<div class="sec"><div class="card ny-card"><b>🎆 새해까지 ' + (m >= 60 ? Math.floor(m / 60) + '시간 ' : '') + (m % 60) + '분</b><span>올해 마지막 밤이에요. 숙소에서 다 함께 새해를 맞아요 — 그믐밤 거리·전철은 아주 붐벼요.</span></div></div>';
+  }
+  if (md0 === '01-01' && now.getHours() < 12) return '<div class="sec"><div class="card ny-card new"><b>🎍 새해 복 많이 받으세요!</b><button class="say-chip" data-act="ph-say" data-v="あけましておめでとうございます" data-l="ja-JP"><b>あけましておめでとうございます</b><small>아케마시테 오메데토- 고자이마스 · 눌러서 듣기</small></button><span>1/1은 공항 밖 가게가 대부분 쉬어요. 아침은 공항에서.</span></div></div>';
+  return '';
+}
 /** 오늘 챙길 것 · 흩어지면 만날 곳(2026-11-27) — 여행 칸 bring {날짜: {items:[…], meet:'…'}} · 저녁 6시부터는 내일 것도 */
 function bringCard(t, t0) {
   const B = t.bring || {}, tm = ymd(new Date(new Date(t0 + 'T12:00:00').getTime() + 864e5)), eve = hm() >= '18:00';
-  const one = (d, lb) => { const b = B[d]; if (!b) return ''; return '<div class="bring-day"><b>' + lb + '</b><div class="bring-chips">' + (b.items || []).map(x => '<span>' + esc(x) + '</span>').join('') + '</div>' + (b.meet ? '<div class="bring-meet">🧭 흩어지면 <b>' + esc(b.meet) + '</b></div>' : '') + '</div>'; };
+  const W = {}; try { tripWx(t).forEach(x => W[x.d] = x); } catch (e) {}
+  const wxChips = d => { const w = W[d]; if (!w || w.max == null || !w.real) return ''; let c = ''; // 예보가 나왔을 때만(출발 16일 전부터)
+    if (w.rainP >= 50 || [61, 63, 65, 80, 81, 82, 71, 73, 75].includes(w.code)) c += '<span class="wxc rain">☔ 우산 (비 ' + (w.rainP || '') + '%)</span>';
+    if (w.min != null && w.min <= 1) c += '<span class="wxc cold">🧤 아침 ' + w.min + '° — 장갑·핫팩 넉넉히</span>';
+    else if (w.max != null && w.max >= 15) c += '<span class="wxc warm">🧥 낮 ' + w.max + '° — 겉옷은 벗어 들기 쉽게</span>';
+    return c; };
+  const one = (d, lb) => { const b = B[d]; if (!b) return ''; return '<div class="bring-day"><b>' + lb + '</b><div class="bring-chips">' + wxChips(d) + (b.items || []).map(x => '<span>' + esc(x) + '</span>').join('') + '</div>' + (b.meet ? '<div class="bring-meet">🧭 흩어지면 <b>' + esc(b.meet) + '</b></div>' : '') + '</div>'; };
   const a = one(t0, '🎒 오늘 챙길 것'), b = eve ? one(tm, '🌙 내일 챙길 것 (자기 전에)') : '';
   return a || b ? '<div class="sec"><div class="card bring">' + (eve ? b + a : a) + '</div></div>' : ''; // 저녁엔 내일 것부터
 }
@@ -3175,6 +3196,7 @@ document.addEventListener('click', e => {
     'sos-go': () => sosOpen(t),
     offline: () => offlineOpen(),
     ics: () => icsDownload(t),
+    'print-plan': () => printPlan(t),
     'sos-book': () => { closeSheet(); go(tripUrl(t.id, 'book')); setTimeout(() => { const x = document.getElementById('bk_sos'); if (x) window.scrollTo({ top: x.getBoundingClientRect().top + scrollY - 70 }); }, 300); },
     taxi: () => taxiOpen(t, v ? D.items[v] : null),
     late: () => lateOpen(t),
@@ -3355,6 +3377,20 @@ function lateGo(t, n) {
   const clash = fx.filter(f => mv.some(i => { const nt = addMin(i.time, n); return i.time < f.time && nt >= f.time; }));
   toast(mv.length + '개를 ' + n + '분 미뤘어요' + (clash.length ? ' · ⚠️ ' + '겹쳐요: ' + clash.map(f => f.time + ' ' + planName(f)).join(', ') + ' — 하나를 건너뛰어요' : ''), () => { back.forEach(b => put('items', b, true)); render(); });
 }
+/* ---------- 종이 일정표(인쇄·PDF) — 휴대폰이 꺼지거나 잃어버렸을 때 대비(2026-11-27) ---------- */
+function printPlan(t) {
+  const days = daysOf(t), hb = hotelOf(t), c = countryOf(t), strip = x => String(x || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
+  let h = '<h1>' + esc(t.title) + ' <small>' + esc(t.start + ' ~ ' + t.end) + '</small></h1>';
+  h += '<div class="pp-box"><b>숙소</b> ' + esc(hb ? hb.title : '') + '<br><b style="font-size:15pt">' + esc(hb ? (hb.jaAddr || hotelAddr(hb)) : '') + '</b>' + (hb && hb.phone ? ' · ☎ ' + esc(hb.phone) : '') + '<br><b>비상</b> 경찰 110 · 구급·화재 119 · 영사콜센터 +82-2-3210-0404 (24시간 한국어)' + (t.meet ? '<br><b>만날 곳</b> ' + esc(t.meet) : '') + '</div>';
+  days.forEach((d, k) => {
+    const L2 = live('items', t.id).filter(i => i.date === d && !i.skip).sort(byTime), b = (t.bring || {})[d];
+    h += '<h2>' + (k + 1) + '일째 · ' + esc(md(d)) + '</h2><table><tbody>' + L2.map(i => '<tr><td class="tm">' + esc(i.time || '') + '</td><td><b>' + esc(strip(i.title)) + '</b>' + (i.go && i.go.ja ? '<div class="ja">🚕 ' + esc(i.go.ja) + '</div>' : '') + (i.go && i.go.s ? '<div class="go">' + esc(i.go.s) + '</div>' : '') + '</td></tr>').join('') + '</tbody></table>' +
+      (b ? '<div class="pp-bring">챙길 것: ' + esc((b.items || []).join(' · ')) + (b.meet ? '<br>흩어지면: ' + esc(b.meet) : '') + '</div>' : '');
+  });
+  let area = $('#printArea'); if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
+  area.innerHTML = h;
+  openSheet('<h2>🖨️ 종이 일정표</h2><div class="muted">「인쇄」를 누르면 종이로 뽑거나 <b>PDF로 저장</b>할 수 있어요. PDF를 가족 휴대폰·카카오톡 나에게 보내 두면, 한 대가 꺼져도 다른 휴대폰에서 볼 수 있어요.</div><div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button><button class="btn pri" id="pp_go">인쇄 · PDF</button></div>', el => { el.querySelector('#pp_go').onclick = () => { closeSheet(); setTimeout(() => window.print(), 300); }; });
+}
 /* ---------- 휴대폰 달력 알림(.ics) — 놓치면 안 되는 일정만, 인터넷·앱 없이도 휴대폰이 울림(2026-11-27) ---------- */
 function icsItems(t) { return live('items', t.id).filter(i => i.date && i.time && !i.skip && (isFixed(i) || /출발 \(|택시로|오픈런|체크아웃|체크인 ·|입차|🔖 예약/.test(i.title || ''))).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)); }
 function icsDownload(t) {
@@ -3465,6 +3501,7 @@ function settings() {
     '<button data-act="drive-open">' + ib('folder', 'var(--sun)', 1) + '<span>구글 드라이브 폴더<small>4gospel 「하하가족여행」 — 원본·사진·기록 문서·백업 (저절로 저장)</small></span></button>' +
     '<button data-act="notion-edit">' + ib('notion', 'var(--ink)', 1) + '<span>노션 연결<small>「하하가족여행」 정리함으로 보내기</small></span></button>' +
 
+    (curTrip() ? '<button data-act="print-plan">' + ib('doc', 'var(--sky)', 1) + '<span>🖨️ 종이 일정표 · PDF<small>휴대폰이 꺼질 때를 대비해 한 장으로 — 일정·숙소 일본어 주소·비상 연락</small></span></button>' : '') +
     (curTrip() ? '<button data-act="ics">' + ib('plan', 'var(--coral)', 1) + '<span>📅 휴대폰 달력에 알림 넣기<small>정각 입장·공연·배·비행기 — 앱을 안 열어도 미리 울려요</small></span></button>' : '') +
     '<button data-act="offline">' + ib('download' in ICON ? 'download' : 'folder', 'var(--mint)', 1) + '<span>여행 전 오프라인 준비<small>' + (LS.get('offlineAt', 0) ? '✅ 받아 둠 · ' + new Date(LS.get('offlineAt', 0)).toLocaleDateString('ko-KR') : '인터넷이 되면 저절로 받아요') + '</small></span></button>' +
     '<button data-act="news">' + ib('plane', 'var(--coral)', 1) + '<span>새 소식<small>바뀐 것 다시 보기</small></span></button>' +
@@ -3527,6 +3564,11 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.8', d: '2026-11-27', title: '날씨 챙김 · 오늘 예산 · 종이 일정표', items: [
+    ['sun', 'var(--sky)', '날씨에 맞춰 챙길 것', '여행 날 예보가 나오면(출발 16일 전부터) 「오늘 챙길 것」에 ☔ 우산, 🧤 장갑·핫팩이 저절로 붙어요.'],
+    ['money', 'var(--coral)', '오늘 예산과 견주기', '오늘 화면 「오늘 쓴 돈」에 그날 예산과 막대가 보여요. 예산보다 더 쓰면 빨갛게 알려 줘요.'],
+    ['doc', 'var(--mint)', '🖨️ 종이 일정표 · PDF', '설정 → 「종이 일정표 · PDF」로 네 날 일정·숙소 일본어 주소·비상 연락을 한 장으로 뽑거나 PDF로 저장해요. 휴대폰이 꺼져도 다른 가족이 볼 수 있어요.'],
+    ['plane', 'var(--lav)', '새해', '12/31 저녁엔 「새해까지 몇 시간」, 1/1 아침엔 일본어 새해 인사(눌러서 듣기)가 나와요.']] },
   { v: '7.7', d: '2026-11-27', title: '다음 길찾기 · 그 자리 일본어', items: [
     ['route', 'var(--coral)', '🧭 다음 일정 길찾기', '오늘 화면 「지금 · 다음 일정」에 다음 갈 곳까지 길찾기 단추가 크게 있어요. 한 번 누르면 구글 지도가 열려요.'],
     ['mic', 'var(--sky)', '🗣️ 여기서 쓸 일본어', '식당·가게·택시·관광 일정을 열면 그 자리에서 쓸 일본어(4명이에요, 이거 주세요, 계산해 주세요, 면세 되나요 등)를 눌러 소리로 들려줘요. 받아 둔 음성이라 인터넷 없이도 나와요.']] },
