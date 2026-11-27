@@ -1059,7 +1059,7 @@ function todayTab(t) {
     const show = (cur ? [cur] : []).concat(next.length ? next : list.filter(i => !i.done && i !== cur)).slice(0, 3);
     const mins = s2 => { const m = String(s2 || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
     const nx = next[0], left = nx && mins(nx.time) != null ? mins(nx.time) - mins(now) : null;
-    const nowLine = (cur || nx) ? '<div class="nowline">' + (cur ? '<span>⏱ 지금 <b>' + esc(cur.title) + '</b></span>' : '') + (nx ? '<span>다음 <b>' + esc(nx.time + ' ' + nx.title) + '</b>' + (left != null && left >= 0 ? ' <em>' + (left >= 60 ? Math.floor(left / 60) + '시간 ' + (left % 60 ? left % 60 + '분 ' : '') : left + '분 ') + '뒤</em>' : '') + '</span>' : '') + '</div>' : '';
+    const nowLine = (cur || nx) ? '<div class="nowline">' + (cur ? '<span>⏱ 지금 <b>' + esc(cur.title) + '</b></span>' : '') + (nx ? '<span>다음 <b>' + esc(nx.time + ' ' + nx.title) + '</b>' + (left === 0 ? ' <em>곧</em>' : left != null && left > 0 ? ' <em>' + (left >= 60 ? Math.floor(left / 60) + '시간 ' + (left % 60 ? left % 60 + '분 ' : '') : left + '분 ') + '뒤</em>' : '') + '</span>' : '') + '</div>' : '';
     h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><span class="flex" style="gap:10px"><button class="linkbtn" data-act="late">⏱ 늦어졌어요</button><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></span></div>' +
       nowLine + (nx && nx.place ? (u => '<a class="btn pri nx-go" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + '>🧭 다음 「' + esc(nx.pin || planName(nx)) + '」까지 길찾기</a>')(goTo(t, nx.place, nx)) : '') + (show.length ? tlList(t, show, true) : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
     { // 오늘 쓴 돈을 이날 예산(일정 값 × 사람 수)과 견줘 보기(2026-11-27)
@@ -2076,7 +2076,7 @@ function tkTodayCard(t) {
     [...new Set((b.tkNeed || []).concat(tkList(b).map(q => tkLabel(b, q))))].forEach(lb => { const l = tkList(b).filter(q => tkLabel(b, q) === lb && (tkAll() || q.who === ME)); if (l.length) slots.push({ b, lb, l, when: tkWhen(t, b, lb), day: b.date }); }); });
   if (!slots.length) return '';
   const today_ = slots.filter(s => s.day === t0).sort((a, b) => (a.when || '99').localeCompare(b.when || '99'));
-  const cur = today_.filter(s => !s.when || tkMin(s.when) >= tkMin(nowHM) - 90)[0] || today_[today_.length - 1];
+  const cur = today_.filter(s => !s.when || tkMin(s.when) >= tkMin(nowHM) - 90)[0] || (l0 => l0 && tkMin(l0.when) >= tkMin(nowHM) - 180 ? l0 : null)(today_[today_.length - 1]); // 마지막 티켓도 세 시간 지나면 감춤(밤 9시에 닌텐도 입장권이 뜨던 것, 2026-11-27)
   let h = '<div class="sec tk-today">';
   if (cur) {
     const have = cur.l.filter(tkReady).length;
@@ -2090,7 +2090,7 @@ function tkTodayCard(t) {
   const tmB = [...new Set(slots.filter(s => s.day === tm).map(s => s.b))];
   tmB.forEach(b => { const ss = slots.filter(s => s.day === tm && s.b === b), have = ss.reduce((n, s) => n + s.l.filter(tkReady).length, 0), all = ss.reduce((n, s) => n + s.l.length, 0);
     h += '<button class="tk-tom" data-act="tab" data-v="pass"><b>내일 쓸 티켓 ' + ss.length + '가지 · ' + esc(ss.map(s => s.lb).join(' · ')) + '</b><small>' + esc(b.title) + '</small>' + tkStatus(have, all) + '</button>'; });
-  return h + '</div>';
+  return h === '<div class="sec tk-today">' ? '' : h + '</div>';
 }
 const tkMin = s => { const m = String(s || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : 0; };
 /* 보여주기 화면 — 표 한 장씩(화면 전체 그대로 · 잘라 낸 QR은 안 받음), 누르면 크게, 옆으로 밀면 다음 티켓 */
