@@ -1520,7 +1520,7 @@ function itemView(t, i) {
   const bk = live('bookings', t.id).filter(b => b.date === i.date && (words.includes(String(b.provider || '').toLowerCase()) || (b.kind === '항공' && /출발|도착|항공|공항/.test(i.title)) || (b.kind === '주차' && /주차|입차|출차/.test(i.title)) || (b.kind === '숙소' && /숙소|체크인|체크아웃/.test(i.title))));
   const c = countryOf(t), n = (t.members || []).length || 1;
   let h = '<div class="iv-head" style="--cc:' + col + '">' + itPic(icn, col) + '<div><div class="iv-when num">' + esc(i.date ? md(i.date) : '날짜 미정') + (i.time ? ' · ' + esc(i.time) : '') + ' · <span class="tag">' + esc(i.cat || '기타') + '</span></div><h2>' + esc(i.title) + '</h2>' + (i.done ? '<span class="pill" style="--cc:var(--ok)">✓ 다녀옴</span>' : '') + '</div></div>';
-  const hol = c && c.n === '일본' && /-12-3[01]$|-01-0[1-3]$/.test(i.date || '') && !/이동|숙소/.test(i.cat || '');
+  const hol = c && c.n === '일본' && /-12-3[01]$|-01-0[1-3]$/.test(i.date || '') && !/이동|숙소/.test(i.cat || '') && i.zone !== 'USJ'; // USJ 안은 파크 영업시간을 따로 확인해 둠(구글 지도 영업시간 안내 필요 없음)
   if (hol) h += '<div class="iv-hol">🎍 ' + (/-12-31$/.test(i.date) ? '그믐날' : /-12-30$/.test(i.date) ? '연말' : '설 연휴') + '이라 여는 시간이 평소와 달라요. 가기 전에 구글 지도의 「영업시간」을 꼭 확인해요.</div>';
   h += '<div class="iv-rows">' +
     (i.place ? '<div><span>' + ic('pin') + '장소</span><b>' + esc(i.place) + '</b></div>' : '') +
@@ -3388,7 +3388,7 @@ function lateOpen(t) {
   openSheet('<h2>⏱ 늦어졌어요</h2><div class="muted">' + (f0 && mv.length ? '다음 시간 정해진 일정 <b>' + esc(f0.time + ' ' + planName(f0)) + '</b> 앞까지 ' + mv.length + '개를 뒤로 미뤄요.' : '남은 일정 ' + all.length + '개를 뒤로 미뤄요.') + ' 동선 지도·「지금 · 다음」도 따라 바뀌어요.</div>' +
     (f0 && mv.length && all.length > mv.length ? '<label class="late-all"><input type="checkbox" id="late_all"> 그 뒤 일정까지 모두 (' + all.length + '개)</label>' : '') +
     '<div class="late-btns">' + [15, 30, 45, 60, 90].map(n => '<button class="btn big" data-act="late-go" data-v="' + n + '">+' + n + '분</button>').join('') + '</div>' +
-    (fx.length ? '<div class="card" style="margin-top:12px"><b>시간이 정해진 일정은 그대로예요</b>' + fx.map(i => '<div class="late-fx"><b class="num">' + esc(i.time) + '</b> ' + esc(planName(i)) + '</div>').join('') + '<div class="muted small" style="margin-top:6px">미룬 일정이 이 시간과 겹치면 알려 드려요 — 그땐 하나를 건너뛰어요(동그라미를 눌러 「다녀옴」으로 두면 목록에서 비켜요).</div></div>' : '') +
+    (fx.length ? '<div class="card" style="margin-top:12px"><b>시간이 정해진 일정은 그대로예요</b>' + fx.map(i => '<div class="late-fx"><b class="num">' + esc(i.time) + '</b> ' + esc(planName(i)) + '</div>').join('') + '<div class="muted small" style="margin-top:6px">미룬 일정이 이 시간과 겹치면 알려 드려요 — 그땐 하나를 건너뛰어요(건너뛸 일정은 눌러서 「이번엔 건너뛰기」, 다녀온 일정은 동그라미를 꾹 눌러 도장).</div></div>' : '') +
     '<div class="muted small" style="margin-top:10px">하나만 바꾸려면 그 일정을 눌러 시간을 고쳐요 — 순서·동선이 저절로 따라가요.</div>' +
     '<div class="sheet-acts"><button class="btn" data-act="sheet-close">닫기</button></div>');
 }
