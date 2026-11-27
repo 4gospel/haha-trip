@@ -832,7 +832,7 @@ function dayMapHtml(t, d) {
   // 구역 단추는 여러 줄로 감싸지는 알약(한 줄 세그먼트는 휴대폰에서 잘렸음 — 팀장님 제보 2026-11-27)
   return '<div class="sec dmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + '이날 동선</h3></div>' +
     (zones.length ? '<div class="dm-zones">' + zones.map(x => '<button class="chipbtn' + (z === x ? ' on' : '') + '" data-act="dmz" data-v="' + esc(x) + '">' + esc(x) + '</button>').join('') + '<button class="chipbtn' + (z === 'all' ? ' on' : '') + '" data-act="dmz" data-v="all">하루 전체</button></div>' : '') +
-    '<div class="tmap-wrap"><div id="dmap" class="tmap dmap' + (z !== 'all' && pts.length >= 9 ? ' dense' : pts.length >= 6 ? ' mid' : '') + '" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
+    '<div class="tmap-wrap"><button class="dm-loc" data-act="dm-loc" aria-label="내 위치 보기">📍 내 위치</button><div id="dmap" class="tmap dmap' + (z !== 'all' && pts.length >= 9 ? ' dense' : pts.length >= 6 ? ' mid' : '') + '" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
     '<div class="dmap-leg">' + pts.map((i, k) => '<button data-act="item-view" data-v="' + esc(i.id) + '"' + (i.done ? ' class="done"' : '') + '><b class="num">' + (k + 1) + '</b><span class="num">' + esc(i.time || '') + '</span>' + (dmEmo(i) ? '<i class="dm-emo">' + dmEmo(i) + '</i>' : '') + esc(dmLab(i)) + '</button>').join('') + '</div></div>';
 }
 /* 일정 동그라미 꾹 누르기(0.7초) → 도장 */
@@ -857,7 +857,19 @@ function dmEmo(i) {
   return '';
 }
 const dmLab = i => String(i.pin || planName(i)).replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
-let DMAP = null;
+let DMAP = null, DM_NEXT = '';
+/** 내 위치(파란 점) — 여행 중 「여기서 어디로?」 */
+function dmLocate() {
+  if (!DMAP || !navigator.geolocation) return toast('이 휴대폰에서는 위치를 볼 수 없어요');
+  toast('내 위치를 찾는 중…');
+  navigator.geolocation.getCurrentPosition(p => {
+    if (!DMAP || !window.L) return;
+    const ll = [p.coords.latitude, p.coords.longitude];
+    if (DMAP._me) DMAP._me.remove();
+    DMAP._me = L.layerGroup([L.circle(ll, { radius: Math.min(p.coords.accuracy || 30, 300), color: '#2F80ED', weight: 1, fillOpacity: .12 }), L.circleMarker(ll, { radius: 7, color: '#fff', weight: 3, fillColor: '#2F80ED', fillOpacity: 1 })]).addTo(DMAP);
+    const b = DMAP.getBounds(); if (!b.contains(ll)) DMAP.flyTo(ll, Math.max(DMAP.getZoom() - 1, 14), { duration: .6 }); else DMAP.panTo(ll);
+  }, () => toast('위치를 못 찾았어요. 휴대폰 설정에서 위치 권한을 켜 주세요'), { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+}
 async function mountDayMap() {
   const el = $('#dmap'); if (!el) return;
   const t = D.trips[el.dataset.trip]; if (!t) return;
@@ -872,6 +884,7 @@ async function mountDayMap() {
     DMAP._g = L.layerGroup().addTo(DMAP);
   }
   DMAP._g.clearLayers(); DMAP._mk = [];
+  { const nowHM = hm().slice(0, 5), day = pts.filter(i => !i.done); DM_NEXT = el.dataset.d === today() ? ((day.filter(i => i.time && i.time <= nowHM).slice(-1)[0]) || day[0] || {}).id || '' : ''; } // 오늘이면 지금·다음 일정 핀 반짝임
   const ll = pts.map(i => [i.lat, i.lng]), zAll = el.dataset.z === 'all';
   if (ll.length > 1) { L.polyline(ll, { color: '#ffffff', weight: 8, opacity: .9 }).addTo(DMAP._g); L.polyline(ll, { color: '#C2410C', weight: 4, opacity: .95, dashArray: '2 9', lineCap: 'round' }).addTo(DMAP._g); }
   // 「하루 전체」는 구역마다 핀 하나(「USJ 3–19」)로 묶음 — 도시끼리 멀어 핀이 한 점에 뭉치던 것. 누르면 그 구역으로
@@ -886,9 +899,10 @@ async function mountDayMap() {
     }
     const dot = zAll && groups.some(x => x.zone); // 「하루 전체」에 구역이 있으면 구역 밖 일정(역·숙소)은 번호 없는 작은 점으로 — 겹쳐 읽을 수 없던 것
     g.items.forEach((i, n) => { const k = g.first + n - 1;
+      const nowCls = el.dataset.d === today() && i.id === DM_NEXT ? ' next' : '';
       const icon = dot ? L.divIcon({ className: 'dpin-w', html: '<span class="ddot" title="' + (k + 1) + '. ' + esc(dmLab(i)) + '"></span>', iconSize: [14, 14], iconAnchor: [7, 7], popupAnchor: [0, -8] })
-        : L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
-      const mk = L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc(mapUrl(i.lat + ',' + i.lng)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
+        : L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + nowCls + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+      const mk = L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc('https://www.google.com/maps/dir/?api=1&destination=' + i.lat + ',' + i.lng + '&travelmode=' + (i.zone ? 'walking' : 'transit')) + '" target="_blank" rel="noopener">' + eb(i.zone ? '🚶' : '🚇', '#E6F0FF') + '여기로 길찾기</a></div></div>');
       if (!dot) DMAP._mk.push(mk); });
   });
   // 화면에서 너무 붙은 핀은 살짝 비켜 놓기(확대·축소할 때마다 다시)
@@ -3093,6 +3107,7 @@ document.addEventListener('click', e => {
     },
     'map-k': () => { UI.mapK = v; const el = $('#tmap'); if (el) { el.dataset.k = v; document.querySelectorAll('[data-act="map-k"]').forEach(b => b.classList.toggle('on', b.dataset.v === v)); mountMap(true); } },
     dmz: () => { UI.dmz = v; render(); },
+    'dm-loc': () => dmLocate(),
     'map-full': () => { const w = el.closest('.tmap-wrap') || $('.tmap-wrap'); if (!w) return; const on = w.classList.toggle('full'); if (on) history.pushState({ map: 1 }, ''); else if (history.state && history.state.map) history.back(); document.body.classList.toggle('map-open', on); setTimeout(() => { MAP && MAP.invalidateSize(); DMAP && DMAP.invalidateSize(); }, 80); },
     'map-trip': () => { document.body.classList.remove('map-open'); MAP && MAP.closePopup(); A['open-trip'](); },
     'wallet-sort': () => { UI.walletSort = v; LS.set('walletSort', v); render(); },
@@ -3331,9 +3346,31 @@ function sosOpen(t) {
     '<div class="sheet-acts"><button class="btn" data-act="sos-book">수첩의 비상 연락 모두</button><button class="btn" data-act="sheet-close">닫기</button></div>';
   openSheet(h);
 }
+/** 택시 앱 바로 열기(팀장님 2026-11-27 「오사카에서 가장 잘 작동하는 앱으로 바로 가서 신청」)
+ *  ① 디디 — 오사카에서 일본 서비스를 처음 시작, 협력 택시가 많아 가장 빨리 잡힘(nearme 2026-05) ② 카카오T 해외차량호출 — 한국어·한국 카드, 일본 GO 택시 ③ 우버 — 목적지 자동 입력
+ *  안드로이드는 깔려 있으면 앱이 바로, 없으면 플레이스토어 / 아이폰은 앱스토어(깔려 있으면 「열기」) — 앱 번호·이름은 스토어에서 2026-11-27 확인 */
+const TAXI_APPS = {
+  didi: { n: '디디(DiDi)', e: '🟠', bg: '#FFE9D6', pkg: 'com.didiglobal.passenger', ios: '1362398401', sub: '오사카에서 가장 빨리 잡혀요' },
+  kakao: { n: '카카오T', e: '🟡', bg: '#FFF6C4', pkg: 'com.kakao.taxi', ios: '981110422', sub: '「해외차량호출」 · 한국어·한국 카드' },
+  go: { n: 'GO', e: '⚫', bg: '#E8EAEE', pkg: 'com.dena.automotive.taxibell', ios: '1254341709', sub: '일본 1위 택시 앱' },
+  uber: { n: '우버', e: '⬛', bg: '#E8EAEE', pkg: 'com.ubercab', ios: '368677368', sub: '목적지를 저절로 넣어 줘요' }
+};
+function taxiAppUrl(k, dest) {
+  const a = TAXI_APPS[k], ua = navigator.userAgent || '';
+  if (k === 'uber' && dest && dest.lat != null) return 'https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[latitude]=' + dest.lat + '&dropoff[longitude]=' + dest.lng + '&dropoff[nickname]=' + encodeURIComponent(dest.name || '');
+  if (/Android/i.test(ua)) return 'intent://#Intent;package=' + a.pkg + ';S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=' + a.pkg) + ';end';
+  return 'https://apps.apple.com/kr/app/id' + a.ios;
+}
+function taxiAppsHtml(dest) {
+  return '<div class="taxi-apps"><b>🚕 택시 부르기 — 앱 바로 열기</b><div class="ta-grid">' + ['didi', 'kakao', 'uber'].map((k, n) => { const a = TAXI_APPS[k];
+    const u = taxiAppUrl(k, dest);
+    return '<a class="btn ta-btn' + (n === 0 ? ' first' : '') + '" href="' + esc(u) + '"' + (/^intent:/.test(u) ? '' : ' target="_blank" rel="noopener"') + '>' + eb(a.e, a.bg) + '<span><b>' + (n + 1) + '. ' + esc(a.n) + '</b><small>' + esc(a.sub) + '</small></span></a>'; }).join('') +
+    '</div><div class="muted small">앱에 목적지를 넣을 땐 아래 「복사」한 일본어 주소를 붙여 넣어요. 우버는 목적지가 저절로 들어가요. 앱이 안 열리면 길에서 빨간 「空車」 택시에 손 들기.</div></div>';
+}
 /** 택시 타는 법 (팀장님 2026-11-27 「택시 이용은 어떻게? 우버?」) — 꼭 필요할 때만, 넷이 한 대 */
 const TAXI_HOW = '<details class="card taxi-how" style="margin-top:12px"><summary><b>🚕 택시 타는 법 (앱 · 길에서)</b></summary><ol>' +
-  '<li><b>카카오T 「해외차량호출」 (먼저 써요)</b> — 한국에서 쓰던 카카오T 그대로. 일본에서 앱을 열면 한국어로 목적지를 찾고, 한국에서 등록한 카드로 저절로 내요. 차는 일본 택시 앱 GO가 보내 줘요. 차가 오면 앱의 <b>탑승 확인번호</b>를 기사님께 보여 줘요. 부르기 전에 예상 요금도 보여요.</li>' +
+  '<li><b>디디(DiDi) — 오사카에서 가장 빨리 잡혀요</b> — 오사카에서 일본 서비스를 처음 시작해 협력 택시가 많아요. 한국 번호로 가입하고 카드를 등록해 두면(출발 전에!) 일본에서 바로 불러요. 목적지는 일본어 주소를 붙여 넣기.</li>' +
+  '<li><b>카카오T 「해외차량호출」</b> — 한국에서 쓰던 카카오T 그대로. 일본에서 앱을 열면 한국어로 목적지를 찾고, 한국에서 등록한 카드로 저절로 내요. 차는 일본 택시 앱 GO가 보내 줘요. 차가 오면 앱의 <b>탑승 확인번호</b>를 기사님께 보여 줘요. 부르기 전에 예상 요금도 보여요.</li>' +
   '<li><b>우버</b> — 오사카에서는 우버로 「일반 택시」를 불러요(4명까지). 한국에서 쓰던 우버 계정·카드 그대로.</li>' +
   '<li><b>길에서 잡기</b> — 앞 유리의 빨간 「空車」(빈 차) 불을 보고 손을 들어요. <b>뒷문은 저절로 열리고 닫혀요 — 손대지 마세요.</b> 역 앞 「タクシー乗り場」(택시 타는 곳)에서 줄 서도 돼요.</li>' +
   '<li><b>탄 뒤</b> — 이 화면(일본어 주소)을 기사님께 보여 드려요. 넷이면 보통 택시 한 대(앞 1 · 뒤 3). 큰 가방은 트렁크.</li>' +
@@ -3345,7 +3382,7 @@ function taxiOpen(t, it) {
     const g = it.go, map = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(g.to || g.ja);
     return openSheet('<div class="taxi-card"><div class="taxi-ja">ここまでお願いします</div><div class="taxi-ko">여기로 가 주세요</div>' +
       '<div class="taxi-addr">' + esc(g.ja) + '</div><div class="taxi-name">' + esc(g.ko || it.title.replace(/^🚕\s*/, '')) + '</div></div>' +
-      (g.s ? '<div class="muted" style="margin-top:10px">' + esc(g.s) + '</div>' : '') + TAXI_HOW +
+      (g.s ? '<div class="muted" style="margin-top:10px">' + esc(g.s) + '</div>' : '') + taxiAppsHtml({ lat: it.lat, lng: it.lng, name: g.ja }) + TAXI_HOW +
       '<div class="sheet-acts"><button class="btn" data-act="taxi-copy" data-v="' + esc(g.ja) + '">복사</button><a class="btn" href="' + map + '" target="_blank" rel="noopener">지도</a><button class="btn pri" data-act="sheet-close">닫기</button></div>');
   }
   const hb = hotelOf(t), addr = hotelAddr(hb), ja = hb && hb.jaAddr;
@@ -3355,7 +3392,7 @@ function taxiOpen(t, it) {
     '<div class="taxi-name">' + esc(hb.title) + '</div><div class="taxi-addr">' + esc(addr || '주소가 아직 없어요') + '</div>' +
     (hb.phone ? '<div class="taxi-tel">☎ <a href="tel:' + esc(hb.phone) + '">' + esc(hb.phone) + '</a></div>' : '') + '</div>' +
     (!ja ? '<div class="alert" style="--cc:var(--sun);margin-top:10px"><span><b>일본어 주소를 넣어 두면 더 좋아요</b><span>예약 확인 메일·지도의 일본어 주소(大阪市西成区…)를 붙여 넣으면 기사님께 그대로 보여 드릴 수 있어요.</span></span></div><button class="btn" style="width:100%;margin-top:8px" data-act="taxi-ja">일본어 주소 넣기</button>' : '') +
-    TAXI_HOW +
+    taxiAppsHtml({ lat: hb.lat, lng: hb.lng, name: hb.jaAddr || hb.title }) + TAXI_HOW +
     '<div class="sheet-acts"><button class="btn" data-act="taxi-copy" data-v="' + esc(addr) + '">주소 복사</button><a class="btn" href="' + map + '" target="_blank" rel="noopener">지도</a><button class="btn pri" data-act="sheet-close">닫기</button></div>');
 }
 
@@ -3432,6 +3469,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.4', d: '2026-11-27', title: '택시는 앱으로 바로 · 지도에 내 위치', items: [
+    ['sos', 'var(--coral)', '택시 앱 바로 열기', '택시 카드에서 ① 디디(오사카에서 가장 빨리 잡혀요) ② 카카오T 「해외차량호출」 ③ 우버(목적지 저절로)를 바로 열어요. 출발 전에 준비물 「택시 앱 미리 깔고 가입·카드 등록」을 꼭 해 두세요.'],
+    ['globe', 'var(--sky)', '지도에 📍 내 위치', '동선 지도 위 「📍 내 위치」를 누르면 지금 있는 곳이 파란 점으로 보여요. 오늘 지도에서는 다음에 갈 일정 핀이 반짝이고, 핀을 누르면 「여기로 길찾기」가 열려요. 도톤보리는 크게, 신사이바시는 따로 나눴어요.']] },
   { v: '7.3', d: '2026-11-27', title: '동선 지도를 다시 다듬었어요', items: [
     ['globe', 'var(--sky)', '하루 전체는 구역 이름표로', '「하루 전체」 지도는 「USJ 3–19」처럼 구역마다 이름표 하나로 묶어 보여요. 이름표를 누르면 그 구역 지도로 들어가요. 역·숙소는 작은 점이에요.'],
     ['check', 'var(--mint)', '자리 고침', '숙소·택시·전철 도착점이 엉뚱한 곳에 찍히던 것을 바로잡고, 붙어 있는 핀은 살짝 비켜 번호가 보여요. 핀이 하나뿐인 구역을 눌러도 지도가 사라지지 않아요.'],

@@ -1610,3 +1610,15 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 @media (min-width:900px){.dmap-sec .tmap.mid{height:440px}.dmap-sec .tmap.dense{height:620px}}
 .tmap-wrap.full .tmap{height:100%!important}
 @media (max-width:600px){.dmap-sec .tmap-wrap{margin-left:-16px;margin-right:-16px;border-radius:0}.dmap-sec .tmap-wrap .tmap-full{right:14px}}
+/* 지도: 내 위치 단추 · 다음 갈 곳 반짝임 */
+.dm-loc{position:absolute;right:10px;top:10px;z-index:600;display:flex;align-items:center;gap:4px;min-height:36px;padding:6px 12px;border-radius:99px;background:rgba(255,255,255,.95);box-shadow:0 2px 8px rgba(0,0,0,.18);font-size:13px;font-weight:800;color:#334}
+.dpin.next{animation:dmpulse 1.6s ease-out infinite}
+@keyframes dmpulse{0%{box-shadow:0 0 0 0 rgba(194,65,12,.55),0 2px 6px rgba(0,0,0,.35)}70%{box-shadow:0 0 0 14px rgba(194,65,12,0),0 2px 6px rgba(0,0,0,.35)}100%{box-shadow:0 0 0 0 rgba(194,65,12,0),0 2px 6px rgba(0,0,0,.35)}}
+@media (prefers-reduced-motion:reduce){.dpin.next{animation:none;outline:3px solid #FFD24A}}
+/* 택시 앱 바로 열기 */
+.taxi-apps{margin-top:12px;display:grid;gap:8px}
+.ta-grid{display:grid;gap:8px}
+.ta-btn{justify-content:flex-start;gap:10px;min-height:54px;padding:8px 12px;text-align:left;white-space:normal}
+.ta-btn span{display:flex;flex-direction:column;line-height:1.25}
+.ta-btn small{font-weight:600;color:var(--muted,#6b7280);font-size:12.5px}
+.ta-btn.first{box-shadow:inset 0 0 0 2px #F0A35E}
