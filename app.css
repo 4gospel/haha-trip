@@ -754,13 +754,17 @@ body.sheet-open .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top));z-i
 
 /* 오늘 화면 도움 단추 */
 .sos-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
-.sos-btn{display:flex;align-items:center;gap:12px;text-align:left;background:color-mix(in srgb,var(--warn) 12%,var(--card));border:2px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:var(--r);padding:12px 14px;color:var(--ink);min-width:0}
-.sos-btn .i{width:30px;height:30px;color:var(--warn);flex:none}
-.sos-btn b{display:block;font-size:17px;color:var(--warn)}
-.sos-btn span span{display:block;font-size:13px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sos-btn>span{min-width:0}
-.sos-tr{display:grid;place-items:center;gap:2px;background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:8px 14px;font-size:26px}
-.sos-tr span{font-size:12.5px;font-weight:700;color:var(--soft)}
+.sos-btn,.sos-tr{display:flex;align-items:center;gap:10px;min-height:58px;padding:8px 12px 8px 9px;border-radius:18px;background:var(--glass-regular);box-shadow:var(--glass-edge-sm);color:var(--ink);text-align:left;min-width:0;transition:transform .12s}
+.sos-btn:active,.sos-tr:active{transform:scale(.98)}
+.sos-btn .sb-ic,.sos-tr .sb-ic{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;flex:none;color:#fff;background:linear-gradient(180deg,#F0595D,#D23439);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 3px 8px rgba(210,52,57,.28)}
+.sos-tr .sb-ic{background:linear-gradient(180deg,#5B9BFF,#3A78E6);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 3px 8px rgba(58,120,230,.28)}
+.sos-btn .sb-ic .i,.sos-tr .sb-ic .i{width:21px;height:21px;stroke-width:2.1}
+.sos-btn .sb-tx{flex:1;min-width:0}
+.sos-btn b{display:block;font-size:15.5px;font-weight:800;letter-spacing:-.01em;color:var(--warn-ink);line-height:1.3}
+.sos-btn .sb-tx span{display:block;font-size:12.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.sos-btn .sb-go{font-size:22px;line-height:1;color:var(--faint);flex:none;margin-left:-2px}
+.sos-tr{padding-right:16px}
+.sos-tr b{font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap}
 .iv-hol{background:color-mix(in srgb,var(--warn) 10%,var(--card));color:var(--warn);font-weight:700;border-radius:12px;padding:10px 12px;margin-bottom:10px;font-size:14.5px}
 /* 일정에서 다녀온 곳 */
 .row.plan-place .ib { opacity: .9 }
@@ -1418,7 +1422,6 @@ html::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 /* 산호색 글자는 진하게 */
 .linkbtn,.nav button.on,.flow-pass .wl-who button.on,.toast button{color:var(--coral-ink)}
 .nav button{color:var(--soft)}
-.sos-btn b{color:var(--warn-ink)}
 /* 아래 창(시트) — 입력 칸이 있어 거의 불투명(흐림 없음), 위 가장자리만 유리 빛 · 뒤 어둡게는 .42 */
 .sheet-bg{background:rgba(31,22,12,.42)}
 .sheet-card{background:var(--glass-thick);border-radius:30px 30px 0 0;box-shadow:inset 0 1px 0 #fff,0 0 0 1px rgba(255,255,255,.7),0 -12px 40px rgba(60,40,20,.16)}

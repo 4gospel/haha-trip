@@ -173,6 +173,7 @@ const ICON = {
   gift: '<rect x="3.5" y="9" width="17" height="11" rx="2"/><path d="M3 9h18M12 9v11M12 9c-2-4-6-4-6-1.5S10 9 12 9zM12 9c2-4 6-4 6-1.5S14 9 12 9z"/>',
   wallet: '<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1z"/><path d="M4 7l11-3v3M16 13.5h2"/>',
   house: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10M10 20v-5h4v5"/>',
+  call: '<path d="M21 16.4v2.8a1.9 1.9 0 0 1-2.1 1.9A18.8 18.8 0 0 1 2.9 5.1 1.9 1.9 0 0 1 4.8 3h2.8a1.9 1.9 0 0 1 1.9 1.6c.1.9.4 1.8.7 2.6a1.9 1.9 0 0 1-.4 2L8.6 10.4a15.2 15.2 0 0 0 5 5l1.2-1.2a1.9 1.9 0 0 1 2-.4c.8.3 1.7.6 2.6.7a1.9 1.9 0 0 1 1.6 1.9z"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>',
   speaker: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
   ai: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/>'
@@ -1029,7 +1030,7 @@ function todayTab(t) {
   h += tkTodayCard(t);
   h += bringCard(t, t0);
   if (ph === 'before' && dayDiff(t0, t.start) <= 3 && !LS.get('offlineAt', 0)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="offline"><span><b>📦 오프라인 준비가 아직 덜 끝났어요</b><span>인터넷이 되면 저절로 받아요 · 눌러서 지금 받기</span></span></button></div>';
-  if (!longAgo(t)) h += '<div class="sec sos-row"><button class="sos-btn" data-act="sos-go">' + ic('sos') + '<span><b>도움이 필요해요</b><span>비상 연락 · 영사콜센터 · 숙소 주소 · 보험</span></span></button><button class="sos-tr" data-act="tr-open">🗣️<span>번역기</span></button></div>';
+  if (!longAgo(t)) h += '<div class="sec sos-row"><button class="sos-btn" data-act="sos-go"><span class="sb-ic">' + ic('call') + '</span><span class="sb-tx"><b>도움이 필요해요</b><span>긴급 전화 · 숙소 주소</span></span><span class="sb-go" aria-hidden="true">›</span></button><button class="sos-tr" data-act="tr-open"><span class="sb-ic">' + ic('mic') + '</span><b>번역기</b></button></div>';
   if (ph === 'after') h += storyCard(t);
   h += agoCard(t);
   const warns = bookingWarnings(t);
