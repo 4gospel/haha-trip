@@ -1590,3 +1590,7 @@ html.solid .iv-head{background:var(--card);-webkit-backdrop-filter:none;backdrop
 .sheet-acts .btn.pri{flex:1.35}
 .sheet-acts .btn .i{width:18px;height:18px}
 html.big .sheet-acts .btn{min-height:52px;font-size:17px}
+/* 색 네모 컬러 이모티콘(네이버 N 단추와 같은 결) */
+.eb{display:inline-grid;place-items:center;flex:none;width:26px;height:26px;border-radius:8px;background:var(--eb,#eee);font-size:16px;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
+.btn .eb{margin-left:-2px}
+.eb{width:22px;height:22px;border-radius:6px;font-size:14px}

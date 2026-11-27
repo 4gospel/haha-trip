@@ -223,6 +223,8 @@ function prepIcon(c) {
 /** 제미나이 그림이 있으면 그것, 없으면 선 아이콘 */
 const pic = (arr, sz) => '<span class="pic" style="--cc:' + arr[1] + (sz ? ';width:' + sz + 'px;height:' + sz + 'px' : '') + '">' + ic(arr[0]) + '<img src="img/prep-' + arr[2] + '.webp" alt="" onerror="this.remove()"></span>';
 const IT_IMG = { cruise: 'cruise', onsen: 'onsen', shinkansen: 'shinkansen', ferris: 'ferris', aquarium: 'aquarium', deer: 'deer', izakaya: 'izakaya', store: 'store', photo: 'photo', fireworks: 'fireworks', rest: 'rest', hospital: 'hospital', church: 'church', beach: 'beach', hiking: 'hiking', ski: 'ski', rentcar: 'rentcar', bike: 'bike', museum: 'museum', show: 'show', castle: 'castle', walk: 'walk', basket: 'market', park: 'park', plane: 'plane', land: 'land', train: 'train', bus: 'bus', taxi: 'taxi', bed: 'hotel', bowl: 'food', cup: 'cafe', torii: 'temple', tower: 'tower', bag: 'shop', ticket: 'ticket' };
+/** 색 네모 안의 컬러 이모티콘(네이버 단추처럼 — 팀장님 2026-11-27 「더 예쁜 이모티콘」) */
+const eb = (e, bg) => '<span class="eb" style="--eb:' + bg + '" aria-hidden="true">' + e + '</span>';
 const itPic = (icn, col, sm) => IT_IMG[icn] ? '<span class="ib itp' + (sm ? ' sm' : '') + '" style="--cc:' + col + '"><img src="img/it-' + IT_IMG[icn] + '.webp" alt=""></span>' : ib(icn, col, sm);
 const MOOD = { happy: '😊', love: '🥰', laugh: '😆', tired: '😴', hot: '🥵', yum: '🤤' };
 const moodKey = m => MOOD[m] ? m : Object.keys(MOOD).find(k => MOOD[k] === m) || '';
@@ -1439,23 +1441,23 @@ function itemView(t, i) {
   if (q.trim()) {
     h += '<div class="iv-map"><iframe loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="지도" src="https://www.google.com/maps?q=' + encodeURIComponent(q) + '&hl=ko&z=15&output=embed"></iframe></div>';
     const kr = isKR(t, i), fromR = fromIt && fromIt.lat != null ? { lat: fromIt.lat, lng: fromIt.lng, name: fromIt.place } : null, nq = i.place || i.title || q;
-    const gBtns = '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + ic('walk') + '걸어서</a>' +
-      '<a class="btn" href="' + esc(dirTo(q, 'driving', from)) + '" target="_blank" rel="noopener">' + ic('taxi') + '차·택시</a>';
-    const near = '<a class="btn" href="' + esc(mapUrl('맛집 near ' + q)) + '" target="_blank" rel="noopener">' + ic('bowl') + '주변 맛집</a>' +
-      '<a class="btn" href="' + esc(mapUrl('편의점 near ' + q)) + '" target="_blank" rel="noopener">' + ic('basket') + '주변 편의점</a>' +
-      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + ic('landmark') + '주변 볼거리</a>';
+    const gBtns = '<a class="btn" href="' + esc(dirTo(q, 'walking', from)) + '" target="_blank" rel="noopener">' + eb('🚶', '#DFF5E6') + '걸어서</a>' +
+      '<a class="btn" href="' + esc(dirTo(q, 'driving', from)) + '" target="_blank" rel="noopener">' + eb('🚕', '#FFF1C7') + '차·택시</a>';
+    const near = '<a class="btn" href="' + esc(mapUrl('맛집 near ' + q)) + '" target="_blank" rel="noopener">' + eb('🍜', '#FFE6D9') + '주변 맛집</a>' +
+      '<a class="btn" href="' + esc(mapUrl('편의점 near ' + q)) + '" target="_blank" rel="noopener">' + eb('🏪', '#E3EEFF') + '주변 편의점</a>' +
+      '<a class="btn" href="' + esc(mapUrl('관광 명소 near ' + q)) + '" target="_blank" rel="noopener">' + eb('🎡', '#F1E6FF') + '주변 볼거리</a>';
     if (kr) h += '<div class="iv-go">' + (i.lat != null ?
       nvA(nvRoute(nq, i.lat, i.lng, 'public', fromR), 'btn pri nv', '<span class="nvlogo">N</span>네이버 길찾기' + (fromR ? ' (앞 일정에서)' : '')) +
       nvA(nvPlace(nq, i.lat, i.lng), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도') +
       nvA(nvRoute(nq, i.lat, i.lng, 'walk', fromR), 'btn nv-o', '<span class="nvlogo">N</span>걸어서') +
       nvA(nvRoute(nq, i.lat, i.lng, 'car', fromR), 'btn nv-o', '<span class="nvlogo">N</span>차') :
       nvA(nvPlace(nq), 'btn pri nv', '<span class="nvlogo">N</span>네이버 지도에서 찾기 · 길찾기')) +
-      '<a class="btn" href="' + esc(dirTo(q, 'transit', from)) + '" target="_blank" rel="noopener">' + ic('train') + '구글 길찾기</a>' +
-      '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + ic('pin') + '구글 지도</a>' + near + '</div>' +
+      '<a class="btn" href="' + esc(dirTo(q, 'transit', from)) + '" target="_blank" rel="noopener">' + eb('🚇', '#E6F0FF') + '구글 길찾기</a>' +
+      '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + eb('🗺️', '#E6F0FF') + '구글 지도</a>' + near + '</div>' +
       '<div class="muted small">' + (i.lat == null ? '지도 위치가 아직 없어 네이버 지도에서 「' + esc(nq) + '」을(를) 찾아요. 찾은 곳에서 「도착」을 누르면 길찾기가 돼요. ' : '') + '길찾기는 ' + (fromR ? '앞 일정 「' + esc(fromIt.title) + '」에서 출발해요. ' : '지금 있는 곳에서 출발해요. ') + (MOBD ? '네이버 지도 앱이 열려요.' : '네이버 지도 누리집이 열려요.') + '</div>';
     else h += '<div class="iv-go">' +
       '<a class="btn pri" href="' + esc(dirTo(q, 'transit', from)) + '" target="_blank" rel="noopener">' + ic('train') + '대중교통 길찾기' + (fromIt ? ' (앞 일정에서)' : '') + '</a>' +
-      '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + ic('pin') + '구글 지도</a>' +
+      '<a class="btn" href="' + esc(mapUrl(q)) + '" target="_blank" rel="noopener">' + eb('🗺️', '#E6F0FF') + '구글 지도</a>' +
       nvA(nvPlace(nq + (i.place ? '' : ' ' + cityOf(t)), i.lat, i.lng), 'btn nv-o', '<span class="nvlogo">N</span>네이버 지도(한국어)') + gBtns + near + '</div>' +
       '<div class="muted small">길찾기는 ' + (fromIt ? '앞 일정 「' + esc(fromIt.title) + '」에서 출발해요. ' : '지금 있는 곳에서 출발해요. ') + '구글 지도 앱이 열려요. 네이버 지도는 이 나라 지도를 한국어로 보여 줘요(네이버 길찾기는 국내만 돼요).</div>';
   }
