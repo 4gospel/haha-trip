@@ -832,7 +832,7 @@ function dayMapHtml(t, d) {
   // 구역 단추는 여러 줄로 감싸지는 알약(한 줄 세그먼트는 휴대폰에서 잘렸음 — 팀장님 제보 2026-11-27)
   return '<div class="sec dmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + '이날 동선</h3></div>' +
     (zones.length ? '<div class="dm-zones">' + zones.map(x => '<button class="chipbtn' + (z === x ? ' on' : '') + '" data-act="dmz" data-v="' + esc(x) + '">' + esc(x) + '</button>').join('') + '<button class="chipbtn' + (z === 'all' ? ' on' : '') + '" data-act="dmz" data-v="all">하루 전체</button></div>' : '') +
-    '<div class="tmap-wrap"><div id="dmap" class="tmap dmap" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
+    '<div class="tmap-wrap"><div id="dmap" class="tmap dmap' + (z !== 'all' && pts.length >= 9 ? ' dense' : pts.length >= 6 ? ' mid' : '') + '" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
     '<div class="dmap-leg">' + pts.map((i, k) => '<button data-act="item-view" data-v="' + esc(i.id) + '"' + (i.done ? ' class="done"' : '') + '><b class="num">' + (k + 1) + '</b><span class="num">' + esc(i.time || '') + '</span>' + (dmEmo(i) ? '<i class="dm-emo">' + dmEmo(i) + '</i>' : '') + esc(dmLab(i)) + '</button>').join('') + '</div></div>';
 }
 /* 일정 동그라미 꾹 누르기(0.7초) → 도장 */
@@ -867,7 +867,7 @@ async function mountDayMap() {
   if (DMAP && DMAP.getContainer() !== el) { DMAP.remove(); DMAP = null; }
   if (!DMAP) {
     el.innerHTML = '';
-    DMAP = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
+    DMAP = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true, zoomSnap: 0.25, zoomDelta: 0.5 }); // 잘게 맞춰 한 단계 덜 확대되던 것을 줄임
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(DMAP);
     DMAP._g = L.layerGroup().addTo(DMAP);
   }
@@ -902,7 +902,9 @@ async function mountDayMap() {
       placed.push({ x: p.x + dx, y: p.y + dy, w, h }); sp.style.translate = dx + 'px ' + dy + 'px'; }); };
   if (!DMAP._dc) { DMAP._dc = true; DMAP.on('zoomend moveend', () => declutter()); }
   DMAP._declutter = declutter;
-  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); if (ll.length === 1) DMAP.setView(ll[0], 16); else DMAP.fitBounds(ll, zAll ? { paddingTopLeft: [70, 44], paddingBottomRight: [70, 60], maxZoom: 16 } : { paddingTopLeft: [52, 36], paddingBottomRight: [36, 52], maxZoom: 18 }); [30, 400, 900].forEach(ms => setTimeout(() => DMAP && DMAP._declutter && DMAP._declutter(), ms)); }; // 왼쪽 위 ＋− 단추·오른쪽 아래 「크게」에 핀이 가리지 않게
+  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); if (ll.length === 1) DMAP.setView(ll[0], 16); else DMAP.fitBounds(ll, zAll ? { paddingTopLeft: [70, 44], paddingBottomRight: [70, 60], maxZoom: 16 } : { paddingTopLeft: [52, 36], paddingBottomRight: [36, 52], maxZoom: 18 }); [30, 400, 900].forEach(ms => setTimeout(() => DMAP && DMAP._declutter && DMAP._declutter(), ms));
+    // 핀이 퍼진 모양(가로로 긴 USJ 등)에 맞춰 지도 높이를 줄여 빈 땅 없이 — 한 번만
+    if (!el._sized && ll.length > 1 && !el.closest('.full')) { el._sized = true; setTimeout(() => { if (!DMAP || DMAP.getContainer() !== el) return; const ys = ll.map(q => DMAP.latLngToContainerPoint(q).y), need = Math.round(Math.max(...ys) - Math.min(...ys) + 130), h = el.offsetHeight; if (need < h - 40) { el.style.height = Math.max(260, need) + 'px'; DMAP.invalidateSize(); fit(); } }, 500); } }; // 왼쪽 위 ＋− 단추·오른쪽 아래 「크게」에 핀이 가리지 않게
   fit(); setTimeout(fit, 80); setTimeout(fit, 450);
   if (window.ResizeObserver && !el._ro) { el._ro = new ResizeObserver(() => { clearTimeout(el._rt); el._rt = setTimeout(fit, 120); }); el._ro.observe(el); }
 }
@@ -3432,7 +3434,8 @@ async function aiEdit() {
 const NEWS = [
   { v: '7.3', d: '2026-11-27', title: '동선 지도를 다시 다듬었어요', items: [
     ['globe', 'var(--sky)', '하루 전체는 구역 이름표로', '「하루 전체」 지도는 「USJ 3–19」처럼 구역마다 이름표 하나로 묶어 보여요. 이름표를 누르면 그 구역 지도로 들어가요. 역·숙소는 작은 점이에요.'],
-    ['check', 'var(--mint)', '자리 고침', '숙소·택시·전철 도착점이 엉뚱한 곳에 찍히던 것을 바로잡고, 붙어 있는 핀은 살짝 비켜 번호가 보여요. 핀이 하나뿐인 구역을 눌러도 지도가 사라지지 않아요.']] },
+    ['check', 'var(--mint)', '자리 고침', '숙소·택시·전철 도착점이 엉뚱한 곳에 찍히던 것을 바로잡고, 붙어 있는 핀은 살짝 비켜 번호가 보여요. 핀이 하나뿐인 구역을 눌러도 지도가 사라지지 않아요.'],
+    ['ticket', 'var(--coral)', 'USJ 지도를 크게', '핀이 많은 USJ 같은 구역은 휴대폰 화면 양끝까지 꽉 채우고 한 단계 더 확대해 보여요. 지도 높이도 핀이 퍼진 모양에 맞춰 저절로 정해져요.']] },
   { v: '7.2', d: '2026-11-27', title: '읽을 때만 스르륵 펼쳐져요', items: [
     ['plan', 'var(--coral)', '카드가 스르륵', '일정·오늘 화면·예약 모두·여행 정보 「알아 둘 것」·가고 싶은 곳의 긴 글은 스크롤하는 동안 접혀 있다가, 멈춰서 화면 가운데 카드를 보고 있으면 스르륵 펼쳐지고, 다시 스크롤하면 스르륵 접혀요. 눌러서 펼친 카드는 그대로 둬요.'],
     ['globe', 'var(--sky)', '예쁜 단추 그림', '길찾기 단추에 색 네모 이모티콘(🗺️🚶🚕🍜🏪🎡)을 넣고, 창 아래 단추 크기를 알맞게 줄였어요.']] },

@@ -1604,3 +1604,9 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .dzone b{font-weight:700;opacity:.9;font-size:12px}
 .dpin{transition:translate .12s ease}
 .ddot{display:block;width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #C2410C;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+/* 핀이 많은 구역은 지도를 길게(더 확대된 채로) — USJ 17곳 등 몰려 보이던 것(2026-11-27) */
+.dmap-sec .tmap.mid{height:360px}
+.dmap-sec .tmap.dense{height:min(560px,72vh)}
+@media (min-width:900px){.dmap-sec .tmap.mid{height:440px}.dmap-sec .tmap.dense{height:620px}}
+.tmap-wrap.full .tmap{height:100%!important}
+@media (max-width:600px){.dmap-sec .tmap-wrap{margin-left:-16px;margin-right:-16px;border-radius:0}.dmap-sec .tmap-wrap .tmap-full{right:14px}}
