@@ -1629,3 +1629,9 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .bring-chips span{padding:6px 11px;border-radius:99px;background:var(--fill,#F4EFE9);font-size:14px;font-weight:700}
 .bring-meet{margin-top:8px;font-size:14px;color:var(--soft)}
 .bring-meet b{color:var(--ink);font-size:14px}
+/* 여기서 쓸 일본어 · 다음 길찾기 */
+.say-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.say-chip{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 12px;border-radius:14px;background:var(--fill,#F4EFE9);text-align:left;min-height:44px}
+.say-chip b{font-size:15px}.say-chip small{font-size:12.5px;color:var(--muted,#6b7280)}
+.say-chip.on{background:#FFE6D9;box-shadow:inset 0 0 0 2px #F0A35E}
+.nx-go{display:flex;width:100%;margin:6px 0 10px;min-height:48px;justify-content:center}

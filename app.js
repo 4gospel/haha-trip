@@ -1053,7 +1053,7 @@ function todayTab(t) {
     const nx = next[0], left = nx && mins(nx.time) != null ? mins(nx.time) - mins(now) : null;
     const nowLine = (cur || nx) ? '<div class="nowline">' + (cur ? '<span>⏱ 지금 <b>' + esc(cur.title) + '</b></span>' : '') + (nx ? '<span>다음 <b>' + esc(nx.time + ' ' + nx.title) + '</b>' + (left != null && left >= 0 ? ' <em>' + (left >= 60 ? Math.floor(left / 60) + '시간 ' + (left % 60 ? left % 60 + '분 ' : '') : left + '분 ') + '뒤</em>' : '') + '</span>' : '') + '</div>' : '';
     h += '<div class="sec"><div class="sec-h"><h3 class="ih"><img class="h-art" src="img/clock.webp" alt="">지금 · 다음 일정</h3><span class="flex" style="gap:10px"><button class="linkbtn" data-act="late">⏱ 늦어졌어요</button><button class="linkbtn" data-act="tab" data-v="plan">오늘 전체</button></span></div>' +
-      nowLine + (show.length ? tlList(t, show, true) : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
+      nowLine + (nx && nx.place ? (u => '<a class="btn pri nx-go" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + '>🧭 다음 「' + esc(nx.pin || planName(nx)) + '」까지 길찾기</a>')(goTo(t, nx.place, nx)) : '') + (show.length ? tlList(t, show, true) : '<div class="card empty"><div class="art">🎉</div><b>오늘 일정을 다 마쳤어요</b></div>') + '</div>';
     h += '<div class="sec"><button class="alert" style="--cc:var(--coral)" data-act="photo" data-v="receipt">' + ib('receipt', 'var(--coral)') + '<span><b>오늘 쓴 돈 ' + manWon(spentWon(t, t0)) + '</b><span>영수증을 찍으면 바로 적혀요</span></span></button></div>';
     if (hotelOf(t)) h += '<div class="sec"><button class="alert" style="--cc:var(--sun)" data-act="taxi"><span class="sc-ic" style="font-size:26px">🚕</span><span><b>택시에 숙소 주소 보여 주기</b><span>' + esc(hotelOf(t).title) + '</span></span></button></div>';
   }
@@ -1484,6 +1484,17 @@ async function scanSave(el) {
 const cityOf = t => String(t.place || '').split(/[·,\/]/)[0].replace(/^(일본|대만|베트남|태국|중국|미국|영국|프랑스|이탈리아|스페인|독일|호주|싱가포르|필리핀|홍콩|스위스|체코)\s*/, '').trim();
 const gq = (t, i) => i.addr || (i.place || i.title || '') + (i.place ? '' : ' ' + cityOf(t));
 const dirTo = (dest, mode, origin) => 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(dest) + (origin ? '&origin=' + encodeURIComponent(origin) : '') + '&travelmode=' + mode;
+/** 일정 종류마다 쓸 일본어(guide.js PHRASES에서 — 받아 둔 음성이 있는 문장) */
+function ivPhrases(i) {
+  const G = (window.GUIDE && GUIDE.PHRASES && GUIDE.PHRASES.JP && GUIDE.PHRASES.JP.groups) || [], g = n => (G.find(x => x[0] === n) || [, []])[1], pick = (n, ks) => g(n).filter(p => ks.some(k => p[2].includes(k)));
+  const t = (i.title || '') + ' ' + (i.cat || '');
+  if (/식사|간식/.test(i.cat || '') || /점심|저녁|라멘|스시|초밥|우동|쿠시카쓰|우설/.test(t)) return pick('식당', ['4명', '이거 주세요', '추천', '한국어 메뉴', '계산']);
+  if (/쇼핑/.test(i.cat || '') || /돈키호테|시장|상점가/.test(t)) return pick('쇼핑', ['얼마', '카드', '면세', '봉투']);
+  if (i.go && i.go.t === 'taxi') return pick('길·교통', ['여기까지']);
+  if (/이동/.test(i.cat || '')) return pick('길·교통', ['어디예요', '화장실', '역', '출구']).slice(0, 4);
+  if (/관광/.test(i.cat || '')) return pick('길·교통', ['화장실']).concat(pick('인사', ['실례', '감사']));
+  return [];
+}
 function itemView(t, i) {
   if (!i) return;
   const [icn, col] = itemIcon(i);
@@ -1534,6 +1545,8 @@ function itemView(t, i) {
   }
   if (rel.length) h += '<div class="iv-sec"><b>' + ic('star') + '함께 알아 둘 곳</b>' + rel.map(r => '<div class="iv-rec"><b>' + esc(r.name) + '</b>' + (r.area ? ' <span class="muted">' + esc(r.area) + '</span>' : '') + '<div>' + esc(r.desc || '') + '</div>' + (r.hours ? '<div class="muted small">🕘 ' + esc(r.hours) + '</div>' : '') + (r.price ? '<div class="muted small">💴 ' + esc(r.price) + '</div>' : '') + '</div>').join('') + '</div>';
   if (bk.length) h += '<div class="iv-sec"><b>' + ic('ticket') + '이 일정의 예약</b>' + bk.map(b => '<button class="iv-rec" data-act="booking-edit" data-v="' + esc(b.id) + '"><b>' + esc(b.title) + '</b>' + (b.code ? ' <span class="num muted">' + esc(b.code) + '</span>' : '') + '</button>').join('') + '</div>';
+  // 그 자리에서 쓸 일본어 한마디(누르면 받아 둔 음성 — 인터넷 없이도)
+  if (t.country === 'JP') { const P = ivPhrases(i); if (P.length) h += '<div class="iv-sec iv-say"><b>🗣️ 여기서 쓸 일본어 <small class="muted">누르면 소리가 나요</small></b><div class="say-chips">' + P.map(q => '<button class="say-chip" data-act="ph-say" data-v="' + esc(q[0]) + '" data-l="ja-JP"><b>' + esc(q[2]) + '</b><small>' + esc(q[1]) + '</small></button>').join('') + '</div></div>'; }
   // 늦어지거나 바뀌었을 때 그 자리에서(팀장님 2026-11-27 「다른 일정도 늦어지거나 삭제·변경에 대처」)
   if (i.date) h += '<div class="iv-sec iv-change"><b>' + ic('route') + '바뀌었나요?</b><div class="iv-chg">' +
     (i.time ? [-15, 15, 30, 60].map(n => '<button class="btn" data-act="item-shift" data-v="' + esc(i.id) + '" data-n="' + n + '">' + (n > 0 ? '+' : '−') + Math.abs(n) + '분</button>').join('') : '') +
@@ -3514,6 +3527,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.7', d: '2026-11-27', title: '다음 길찾기 · 그 자리 일본어', items: [
+    ['route', 'var(--coral)', '🧭 다음 일정 길찾기', '오늘 화면 「지금 · 다음 일정」에 다음 갈 곳까지 길찾기 단추가 크게 있어요. 한 번 누르면 구글 지도가 열려요.'],
+    ['mic', 'var(--sky)', '🗣️ 여기서 쓸 일본어', '식당·가게·택시·관광 일정을 열면 그 자리에서 쓸 일본어(4명이에요, 이거 주세요, 계산해 주세요, 면세 되나요 등)를 눌러 소리로 들려줘요. 받아 둔 음성이라 인터넷 없이도 나와요.']] },
   { v: '7.6', d: '2026-11-27', title: '달력 알림 · 마우스로 펼치기', items: [
     ['plan', 'var(--coral)', '📅 휴대폰 달력에 알림', '설정 → 「휴대폰 달력에 알림 넣기」를 누르면 놓치면 안 되는 일정(비행기·닌텐도 16시 정각·유람선 18:30·나이트 쇼·택시 등)이 휴대폰 달력에 들어가요. 앱을 안 열어도, 인터넷이 없어도 미리 울려요.'],
     ['check', 'var(--sky)', 'PC에선 마우스로', '카드에 마우스를 올리면 잠시 뒤 그 카드가 먼저 펼쳐지고, 떠나면 다시 접혀요.']] },
