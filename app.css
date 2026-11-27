@@ -1559,3 +1559,16 @@ p,.muted,.m,small,li{text-wrap:pretty}
 .sec-h .linkbtn,.sec-h .flex .linkbtn{white-space:nowrap}
 .daycost span{white-space:nowrap}
 .tmap-wrap{isolation:isolate} /* 지도 단추·레이어가 창(시트) 위로 뜨지 않게 */
+/* 일정 카드 접기(2026-11-27) */
+.tl-card.fold .tl-memo{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+.tl-card.fold .tl-tip{display:none}
+.tl-hint{display:none;font-size:13px;font-weight:700;color:var(--coral-ink,#C2410C);margin-top:4px}
+.tl-card.fold .tl-hint{display:block}
+.tl-card.unfold .tl-memo,.tl-card.unfold .tl-tip{animation:tlopen .25s ease-out}
+@keyframes tlopen{from{opacity:.3}to{opacity:1}}
+/* 동선 구역 단추 줄: 휴대폰 폭을 넘으면 옆으로 밀어서(화면 전체가 밀리지 않게, 2026-11-27) */
+.dmap-sec .sec-h{flex-wrap:wrap}
+.dmap-sec .seg{max-width:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.dmap-sec .seg::-webkit-scrollbar{display:none}
+.dmap-sec .seg button{flex:none;white-space:nowrap}
+.dm-zones{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px}.dm-zones .chipbtn{min-height:38px;white-space:nowrap}

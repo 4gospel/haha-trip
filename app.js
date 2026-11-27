@@ -588,8 +588,19 @@ function fixOrphans(root) {
     if (m && m[1].length >= 6) last.nodeValue = m[1] + '\u00A0' + m[2];
   });
 }
+let TL_IO = null;
+function tlWatch() {
+  if (!window.IntersectionObserver) return;
+  if (TL_IO) TL_IO.disconnect();
+  TL_IO = new IntersectionObserver(es => es.forEach(e => {
+    const c = e.target;
+    if (e.isIntersecting) c._tlT = setTimeout(() => { if (c.classList.contains('fold') && document.body.contains(c)) { TL_OPEN.add(c.dataset.id); c.classList.remove('fold'); c.classList.add('unfold'); } }, 1500);
+    else clearTimeout(c._tlT);
+  }), { rootMargin: '-38% 0px -38% 0px' }); // 화면 가운데 띠에 1.5초 머물면
+  document.querySelectorAll('.tl-card.fold').forEach(c => TL_IO.observe(c));
+}
 function render() {
-  try { render_(); fixOrphans($('#app')); } catch (e) {
+  try { render_(); fixOrphans($('#app')); tlWatch(); } catch (e) {
     console.error(e);
     const app = $('#app'); if (app) app.innerHTML = '<div class="wrap"><div class="card" style="margin-top:40px"><b>화면을 그리다 문제가 생겼어요</b><div class="muted" style="margin:6px 0 12px">기록은 안전해요. 아래를 눌러 다시 열어 주세요.</div><button class="btn pri" onclick="location.hash=\'#/\';location.reload()">처음 화면으로 다시 열기</button></div></div>';
   }
@@ -793,13 +804,15 @@ async function mountMap(again) {
 function dayMapPts(t, d) {
   const all = live('items', t.id).filter(i => i.date === d && !i.skip && i.lat != null && i.lng != null).sort(byTime);
   const zones = [...new Set(all.map(i => i.zone).filter(Boolean))];
-  const z = UI.dmz === 'all' ? 'all' : zones.includes(UI.dmz) ? UI.dmz : zones.length === 1 ? zones[0] : 'all'; // 구역이 하나(USJ)면 그 안, 여럿(교토)이면 하루 전체부터
+  const big = zones.find(x => all.filter(i => i.zone === x).length * 2 > all.length); // 그날 일정의 절반 넘게 있는 구역(USJ 날)이 있으면 그 안부터, 아니면(교토처럼 여럿) 하루 전체부터
+  const z = UI.dmz === 'all' ? 'all' : zones.includes(UI.dmz) ? UI.dmz : big || 'all';
   return { pts: z === 'all' ? all : all.filter(i => i.zone === z), zones, z };
 }
 function dayMapHtml(t, d) {
   const { pts, zones, z } = dayMapPts(t, d); if (pts.length < 2) return '';
-  return '<div class="sec dmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + '이날 동선</h3>' +
-    (zones.length ? '<div class="seg mini">' + zones.map(x => '<button class="' + (z === x ? 'on' : '') + '" data-act="dmz" data-v="' + esc(x) + '">' + esc(x) + ' 안</button>').join('') + '<button class="' + (z === 'all' ? 'on' : '') + '" data-act="dmz" data-v="all">하루 전체</button></div>' : '') + '</div>' +
+  // 구역 단추는 여러 줄로 감싸지는 알약(한 줄 세그먼트는 휴대폰에서 잘렸음 — 팀장님 제보 2026-11-27)
+  return '<div class="sec dmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + '이날 동선</h3></div>' +
+    (zones.length ? '<div class="dm-zones">' + zones.map(x => '<button class="chipbtn' + (z === x ? ' on' : '') + '" data-act="dmz" data-v="' + esc(x) + '">' + esc(x) + '</button>').join('') + '<button class="chipbtn' + (z === 'all' ? ' on' : '') + '" data-act="dmz" data-v="all">하루 전체</button></div>' : '') +
     '<div class="tmap-wrap"><div id="dmap" class="tmap dmap" data-trip="' + esc(t.id) + '" data-d="' + esc(d) + '" data-z="' + esc(z) + '"><div class="tmap-wait">지도를 불러오는 중…</div></div><button class="tmap-full" data-act="map-full" aria-label="지도 크게 보기">' + ic('globe') + '<span>크게</span></button></div>' +
     '<div class="dmap-leg">' + pts.map((i, k) => '<button data-act="item-view" data-v="' + esc(i.id) + '"' + (i.done ? ' class="done"' : '') + '><b class="num">' + (k + 1) + '</b><span class="num">' + esc(i.time || '') + '</span>' + (dmEmo(i) ? '<i class="dm-emo">' + dmEmo(i) + '</i>' : '') + esc(dmLab(i)) + '</button>').join('') + '</div></div>';
 }
@@ -1107,10 +1120,19 @@ function sunChip(t, ds) {
 function tlList(t, list, nowFirst) {
   return '<div class="tl tl-flow">' + list.map((i, k) => (k > 0 || (i.go && i.go.s) ? '<div class="tl-arrow"><span class="ar">↓</span>' + goLine(i) + '</div>' : '') + tlItem(t, i, nowFirst && k === 0)).join('') + '</div>';
 }
+/* 일정 카드 접기(팀장님 2026-11-27 「글이 너무 많아 — 평소엔 접고, 누르거나 오래 보면 펼치기」 · 「그 시간이 되거나 이전에 자세히 보니 거기에 맞춰」)
+   펼침: ① 오늘 「지금」 일정·90분 안에 시작할 일정 ② 누른 카드(한 번 더 누르면 자세히 보기 창) ③ 화면 가운데에 1.5초 머문 카드 */
+const TL_OPEN = new Set();
+function tlSoon(i, now) {
+  if (now) return true;
+  if (!i.date || i.date !== today() || i.done || i.skip || !i.time) return false;
+  const m = s2 => { const x = String(s2).match(/(\d{1,2}):(\d{2})/); return x ? +x[1] * 60 + +x[2] : null; }, d = m(i.time) - m(hm());
+  return d <= 90 && d >= -60;
+}
 function tlItem(t, i, now) {
-  const [icn, col] = itemIcon(i), sv = sunVars(t, i);
-  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
-    '<button class="body" data-act="item-view" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') +
+  const [icn, col] = itemIcon(i), sv = sunVars(t, i), open = TL_OPEN.has(i.id) || tlSoon(i, now), long = String(i.memo || '').length > 40 || !!i.tip;
+  return '<div class="tl-card' + (sv.b ? ' sun b-' + sv.b : '') + (i.done ? ' done' : '') + (i.skip ? ' skip' : '') + (now ? ' now' : '') + (long && !open ? ' fold' : '') + '" data-id="' + esc(i.id) + '" style="--cc:' + cc(i.cat) + ';' + sv.st + '">' + (i.done ? '<span class="tl-stamp' + (JUST_DONE === i.id ? ' just' : '') + '">' + (i.zone === 'USJ' ? usjStamp('mini') : hahaStamp('mini')) + '</span>' : '') + '<span class="tm num">' + itPic(icn, col) + '<b>' + esc(i.time || '') + '</b></span>' +
+    '<button class="body" data-act="tl-tap" data-v="' + esc(i.id) + '"><div class="t">' + esc(i.title) + '</div>' + (i.memo ? '<div class="m tl-memo">' + esc(i.memo) + '</div>' : '') + (i.tip ? '<div class="m tl-tip" style="color:var(--c-간식);font-weight:600">💡 ' + esc(i.tip) + '</div>' : '') + (long ? '<div class="tl-hint">' + (i.tip ? '💡 주의 사항 · ' : '') + '눌러서 자세히 ▾</div>' : '') +
     '<div class="meta">' + (i.skip ? '<span class="tag skip-tag">⏭ 이번엔 건너뜀</span>' : '') + '<span class="tag">' + esc(i.cat || '기타') + '</span>' + (i.cost ? '<span class="tag num" style="--cc:var(--soft)">1인 ' + comma(i.cost) + unit(t.cur) + '</span>' : '') +
     (i.go && i.go.t === 'taxi' ? '<span class="go taxi-go" role="button" data-act="taxi" data-v="' + esc(i.id) + '">🚕 기사님께 보여 주기</span>' : '') +
     (i.place ? (u => '<a class="go' + (/^(nmap|intent):/.test(u) ? ' nvapp' : '') + '" href="' + esc(u) + '"' + (/^https:/.test(u) ? ' target="_blank" rel="noopener"' : '') + ' data-stop="1">' + ic('route') + '길찾기</a>')(goTo(t, i.place, i)) : '') + '</div></button>' +
@@ -2957,6 +2979,7 @@ document.addEventListener('click', e => {
     'trip-scan-add': () => scanFlow(t),
     'item-new': () => editRec('item', t, { date: UI.day[t.id] || t.start, cat: '관광', cost: 0 }),
     'item-view': () => itemView(t, D.items[v]),
+    'tl-tap': () => { const card = el.closest('.tl-card'); if (card && card.classList.contains('fold')) { TL_OPEN.add(v); card.classList.remove('fold'); card.classList.add('unfold'); return; } itemView(t, D.items[v]); },
     'rb-open': () => rbOpen(t, v != null ? +v : null),
     'rb-get': () => rbGetSheet(t),
     'rb-pdf': () => rbPdf(t),
@@ -3360,6 +3383,10 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.0', d: '2026-11-27', title: '모든 날을 세밀하게 · 카드는 접어서', items: [
+    ['plan', 'var(--coral)', '네 날 모두 세부 일정', '12/29 인천공항·간사이공항·난바·오사카성·도톤보리, 12/30 USJ·신세카이, 12/31 교토 네 곳, 1/1 간사이공항(면세 환급·체크인·출국)까지 구역마다 나눴어요. 꼭 필요한 정보(게이트·면세 환급·쿠시카쓰 소스 규칙 등)만 골라 넣었어요.'],
+    ['check', 'var(--mint)', '카드는 평소 접혀요', '메모 첫 줄만 보이고 💡 주의 사항은 접혀요. 지금·90분 안 일정은 저절로 펼쳐지고, 접힌 카드는 한 번 누르면 펼침 · 한 번 더 누르면 자세히 · 화면 가운데에 잠깐 두면 저절로 펼쳐져요.'],
+    ['globe', 'var(--sky)', '동선 구역 단추', '구역 단추가 휴대폰에서 잘리지 않게 여러 줄로 감쌌어요.']] },
   { v: '6.9', d: '2026-11-27', title: '교토 하루를 세밀하게', items: [
     ['torii', 'var(--coral)', '12/31 교토 세부 일정', '기요미즈(인왕문 → 본당 무대 → 오쿠노인 전망 → 오토와 폭포 → 산넨자카 → 니넨자카 → 야사카 탑), 후시미(누문·본전 → 센본 도리이 → 오쿠샤 소원 돌 → 네자메야 점심), 니시키(덴만구 → 먹거리 걷기 → 서쪽 끝 한큐 가라스마역), 아라시야마(도게쓰쿄 → 온천)로 나눴어요.'],
     ['globe', 'var(--sky)', '구역마다 동선 지도', '「이날 동선」에서 「기요미즈 안 · 후시미 안 · 니시키 안 · 아라시야마 안 · 하루 전체」로 골라 봐요. 욧쓰지 전망·대나무숲은 「선택」으로 회색으로 넣어 두었어요 — 눌러 「다시 넣기」.'],
