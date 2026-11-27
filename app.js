@@ -828,7 +828,7 @@ function dayMapPts(t, d) {
   return { pts: z === 'all' ? all : all.filter(i => i.zone === z), zones, z };
 }
 function dayMapHtml(t, d) {
-  const { pts, zones, z } = dayMapPts(t, d); if (pts.length < 2) return '';
+  const { pts, zones, z } = dayMapPts(t, d); if (!pts.length || (pts.length < 2 && !zones.length)) return ''; // 구역 안 핀이 하나여도 지도·구역 단추는 그대로(사라지면 되돌아갈 수 없었음)
   // 구역 단추는 여러 줄로 감싸지는 알약(한 줄 세그먼트는 휴대폰에서 잘렸음 — 팀장님 제보 2026-11-27)
   return '<div class="sec dmap-sec"><div class="sec-h"><h3 class="ih">' + ib('globe', 'var(--sky)', 1) + '이날 동선</h3></div>' +
     (zones.length ? '<div class="dm-zones">' + zones.map(x => '<button class="chipbtn' + (z === x ? ' on' : '') + '" data-act="dmz" data-v="' + esc(x) + '">' + esc(x) + '</button>').join('') + '<button class="chipbtn' + (z === 'all' ? ' on' : '') + '" data-act="dmz" data-v="all">하루 전체</button></div>' : '') +
@@ -871,17 +871,38 @@ async function mountDayMap() {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(DMAP);
     DMAP._g = L.layerGroup().addTo(DMAP);
   }
-  DMAP._g.clearLayers();
-  const ll = pts.map(i => [i.lat, i.lng]);
-  L.polyline(ll, { color: '#ffffff', weight: 8, opacity: .9 }).addTo(DMAP._g);
-  L.polyline(ll, { color: '#C2410C', weight: 4, opacity: .95, dashArray: '2 9', lineCap: 'round' }).addTo(DMAP._g);
-  const same = {}; // 같은 자리(예: 2터미널 안 면세·체크인·출국)는 핀을 동그랗게 비켜 놓아 번호가 다 보이게
-  pts.forEach((i, k) => {
-    const key = i.lat.toFixed(4) + ',' + i.lng.toFixed(4), n = same[key] = (same[key] || 0) + 1, a = (n - 1) * 1.1, r = n > 1 ? 15 + 3 * n : 0, dx = Math.round(Math.cos(a) * r), dy = Math.round(Math.sin(a) * r);
-    const icon = L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14 - dx, 14 - dy], popupAnchor: [dx, dy - 14] });
-    L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc(mapUrl(i.lat + ',' + i.lng)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
+  DMAP._g.clearLayers(); DMAP._mk = [];
+  const ll = pts.map(i => [i.lat, i.lng]), zAll = el.dataset.z === 'all';
+  if (ll.length > 1) { L.polyline(ll, { color: '#ffffff', weight: 8, opacity: .9 }).addTo(DMAP._g); L.polyline(ll, { color: '#C2410C', weight: 4, opacity: .95, dashArray: '2 9', lineCap: 'round' }).addTo(DMAP._g); }
+  // 「하루 전체」는 구역마다 핀 하나(「USJ 3–19」)로 묶음 — 도시끼리 멀어 핀이 한 점에 뭉치던 것. 누르면 그 구역으로
+  const groups = [];
+  pts.forEach((i, k) => { const g = groups[groups.length - 1]; if (zAll && i.zone && g && g.zone === i.zone) { g.items.push(i); g.last = k + 1; } else groups.push({ zone: zAll ? i.zone : '', items: [i], first: k + 1, last: k + 1 }); });
+  groups.forEach(g => {
+    if (g.zone) {
+      const la = g.items.reduce((a, i) => a + i.lat, 0) / g.items.length, ln = g.items.reduce((a, i) => a + i.lng, 0) / g.items.length;
+      const icon = L.divIcon({ className: 'dpin-w', html: '<span class="dzone">' + esc(g.zone) + ' <b class="num">' + (g.first === g.last ? g.first : g.first + '–' + g.last) + '</b></span>', iconSize: null, iconAnchor: [0, 0] });
+      const mk = L.marker([la, ln], { icon, title: g.zone + ' 안 동선 보기', zIndexOffset: 500 }).addTo(DMAP._g); mk.on('click', () => { UI.dmz = g.zone; render(); }); DMAP._mk.push(mk);
+      return;
+    }
+    const dot = zAll && groups.some(x => x.zone); // 「하루 전체」에 구역이 있으면 구역 밖 일정(역·숙소)은 번호 없는 작은 점으로 — 겹쳐 읽을 수 없던 것
+    g.items.forEach((i, n) => { const k = g.first + n - 1;
+      const icon = dot ? L.divIcon({ className: 'dpin-w', html: '<span class="ddot" title="' + (k + 1) + '. ' + esc(dmLab(i)) + '"></span>', iconSize: [14, 14], iconAnchor: [7, 7], popupAnchor: [0, -8] })
+        : L.divIcon({ className: 'dpin-w', html: '<span class="dpin' + (i.done ? ' done' : '') + '">' + (k + 1) + (dmEmo(i) ? '<i>' + dmEmo(i) + '</i>' : '') + '</span>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+      const mk = L.marker([i.lat, i.lng], { icon, title: (k + 1) + '. ' + planName(i), zIndexOffset: k }).addTo(DMAP._g).bindPopup('<div class="mpop"><b>' + (k + 1) + '. ' + dmEmo(i) + ' ' + esc(dmLab(i)) + '</b><small>' + esc(i.time || '') + ' · ' + esc(planName(i)) + '</small><div class="mpop-a"><button class="btn" data-act="item-view" data-v="' + esc(i.id) + '">일정 보기</button><a class="btn" href="' + esc(mapUrl(i.lat + ',' + i.lng)) + '" target="_blank" rel="noopener">구글 지도</a></div></div>');
+      if (!dot) DMAP._mk.push(mk); });
   });
-  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); DMAP.fitBounds(ll, { paddingTopLeft: [52, 36], paddingBottomRight: [36, 52], maxZoom: 18 }); }; // 왼쪽 위 ＋− 단추·오른쪽 아래 「크게」에 핀이 가리지 않게
+  // 화면에서 너무 붙은 핀은 살짝 비켜 놓기(확대·축소할 때마다 다시)
+  const declutter = () => { if (!DMAP || !DMAP._mk) return; const placed = []; // 실제 크기(이름표는 넓음)로 겹침을 보고 나선형으로 비켜 놓기
+    const sz = DMAP.getSize(), hit = (x, y, w, h) => x - w / 2 < 4 || y - h / 2 < 4 || x + w / 2 > sz.x - 4 || y + h / 2 > sz.y - 4 || (x - w / 2 < 46 && y - h / 2 < 78) || placed.some(q => Math.abs(q.x - x) < (q.w + w) / 2 + 3 && Math.abs(q.y - y) < (q.h + h) / 2 + 3); // 지도 밖·＋− 단추 자리도 피함
+    [...DMAP._mk].sort((a, b) => (b.options.zIndexOffset || 0) - (a.options.zIndexOffset || 0)).forEach(mk => { const e = mk.getElement && mk.getElement(), sp = e && e.firstElementChild; if (!sp) return; sp.style.translate = '0 0';
+      const w = sp.offsetWidth || 26, h = sp.offsetHeight || 26, p = DMAP.latLngToContainerPoint(mk.getLatLng()); let dx = 0, dy = 0, k = 0;
+      // 실제 자리에서 멀리 가면 헷갈려서 핀은 28px, 넓은 구역 이름표는 96px 안에서만 비킴 — 빈자리가 없으면 가장 덜 겹치는 자리
+      const cost = (x, y) => placed.reduce((n, q) => n + Math.max(0, (q.w + w) / 2 + 3 - Math.abs(q.x - x)) * Math.max(0, (q.h + h) / 2 + 3 - Math.abs(q.y - y)), 0) + (x - w / 2 < 4 || y - h / 2 < 4 || x + w / 2 > sz.x - 4 || y + h / 2 > sz.y - 4 || (x - w / 2 < 46 && y - h / 2 < 78) ? 1e5 : 0);
+      if (hit(p.x, p.y, w, h)) { let bc = cost(p.x, p.y), bx = 0, by = 0; for (let r = 12, rm = w > 40 ? 96 : 28; r <= rm && bc > 0; r += 8) for (let a = 0; a < 12; a++) { const x = Math.round(Math.cos(a * Math.PI / 6) * r), y = Math.round(Math.sin(a * Math.PI / 6) * r), c = cost(p.x + x, p.y + y); if (c < bc) { bc = c; bx = x; by = y; } } dx = bx; dy = by; }
+      placed.push({ x: p.x + dx, y: p.y + dy, w, h }); sp.style.translate = dx + 'px ' + dy + 'px'; }); };
+  if (!DMAP._dc) { DMAP._dc = true; DMAP.on('zoomend moveend', () => declutter()); }
+  DMAP._declutter = declutter;
+  const fit = () => { if (!DMAP || DMAP.getContainer() !== el || !el.offsetWidth) return; DMAP.invalidateSize(); if (ll.length === 1) DMAP.setView(ll[0], 16); else DMAP.fitBounds(ll, zAll ? { paddingTopLeft: [70, 44], paddingBottomRight: [70, 60], maxZoom: 16 } : { paddingTopLeft: [52, 36], paddingBottomRight: [36, 52], maxZoom: 18 }); [30, 400, 900].forEach(ms => setTimeout(() => DMAP && DMAP._declutter && DMAP._declutter(), ms)); }; // 왼쪽 위 ＋− 단추·오른쪽 아래 「크게」에 핀이 가리지 않게
   fit(); setTimeout(fit, 80); setTimeout(fit, 450);
   if (window.ResizeObserver && !el._ro) { el._ro = new ResizeObserver(() => { clearTimeout(el._rt); el._rt = setTimeout(fit, 120); }); el._ro.observe(el); }
 }
@@ -3409,6 +3430,9 @@ async function aiEdit() {
 
 /* ---------- 새 소식 (바뀐 것을 엽서로) ---------- */
 const NEWS = [
+  { v: '7.3', d: '2026-11-27', title: '동선 지도를 다시 다듬었어요', items: [
+    ['globe', 'var(--sky)', '하루 전체는 구역 이름표로', '「하루 전체」 지도는 「USJ 3–19」처럼 구역마다 이름표 하나로 묶어 보여요. 이름표를 누르면 그 구역 지도로 들어가요. 역·숙소는 작은 점이에요.'],
+    ['check', 'var(--mint)', '자리 고침', '숙소·택시·전철 도착점이 엉뚱한 곳에 찍히던 것을 바로잡고, 붙어 있는 핀은 살짝 비켜 번호가 보여요. 핀이 하나뿐인 구역을 눌러도 지도가 사라지지 않아요.']] },
   { v: '7.2', d: '2026-11-27', title: '읽을 때만 스르륵 펼쳐져요', items: [
     ['plan', 'var(--coral)', '카드가 스르륵', '일정·오늘 화면·예약 모두·여행 정보 「알아 둘 것」·가고 싶은 곳의 긴 글은 스크롤하는 동안 접혀 있다가, 멈춰서 화면 가운데 카드를 보고 있으면 스르륵 펼쳐지고, 다시 스크롤하면 스르륵 접혀요. 눌러서 펼친 카드는 그대로 둬요.'],
     ['globe', 'var(--sky)', '예쁜 단추 그림', '길찾기 단추에 색 네모 이모티콘(🗺️🚶🚕🍜🏪🎡)을 넣고, 창 아래 단추 크기를 알맞게 줄였어요.']] },

@@ -1599,3 +1599,8 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .sfc .tl-x{overflow:hidden}
 .row.sfc{cursor:pointer}
 .pass.sfc .m{display:block;-webkit-line-clamp:unset;overflow:visible}
+/* 「하루 전체」 구역 묶음 핀 */
+.dzone{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transform:translate(-50%,-50%);padding:5px 10px;border-radius:99px;background:#C2410C;color:#fff;font-size:13px;font-weight:800;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer}
+.dzone b{font-weight:700;opacity:.9;font-size:12px}
+.dpin{transition:translate .12s ease}
+.ddot{display:block;width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #C2410C;box-shadow:0 1px 4px rgba(0,0,0,.3)}
