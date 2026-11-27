@@ -1206,7 +1206,7 @@ function sunVars(t, i) {
 function sunChip(t, ds) {
   if (!ds) return '';
   const { rise, set } = sunOf(t, ds);
-  return '<div class="sunchip"><span>🌅 해 뜨는 때 <b class="num">' + mmStr(rise) + '</b></span><span>🌇 해 지는 때 <b class="num">' + mmStr(set) + '</b></span><span class="sc-leg"><i class="b-morning"></i>아침<i class="b-day"></i>낮<i class="b-evening"></i>저녁<i class="b-night"></i>밤</span></div>';
+  return '<div class="sunchip"><span>🌅 해 뜨는 때 <b class="num">' + mmStr(rise) + '</b></span><span>🌇 해 지는 때 <b class="num">' + mmStr(set) + '</b></span><span class="sc-leg"><b class="b-morning">아침</b><b class="b-day">낮</b><b class="b-evening">저녁</b><b class="b-night">밤</b></span></div>';
 }
 /* 일정 목록 — 시간 순서대로 화살표, 화살표 옆에 가는 길 */
 function tlList(t, list, nowFirst) {

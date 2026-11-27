@@ -1695,13 +1695,15 @@ html.big .sheet-acts .btn{min-height:52px;font-size:17px}
 .nc-left{font-style:normal;flex:none;font-size:12.5px;font-weight:800;color:var(--coral-ink);background:color-mix(in srgb,var(--coral) 13%,#fff);border-radius:99px;padding:3px 10px;white-space:nowrap}
 .nc-go{display:flex;width:100%;min-height:46px;margin-top:4px;border-radius:14px;justify-content:center;align-items:center;gap:8px;font-size:15px}
 .nc-go .i{width:19px;height:19px}
-.now-sec .tl-card,.now-sec .tl-card.sun{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);color:var(--ink);border-radius:18px;outline:0}
-.now-sec .tl-card.now{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--coral) 55%,transparent),0 6px 18px rgba(224,89,46,.14)}
-.now-sec .tl-card.sun .m,.now-sec .tl-card.sun .tm b{opacity:1}
-.now-sec .tl-card.sun .m{color:var(--soft)}
-.now-sec .tl-card.sun .m[style]{color:var(--coral-ink)!important}
-.now-sec .tl-card.sun .chk{background:#fff;border-color:var(--line)}
-.now-sec .tl-card.b-night .stampx.haha{color:#C4343C}.now-sec .tl-card.b-night .stampx.usj{color:inherit}
-.now-sec .tl-card .tm b{font-size:13px;padding:1px 7px;border-radius:99px;background:var(--tod,#EEF1F5);color:var(--tod-ink,var(--soft))}
-.now-sec .tl-card.b-dawn{--tod:#EEE6F8;--tod-ink:#5A3E86}.now-sec .tl-card.b-morning{--tod:#FFF0C8;--tod-ink:#8A5A00}.now-sec .tl-card.b-day{--tod:#DDEBFF;--tod-ink:#1F5AA6}.now-sec .tl-card.b-evening{--tod:#FFE0D2;--tod-ink:#B1401A}.now-sec .tl-card.b-night{--tod:#E0E4F7;--tod-ink:#2D3A7A}
-.now-sec .tl-arrow .goline{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);color:#2F66C9;border-radius:10px;padding:4px 10px}
+/* 일정 탭 카드도 같은 흰 유리(2026-11-27 팀장님) — 시간대 색은 시각 알약(--tod)으로만 */
+.tl-card,.tl-card.sun{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);color:var(--ink);border-radius:18px;outline:0}
+.tl-card.now{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--coral) 55%,transparent),0 6px 18px rgba(224,89,46,.14)}
+.tl-card.sun .m,.tl-card.sun .tm b{opacity:1}
+.tl-card.sun .m{color:var(--soft)}
+.tl-card.sun .m[style]{color:var(--coral-ink)!important}
+.tl-card.sun .chk{background:#fff;border-color:var(--line)}
+.tl-card.b-night .stampx.haha{color:#C4343C}.tl-card.b-night .stampx.usj{color:inherit}
+.tl-card .tm b{font-size:13px;padding:1px 7px;border-radius:99px;background:var(--tod,#EEF1F5);color:var(--tod-ink,var(--soft))}
+.tl-card.b-dawn{--tod:#EEE6F8;--tod-ink:#5A3E86}.tl-card.b-morning,.sc-leg .b-morning{--tod:#FFF0C8;--tod-ink:#8A5A00}.tl-card.b-day,.sc-leg .b-day{--tod:#DDEBFF;--tod-ink:#1F5AA6}.tl-card.b-evening,.sc-leg .b-evening{--tod:#FFE0D2;--tod-ink:#B1401A}.tl-card.b-night,.sc-leg .b-night{--tod:#E0E4F7;--tod-ink:#2D3A7A}
+.sc-leg{gap:5px}.sc-leg b{font-size:12px;font-weight:800;padding:1px 8px;border-radius:99px;background:var(--tod);color:var(--tod-ink)}
+.tl-arrow .goline{background:var(--glass-regular);box-shadow:var(--glass-edge-sm);color:#2F66C9;border-radius:10px;padding:4px 10px}
